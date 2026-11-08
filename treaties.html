@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>יחסי חוץ ואמנות - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+    <script src="gov-core.js"></script>
+    <script src="gov-nav.js"></script>
+
+    <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
+        <h1 class="text-3xl font-black text-white">🤝 יחסי חוץ ואמנות</h1>
+        <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">הבטחות והסכמים שחורגים ממך עצמך: מול בן/בת זוג, משפחה, חברים, עבודה, גופים. לכל אמנה יש תנאים, מועד ומחיר הפרה. הפרה נרשמת בכנות, ואמנה שנסגרה נעולה.</p>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 space-y-5 mt-4">
+        <section id="treaties-overview" class="space-y-4">
+            <div id="summary" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div id="donutBox" class="g-card"></div>
+                <div id="upcomingBox" class="g-card"></div>
+            </div>
+        </section>
+        <section id="treaties-form" class="g-card"></section>
+        <section id="treaties-list" class="space-y-4"></section>
+    </main>
+
+    <script>
+        const G = window.GOV, h = G.esc, $ = id => document.getElementById(id);
+        const NOW = G.localDate();
+        let editId = null;
+        const daysTo = ds => Math.round((new Date(ds + 'T00:00:00') - new Date(NOW + 'T00:00:00')) / 864e5);
+        const pById = id => G.portfolios.get(id);
+        const pOpts = s => '<option value="">ללא תיק</option>' + G.portfolios.all().map(p => `<option value="${h(p.id)}"${p.id === s ? ' selected' : ''}>${p.icon} ${h(p.name)}</option>`).join('');
+        const lvlColor = { 1: '#facc15', 2: '#fb923c', 3: '#f87171' };
+
+        function renderSummary() {
+            const all = G.treaties.all(), act = all.filter(t => t.status === 'active'), over = act.filter(t => t.due && t.due < NOW);
+            const card = (v, l, c) => `<div class="g-card text-center" style="padding:10px"><div class="text-2xl font-black" style="color:${c}">${v}</div><div class="text-[11px] text-slate-400">${l}</div></div>`;
+            $('summary').innerHTML = card(act.length, 'אמנות בתוקף', '#38bdf8') + card(over.length, 'באיחור', over.length ? '#f87171' : '#64748b') + card(all.filter(t => t.status === 'fulfilled').length, 'קוימו', '#34d399') + card(all.filter(t => t.status === 'breached').length, 'הופרו', '#f87171');
+        }
+
+        // טבעת סטטוס (SVG): כל קטע = סטטוס. בלי נתוני דמה: אם אין אמנות, מצב ריק.
+        function renderDonut() {
+            const all = G.treaties.all(), total = all.length, R = 40, C = 2 * Math.PI * R;
+            const keys = Object.keys(G.TREATY_STATUS), counts = keys.map(k => all.filter(t => t.status === k).length);
+            let acc = 0, segs = '';
+            keys.forEach((k, i) => { if (!counts[i]) return; const d = counts[i] / total * C; segs += `<circle cx="60" cy="60" r="${R}" fill="none" stroke="${G.TREATY_STATUS[k].c}" stroke-width="16" stroke-dasharray="${d.toFixed(2)} ${(C - d).toFixed(2)}" stroke-dashoffset="${(-acc).toFixed(2)}" transform="rotate(-90 60 60)"><title>${G.TREATY_STATUS[k].l}: ${counts[i]}</title></circle>`; acc += d; });
+            const closed = all.filter(t => t.status === 'fulfilled' || t.status === 'breached'), kept = all.filter(t => t.status === 'fulfilled').length;
+            $('donutBox').innerHTML = `<h2 class="font-bold text-white text-sm mb-3">🍩 תמונת מצב האמנות</h2>` + (total ? `<div class="flex items-center gap-4 flex-wrap">
+                <svg viewBox="0 0 120 120" style="width:9rem;height:9rem"><circle cx="60" cy="60" r="${R}" fill="none" stroke="#0f172a" stroke-width="16"/>${segs}<text x="60" y="58" text-anchor="middle" font-size="22" font-weight="900" fill="#f8fafc">${total}</text><text x="60" y="74" text-anchor="middle" font-size="9" fill="#94a3b8">אמנות</text></svg>
+                <div class="space-y-1 text-xs">${keys.map((k, i) => `<div class="flex items-center gap-2"><i class="inline-block w-3 h-3 rounded" style="background:${G.TREATY_STATUS[k].c}"></i><span class="text-slate-200">${G.TREATY_STATUS[k].l}</span><span class="text-slate-400">${counts[i]}</span></div>`).join('')}</div></div>
+                <p class="text-[11px] text-slate-400 mt-3">${closed.length >= 3 ? `שיעור קיום מבין האמנות שנסגרו בקיום או בהפרה: <b class="text-slate-200">${Math.round(kept / closed.length * 100)}%</b> (${kept} מתוך ${closed.length}).` : `שיעור הקיום יוצג אחרי לפחות 3 אמנות שנסגרו בקיום או בהפרה (כרגע ${closed.length}).`}</p>` : '<p class="text-xs text-slate-500 py-6 text-center">עדיין אין אמנות. הוסף את הראשונה למטה.</p>');
+        }
+
+        function renderUpcoming() {
+            const list = G.treaties.all().filter(t => t.status === 'active' && t.due).sort((a, b) => a.due.localeCompare(b.due)).slice(0, 8);
+            $('upcomingBox').innerHTML = `<h2 class="font-bold text-white text-sm mb-3">⏳ מועדים קרובים</h2>` + (list.length ? `<div class="space-y-1.5">${list.map(t => { const d = daysTo(t.due), c = d < 0 ? '#f87171' : d <= 14 ? '#fb923c' : '#94a3b8';
+                return `<div class="flex items-center justify-between gap-2 bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1.5 text-xs" style="border-right:4px solid ${c}"><span class="min-w-0">${G.PARTY_KIND[t.kind].i} <b>${h(t.party)}</b>: ${h(t.title)}</span><span class="shrink-0" style="color:${c}">${d < 0 ? 'באיחור ' + (-d) + ' ימים' : d === 0 ? 'היום' : 'בעוד ' + d + ' ימים'}</span></div>`; }).join('')}</div>` : '<p class="text-xs text-slate-500 py-6 text-center">אין אמנות בתוקף עם מועד.</p>');
+        }
+
+        function renderForm() {
+            const t = editId ? G.treaties.get(editId) : null, v = t || { party: '', kind: 'person', title: '', terms: '', cost: '', costLevel: 2, due: '', pid: '' };
+            if (editId && !t) editId = null;
+            $('treaties-form').innerHTML = `<h2 class="font-bold text-white text-sm mb-3">${t ? '✏️ עריכת אמנה' : '➕ אמנה חדשה'}</h2>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <label class="g-lab md:col-span-2">מול מי? (שם אדם, קבוצה או גוף)<input id="tParty" class="g-inp" maxlength="60" value="${h(v.party)}"></label>
+                    <label class="g-lab">סוג הצד<select id="tKind" class="g-inp">${Object.entries(G.PARTY_KIND).map(([k, o]) => `<option value="${k}"${v.kind === k ? ' selected' : ''}>${o.i} ${o.l}</option>`).join('')}</select></label>
+                    <label class="g-lab">תיק קשור<select id="tPid" class="g-inp">${pOpts(v.pid)}</select></label>
+                    <label class="g-lab md:col-span-2">כותרת האמנה<input id="tTitle" class="g-inp" maxlength="140" placeholder="למשל: ערב קבוע של זוגיות בכל שבוע" value="${h(v.title)}"></label>
+                    <label class="g-lab">מועד (אם יש)<input id="tDue" type="date" class="g-inp" value="${h(v.due)}"></label>
+                    <label class="g-lab">חומרת הפרה<select id="tLevel" class="g-inp">${[1, 2, 3].map(n => `<option value="${n}"${v.costLevel === n ? ' selected' : ''}>${G.LEVEL[n]}</option>`).join('')}</select></label>
+                    <label class="g-lab md:col-span-2">התנאים: מה בדיוק התחייבת ומה הצד השני התחייב?<textarea id="tTerms" rows="2" maxlength="600" class="g-inp">${h(v.terms)}</textarea></label>
+                    <label class="g-lab md:col-span-2">מה המחיר אם תפר? (אמון, כסף, יחסים, מוניטין…)<textarea id="tCost" rows="2" maxlength="300" class="g-inp">${h(v.cost)}</textarea></label>
+                </div>
+                <div class="flex gap-2 mt-3"><button class="g-btn pri" onclick="saveTreaty()">💾 ${t ? 'שמור שינויים' : 'הוסף אמנה'}</button>${t ? '<button class="g-btn" onclick="editId=null;render()">ביטול</button>' : ''}</div>
+                <p class="text-[10px] text-slate-500 mt-2">אמנה בתוקף ניתנת לעריכה. אחרי שנסגרה (קוימה / הופרה / הסתיימה) היא נעולה, כדי שהיסטוריית ההתחייבויות שלך לא תשוכתב.</p>`;
+        }
+        function saveTreaty() {
+            const party = $('tParty').value.trim(), title = $('tTitle').value.trim();
+            if (party.length < 2) { alert('הזן מול מי האמנה (לפחות 2 תווים).'); return; }
+            if (title.length < 3) { alert('הזן כותרת לאמנה (לפחות 3 תווים).'); return; }
+            const base = editId ? G.treaties.get(editId) : {};
+            const item = Object.assign({}, base, { party, title, kind: $('tKind').value, pid: $('tPid').value, due: $('tDue').value, costLevel: $('tLevel').value, terms: $('tTerms').value, cost: $('tCost').value, status: 'active' });
+            if (!G.treaties.save(item)) { alert('לא ניתן לשמור: ייתכן שהאמנה כבר נסגרה.'); return; }
+            editId = null; render();
+        }
+
+        function card(t) {
+            const s = G.TREATY_STATUS[t.status], act = t.status === 'active', port = t.pid && pById(t.pid), d = t.due ? daysTo(t.due) : null;
+            const dueTxt = t.due ? (act && d < 0 ? `<span style="color:#f87171">מועד ${h(t.due)} (באיחור ${-d} ימים)</span>` : act && d <= 14 ? `<span style="color:#fb923c">מועד ${h(t.due)} (בעוד ${d} ימים)</span>` : `מועד ${h(t.due)}`) : '';
+            return `<div class="g-card" style="border-right:4px solid ${s.c};padding:12px">
+                <div class="flex flex-wrap items-start justify-between gap-2"><div class="min-w-0"><div class="font-bold text-white">${h(t.title)}</div>
+                    <div class="text-[11px] text-slate-400 mt-0.5">${port ? port.icon + ' ' + h(port.name) + ' • ' : ''}${dueTxt}${t.closedAt ? ' • נסגרה ב-' + h(t.closedAt) : ''}</div></div>
+                    <div class="flex items-center gap-1.5"><span class="g-chip" style="color:${lvlColor[t.costLevel]};border-color:${lvlColor[t.costLevel]}66;background:${lvlColor[t.costLevel]}1a">חומרת הפרה: ${G.LEVEL[t.costLevel]}</span><span class="g-chip" style="color:${s.c};border-color:${s.c}55;background:${s.c}1a">${s.l}</span></div></div>
+                ${t.terms ? `<div class="text-[11px] text-slate-300 mt-2">📄 ${h(t.terms)}</div>` : ''}${t.cost ? `<div class="text-[11px] text-amber-200/80 mt-1">⚠️ מחיר הפרה: ${h(t.cost)}</div>` : ''}${t.note ? `<div class="text-[11px] text-violet-300 mt-1">📝 ${h(t.note)}</div>` : ''}
+                ${act ? `<div class="flex flex-wrap gap-2 mt-3"><button class="g-btn ok" onclick="closeT('${h(t.id)}','fulfilled')">✓ קוימה</button><button class="g-btn red" onclick="closeT('${h(t.id)}','breached')">✗ הופרה</button><button class="g-btn" onclick="closeT('${h(t.id)}','ended')">⏹ הסתיימה</button><button class="g-btn" onclick="editId='${h(t.id)}';render();scrollToForm()">✏️ ערוך</button><button class="g-btn" onclick="delT('${h(t.id)}')">🗑️</button></div>` : ''}</div>`;
+        }
+        function scrollToForm() { $('treaties-form').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+
+        function renderList() {
+            const all = G.treaties.all(), box = $('treaties-list');
+            if (!all.length) { box.innerHTML = ''; return; }
+            const parties = {}; all.forEach(t => { const k = t.party.toLowerCase(); (parties[k] = parties[k] || { name: t.party, kind: t.kind, items: [] }).items.push(t); });
+            const order = Object.values(parties).sort((a, b) => b.items.filter(t => t.status === 'active').length - a.items.filter(t => t.status === 'active').length || a.name.localeCompare(b.name, 'he'));
+            box.innerHTML = order.map(p => { const act = p.items.filter(t => t.status === 'active').length, br = p.items.filter(t => t.status === 'breached').length;
+                return `<div><div class="flex items-center gap-2 mb-2"><h3 class="font-bold text-slate-200 text-sm">${G.PARTY_KIND[p.kind].i} ${h(p.name)}</h3><span class="text-[11px] text-slate-500">${act} בתוקף${br ? ' • ' + br + ' הופרו' : ''}</span></div><div class="space-y-2">${p.items.sort((a, b) => (a.status === 'active' ? 0 : 1) - (b.status === 'active' ? 0 : 1) || (a.due || '9').localeCompare(b.due || '9')).map(card).join('')}</div></div>`; }).join('');
+        }
+        function closeT(id, status) {
+            let note = '';
+            if (status === 'breached') { note = prompt('הפרת אמנה נרשמת בכנות. מה קרה, ולמה? (לפחות 10 תווים)'); if (note === null) return; }
+            else if (status === 'fulfilled') { note = prompt('הערה אופציונלית (אפשר להשאיר ריק):'); if (note === null) return; }
+            else { note = prompt('למה האמנה הסתיימה? (אופציונלי)'); if (note === null) return; }
+            const r = G.treaties.close(id, status, note); if (!r.ok) { alert(r.error); return; } render();
+        }
+        function delT(id) { if (confirm('למחוק את האמנה? (אם היא פשוט לא קוימה, עדיף לסגור אותה כ"הופרה" ולא למחוק)')) { G.treaties.remove(id); render(); } }
+
+        function render() { renderSummary(); renderDonut(); renderUpcoming(); renderForm(); renderList(); }
+        window.addEventListener('DOMContentLoaded', render);
+        window.addEventListener('storage', render);
+    </script>
+</body>
+</html>

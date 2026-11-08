@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>הבטחות - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+    <script src="gov-core.js"></script>
+    <script src="gov-nav.js"></script>
+
+    <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
+        <h1 class="text-3xl font-black text-white">📜 הבטחות הממשלה</h1>
+        <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">הבטחה טובה ניתנת למדידה, יש לה עדיפות, ויש לה תיק שאחראי עליה. בסוף החודש הממשלה נמדדת רק לפי מה שהובטח כאן.</p>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 space-y-5 mt-4">
+        <div class="flex items-center justify-center gap-3">
+            <button class="g-btn" onclick="shift(-1)">→</button>
+            <div class="text-center"><div id="monthLabel" class="text-xl font-black text-amber-400"></div><button class="text-[11px] text-slate-400 hover:text-slate-200 underline" onclick="goNow()">חזרה לחודש הנוכחי</button></div>
+            <button class="g-btn" onclick="shift(1)">←</button>
+        </div>
+        <div id="banner"></div>
+        <div id="summary" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+
+        <section id="promises-add" class="g-card"></section>
+        <section id="promises-list" class="space-y-3"></section>
+    </main>
+
+    <script>
+        const G = window.GOV, h = G.esc, $ = id => document.getElementById(id);
+        const NOW = G.localDate(), NOW_MK = G.monthOf(NOW);
+        let mk = NOW_MK;
+        const closed = () => G.review.isClosed(mk);
+        const pById = id => G.portfolios.all().find(p => p.id === id);
+        const pOpts = () => '<option value="">ללא תיק</option>' + G.portfolios.all().map(p => `<option value="${h(p.id)}">${p.icon} ${h(p.name)}</option>`).join('');
+        const bar = (pct, color) => `<div class="g-bar"><i style="width:${pct}%;background:${color}"></i></div>`;
+        function shift(n) { mk = G.addMonths(mk, n); render(); }
+        function goNow() { mk = NOW_MK; render(); }
+
+        function renderTop() {
+            $('monthLabel').textContent = G.monthLabel(mk);
+            const cl = closed(), past = mk < NOW_MK;
+            $('banner').innerHTML = cl ? '<div class="border border-violet-500/30 bg-violet-500/10 text-violet-100 rounded-xl px-3 py-2 text-xs text-center">🔒 החודש הזה נסגר והוקפא. אפשר לראות את ההבטחות, אבל לא לשנות אותן (כדי שאי אפשר יהיה לשכתב היסטוריה). פתיחה מחדש אפשרית בדף "ציון חודשי".</div>'
+                : (past ? '<div class="border border-amber-500/30 bg-amber-500/10 text-amber-100 rounded-xl px-3 py-2 text-xs text-center">חודש שעבר: אפשר לעדכן ביצוע, אבל לא להוסיף הבטחות רטרואקטיבית. סגור אותו בדף "ציון חודשי".</div>' : '');
+            const sc = G.score(mk), g = sc.total != null ? G.gradeFor(sc.total) : null;
+            const card = (v, l, c) => `<div class="g-card text-center" style="padding:10px"><div class="text-2xl font-black" style="color:${c}">${v}</div><div class="text-[11px] text-slate-400">${l}</div></div>`;
+            $('summary').innerHTML = card(sc.promisesN, 'הבטחות פעילות', '#fbbf24') + card(sc.doneN, 'בוצעו', '#34d399') + card(sc.droppedN, 'הוסרו בנימוק', '#a78bfa') + card(g ? g.l : '—', g ? 'ציון עד כה (' + sc.total + ')' : 'אין מספיק נתונים לציון', g ? g.c : '#64748b');
+        }
+
+        function renderAdd() {
+            const box = $('promises-add');
+            if (closed() || mk < NOW_MK) { box.innerHTML = '<p class="text-xs text-slate-500 text-center">הוספת הבטחות אפשרית רק בחודש הנוכחי או בחודשים עתידיים שלא נסגרו.</p>'; return; }
+            const prev = G.addMonths(mk, -1), carry = G.promises.all().filter(p => p.month === prev && ['open', 'progress', 'failed'].includes(p.status)).length;
+            box.innerHTML = `<h2 class="font-bold text-white text-sm mb-3">➕ הבטחה חדשה ל${h(G.monthLabel(mk))}</h2>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <label class="g-lab md:col-span-2">ההבטחה (לפחות 5 תווים, בניסוח שאפשר לבדוק)<input id="fText" class="g-inp" maxlength="300" placeholder="למשל: 12 אימונים החודש"></label>
+                    <label class="g-lab">תיק אחראי<select id="fPid" class="g-inp">${pOpts()}</select></label>
+                    <label class="g-lab">עדיפות<select id="fPri" class="g-inp"><option value="3">מכרעת</option><option value="2" selected>רגילה</option><option value="1">נמוכה</option></select></label>
+                    <label class="g-lab md:col-span-2">איך נדע שבוצעה? (קריטריון הצלחה)<input id="fMeasure" class="g-inp" maxlength="300"></label>
+                    <label class="g-lab md:col-span-2">למה זה חשוב? (אופציונלי)<input id="fWhy" class="g-inp" maxlength="300"></label>
+                </div>
+                <div class="flex flex-wrap gap-2 mt-3"><button class="g-btn pri" onclick="addPromise()">הוסף הבטחה</button>
+                    ${carry ? `<button class="g-btn" onclick="carryOver()">🔁 גלגל ${carry} הבטחות שלא בוצעו מ${h(G.monthLabel(prev))}</button>` : ''}</div>
+                <p class="text-[10px] text-slate-500 mt-2">הבטחות מגולגלות מסומנות 🔁 ומתחילות מאפס. הסימון נשאר, כדי שיהיה ברור כמה זמן הבטחה נגררת.</p>`;
+        }
+        function addPromise() {
+            const t = $('fText').value.trim();
+            if (t.length < 5) { alert('נסח את ההבטחה בלפחות 5 תווים.'); return; }
+            G.promises.save({ month: mk, text: t, pid: $('fPid').value, priority: $('fPri').value, measure: $('fMeasure').value, why: $('fWhy').value });
+            render();
+        }
+        function carryOver() {
+            const prev = G.addMonths(mk, -1), have = new Set(G.promises.all().filter(p => p.month === mk).map(p => p.text));
+            let n = 0;
+            G.promises.all().filter(p => p.month === prev && ['open', 'progress', 'failed'].includes(p.status) && !have.has(p.text)).forEach(p => { G.promises.save({ month: mk, text: p.text, pid: p.pid, priority: p.priority, measure: p.measure, why: p.why, carried: true }); n++; });
+            if (!n) alert('כל ההבטחות כבר קיימות החודש.'); render();
+        }
+
+        function card(p) {
+            const s = G.STATUS[p.status], port = pById(p.pid), ro = closed() || p.status === 'dropped';
+            return `<div class="g-card" style="border-right:4px solid ${s.c};padding:14px">
+                <div class="flex flex-wrap items-start justify-between gap-2"><div class="min-w-0"><div class="font-bold text-white">${p.carried ? '🔁 ' : ''}${p.priority === 3 ? '⭐ ' : ''}${h(p.text)}</div>
+                    <div class="text-[11px] text-slate-400 mt-0.5">${port ? port.icon + ' ' + h(port.name) : 'ללא תיק'} • עדיפות ${G.PRIORITY[p.priority]}${p.doneAt ? ' • בוצעה ב-' + p.doneAt : ''}</div></div>
+                    <span class="g-chip" style="color:${s.c};border-color:${s.c}55;background:${s.c}1a">${s.l}</span></div>
+                ${p.measure ? `<div class="text-[11px] text-slate-300 mt-2">🎯 קריטריון: ${h(p.measure)}</div>` : ''}${p.why ? `<div class="text-[11px] text-slate-400">💭 ${h(p.why)}</div>` : ''}
+                ${p.status === 'dropped' ? `<div class="text-[11px] text-violet-300 mt-2">נימוק להסרה: ${h(p.dropReason)}</div>` : ''}
+                ${p.status !== 'dropped' ? `<div class="flex items-center gap-2 mt-3">${bar(p.progress, s.c)}<span class="text-[11px] text-slate-300 w-9 text-left">${p.progress}%</span></div>` : ''}
+                ${ro ? '' : `<div class="flex flex-wrap items-center gap-2 mt-3">
+                    <input type="range" min="0" max="100" step="5" value="${p.progress}" class="flex-1 min-w-[8rem] accent-amber-400" onchange="setProgress('${h(p.id)}',this.value)">
+                    <select class="g-inp" style="margin:0;width:auto" onchange="setStatus('${h(p.id)}',this.value)">${['open', 'progress', 'done', 'failed'].map(k => `<option value="${k}"${p.status === k ? ' selected' : ''}>${G.STATUS[k].l}</option>`).join('')}</select>
+                    <button class="g-btn" onclick="editText('${h(p.id)}')">✏️</button><button class="g-btn" onclick="dropPromise('${h(p.id)}')" title="הסרה דורשת נימוק">הסר בנימוק</button><button class="g-btn red" onclick="removePromise('${h(p.id)}')">🗑️</button></div>`}
+            </div>`;
+        }
+        function renderList() {
+            const all = G.promises.all().filter(p => p.month === mk).sort((a, b) => b.priority - a.priority || a.created.localeCompare(b.created));
+            const groups = [['פעילות', all.filter(p => p.status === 'open' || p.status === 'progress')], ['בוצעו', all.filter(p => p.status === 'done')], ['לא בוצעו', all.filter(p => p.status === 'failed')], ['הוסרו בנימוק', all.filter(p => p.status === 'dropped')]];
+            $('promises-list').innerHTML = all.length ? groups.filter(g => g[1].length).map(g => `<div><h3 class="text-sm font-bold text-slate-300 mb-2">${g[0]} (${g[1].length})</h3><div class="space-y-2">${g[1].map(card).join('')}</div></div>`).join('')
+                : '<div class="g-card text-center text-sm text-slate-400">אין הבטחות לחודש הזה.</div>';
+        }
+        function mutate(id, fn) { if (closed()) return; const p = G.promises.get(id); if (!p) return; fn(p); G.promises.save(p); render(); }
+        function setProgress(id, v) { mutate(id, p => { p.progress = Number(v); if (p.progress === 100) { p.status = 'done'; p.doneAt = NOW; } else if (p.progress > 0 && (p.status === 'open' || p.status === 'done')) { p.status = 'progress'; p.doneAt = ''; } else if (p.progress === 0 && p.status === 'progress') p.status = 'open'; }); }
+        function setStatus(id, s) { mutate(id, p => { p.status = s; if (s === 'done') { p.progress = 100; p.doneAt = NOW; } else p.doneAt = ''; }); }
+        function editText(id) { const p = G.promises.get(id); if (!p) return; const t = prompt('נוסח ההבטחה:', p.text); if (t && t.trim().length >= 5) mutate(id, x => { x.text = t.trim(); }); }
+        function dropPromise(id) {
+            const r = prompt('הסרת הבטחה היא החלטה, לא מחיקה. מה הנימוק? (לפחות 10 תווים; הוא יוצג בסיכום החודש)');
+            if (r === null) return;
+            if (r.trim().length < 10) { alert('נימוק קצר מדי. אם אין נימוק אמיתי, ההבטחה פשוט לא בוצעה: סמן אותה "לא בוצעה".'); return; }
+            mutate(id, p => { p.status = 'dropped'; p.dropReason = r.trim(); });
+        }
+        function removePromise(id) { if (closed()) return; if (confirm('למחוק את ההבטחה לגמרי? (אם היא פשוט לא בוצעה, עדיף לסמן "לא בוצעה" ולא למחוק)')) { G.promises.remove(id); render(); } }
+
+        function render() { renderTop(); renderAdd(); renderList(); }
+        window.addEventListener('DOMContentLoaded', render);
+        window.addEventListener('storage', render);
+    </script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>תיקי ממשלה - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+    <script src="gov-core.js"></script>
+    <script src="gov-nav.js"></script>
+
+    <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
+        <h1 class="text-3xl font-black text-white">🗂️ תיקי הממשלה</h1>
+        <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">כל תחום בחיים הוא תיק עם שר, משימה, סוגיות פתוחות ורעיונות. השרים כרגע דמויות שאתה מעניק להם שם וסגנון; בהמשך הם יהפכו ליועצי AI.</p>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 space-y-5 mt-4">
+        <section id="portfolios-grid">
+            <div class="flex justify-end mb-2"><button class="g-btn" onclick="newPortfolio()">➕ תיק חדש</button></div>
+            <div id="grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+        </section>
+        <section id="portfolio-detail"></section>
+    </main>
+
+    <script>
+        const G = window.GOV, h = G.esc, $ = id => document.getElementById(id);
+        const NOW = G.localDate(), MK = G.monthOf(NOW);
+        let sel = (location.hash.match(/^#p=(.+)$/) || [])[1] || null;
+
+        function renderGrid() {
+            const ps = G.promises.all().filter(p => p.month === MK && p.status !== 'dropped'), is = G.issues.all().filter(i => i.status === 'open'), ids = G.ideas.all().filter(i => i.status === 'new');
+            $('grid').innerHTML = G.portfolios.all().map(p => {
+                const mine = ps.filter(x => x.pid === p.id), done = mine.filter(x => x.status === 'done').length;
+                return `<button type="button" onclick="openP('${h(p.id)}')" class="g-card text-right hover:border-amber-400 transition ${sel === p.id ? 'border-amber-400' : ''}">
+                    <div class="flex items-center gap-2"><span class="text-2xl">${p.icon}</span><span class="font-bold text-white">${h(p.name)}</span></div>
+                    <div class="text-[11px] text-slate-400 mt-1">השר/ה: ${h(p.minister) || 'טרם מונה'}${p.style ? ' • ' + h(p.style) : ''}</div>
+                    <div class="flex flex-wrap gap-1.5 mt-2 text-[10px]"><span class="g-chip text-emerald-300 border-emerald-500/40">הבטחות ${done}/${mine.length}</span><span class="g-chip text-amber-300 border-amber-500/40">סוגיות ${is.filter(x => x.pid === p.id).length}</span><span class="g-chip text-sky-300 border-sky-500/40">רעיונות ${ids.filter(x => x.pid === p.id).length}</span></div></button>`;
+            }).join('');
+        }
+        function openP(id) { sel = id; history.replaceState(null, '', '#p=' + id); render(); $('portfolio-detail').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+        function newPortfolio() {
+            const n = prompt('שם התיק החדש:'); if (!n || !n.trim()) return;
+            const ic = prompt('אייקון (אימוג׳י אחד):', '📁') || '📁';
+            const p = G.portfolios.save({ name: n.trim(), icon: ic.trim() || '📁' }); if (p) { sel = p.id; render(); }
+        }
+
+        function renderDetail() {
+            const box = $('portfolio-detail'), p = sel && G.portfolios.get(sel);
+            if (!p) { box.innerHTML = '<div class="g-card text-center text-sm text-slate-400">בחר תיק כדי לראות את הסוגיות, הרעיונות וההבטחות שלו.</div>'; return; }
+            const proms = G.promises.all().filter(x => x.pid === p.id && x.month === MK && x.status !== 'dropped');
+            const is = G.issues.all().filter(x => x.pid === p.id).sort((a, b) => (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1) || b.severity - a.severity);
+            const ids = G.ideas.all().filter(x => x.pid === p.id && x.status !== 'rejected').sort((a, b) => (a.status === 'new' ? 0 : 1) - (b.status === 'new' ? 0 : 1));
+            box.innerHTML = `<div class="g-card space-y-5">
+                <div class="flex flex-wrap items-center justify-between gap-2"><h2 class="text-xl font-black text-amber-400">${p.icon} ${h(p.name)}</h2>${p.builtin ? '' : `<button class="g-btn red" onclick="deleteP()">🗑️ מחק תיק</button>`}</div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <label class="g-lab">שם השר/ה<input id="pMin" class="g-inp" maxlength="40" value="${h(p.minister)}"></label>
+                    <label class="g-lab">סגנון השר/ה<input id="pStyle" class="g-inp" maxlength="60" value="${h(p.style)}"></label>
+                    <label class="g-lab md:col-span-3">משימת התיק: מה התיק הזה אמור להשיג בחייך?<textarea id="pMission" rows="2" maxlength="500" class="g-inp">${h(p.mission)}</textarea></label></div>
+                <button class="g-btn pri" onclick="saveP()">💾 שמור פרטי תיק</button>
+
+                <div><h3 class="font-bold text-white text-sm mb-2">📜 הבטחות החודש בתיק (${proms.length})</h3>
+                    ${proms.map(x => `<div class="text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1.5 mb-1.5 flex justify-between gap-2"><span>${h(x.text)}</span><span style="color:${G.STATUS[x.status].c}">${G.STATUS[x.status].l} ${x.progress}%</span></div>`).join('') || '<p class="text-xs text-slate-500">אין הבטחות החודש בתיק הזה.</p>'}</div>
+
+                <div><h3 class="font-bold text-white text-sm mb-2">🔥 סוגיות</h3>
+                    ${is.map(x => `<div class="text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1.5 mb-1.5 flex items-center gap-2"><span>${x.severity === 3 ? '🔴' : (x.severity === 2 ? '🟠' : '🟡')}</span>
+                        <span class="flex-1 ${x.status === 'resolved' ? 'line-through text-slate-500' : ''}">${h(x.title)}</span>
+                        ${x.status === 'open' ? `<button class="text-emerald-400 font-bold" onclick="resolveI('${h(x.id)}')">✓ טופלה</button>` : `<span class="text-slate-500">${h(x.resolvedAt)}</span>`}<button class="text-rose-400" onclick="delI('${h(x.id)}')">✕</button></div>`).join('') || '<p class="text-xs text-slate-500 mb-1.5">אין סוגיות.</p>'}
+                    <div class="flex flex-wrap gap-2 mt-2"><input id="iT" class="g-inp flex-1 min-w-[10rem]" style="margin:0" maxlength="200" placeholder="סוגיה חדשה בתיק…" onkeydown="if(event.key==='Enter')addI()"><select id="iS" class="g-inp" style="margin:0;width:auto"><option value="3">חמורה</option><option value="2" selected>רגילה</option><option value="1">קלה</option></select><button class="g-btn" onclick="addI()">הוסף</button></div></div>
+
+                <div><h3 class="font-bold text-white text-sm mb-2">💡 רעיונות של התיק</h3>
+                    ${ids.map(x => `<div class="text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1.5 mb-1.5 flex items-center gap-2"><span class="flex-1">${h(x.text)}</span>
+                        ${x.status === 'new' ? `<button class="g-btn ok" onclick="adopt('${h(x.id)}')" title="הופך להבטחה בחודש הנוכחי">אמץ כהבטחה</button><button class="g-btn" onclick="rejectI('${h(x.id)}')">דחה</button>` : '<span class="g-chip text-emerald-300 border-emerald-500/40">אומץ</span>'}</div>`).join('') || '<p class="text-xs text-slate-500 mb-1.5">אין רעיונות.</p>'}
+                    <div class="flex gap-2 mt-2"><input id="dT" class="g-inp flex-1" style="margin:0" maxlength="300" placeholder="רעיון חדש…" onkeydown="if(event.key==='Enter')addIdea()"><button class="g-btn" onclick="addIdea()">הוסף</button></div></div>
+            </div>`;
+        }
+        function saveP() { const p = G.portfolios.get(sel); if (!p) return; p.minister = $('pMin').value; p.style = $('pStyle').value; p.mission = $('pMission').value; G.portfolios.save(p); render(); }
+        function deleteP() { if (confirm('למחוק את התיק? הסוגיות וההבטחות שלו יישארו אך ללא תיק.')) { G.portfolios.remove(sel); sel = null; history.replaceState(null, '', location.pathname); render(); } }
+        function addI() { const t = $('iT').value.trim(); if (!t) return; G.issues.save({ title: t, pid: sel, severity: $('iS').value }); render(); }
+        function resolveI(id) { const i = G.issues.get(id); if (i) { i.status = 'resolved'; i.resolvedAt = NOW; G.issues.save(i); } render(); }
+        function delI(id) { G.issues.remove(id); render(); }
+        function addIdea() { const t = $('dT').value.trim(); if (!t) return; G.ideas.save({ pid: sel, text: t }); render(); }
+        function rejectI(id) { const i = G.ideas.get(id); if (i) { i.status = 'rejected'; G.ideas.save(i); } render(); }
+        function adopt(id) {
+            const i = G.ideas.get(id); if (!i) return;
+            if (G.review.isClosed(MK)) { alert('החודש הנוכחי נסגר, ולכן אי אפשר להוסיף לו הבטחות.'); return; }
+            if (i.text.length < 5) { alert('נוסח הרעיון קצר מדי להבטחה.'); return; }
+            G.promises.save({ month: MK, pid: i.pid, text: i.text, priority: 2 }); i.status = 'adopted'; G.ideas.save(i); render();
+        }
+        function render() { renderGrid(); renderDetail(); }
+        window.addEventListener('DOMContentLoaded', render);
+        window.addEventListener('storage', render);
+    </script>
+</body>
+</html>

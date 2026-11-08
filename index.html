@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>לוח בקרה - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+    <script src="gov-core.js"></script>
+    <script src="gov-nav.js"></script>
+
+    <header class="max-w-6xl mx-auto px-4 pt-8 pb-4">
+        <div class="text-[11px] font-bold text-amber-400 tracking-wider">☀️ לוח הבקרה של הממשלה</div>
+        <h1 id="greet" class="text-3xl md:text-4xl font-black text-white"></h1>
+        <div id="dateLine" class="text-sm text-slate-400"></div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 space-y-5">
+        <section id="term" class="g-card border-amber-500/30"><div id="termBox"></div></section>
+        <div id="alerts"></div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <section id="today" class="g-card lg:col-span-2"></section>
+            <section id="scoreBox" class="g-card"></section>
+            <section id="promisesBox" class="g-card lg:col-span-2"></section>
+            <section id="issuesBox" class="g-card"></section>
+        </div>
+
+        <section id="govBox" class="g-card"></section>
+
+        <section id="viz" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div id="heatBox" class="g-card"></div>
+            <div id="radarBox" class="g-card"></div>
+        </section>
+
+        <section id="cloud" class="g-card border-sky-500/30"></section>
+
+        <section id="roadmap" class="g-card">
+            <h2 class="font-bold text-white text-sm mb-2">🧭 מה עוד בדרך</h2>
+            <p class="text-[11px] text-slate-400 leading-relaxed">ניהול יחסים (קרבה לאנשים), שרי AI, פרופיל יכולות (קורות חיים מתפתחים), עיתונות ומסיבות עיתונאים, דעת קהל פיקטיבית ובחירות, שאלון היסודות, סימולטור קריירה. הרשימה המלאה, הסטטוס והסדר נמצאים בקובץ האפיון (SPEC.md).</p>
+        </section>
+
+        <section id="settings" class="g-card">
+            <h2 class="font-bold text-white text-sm mb-3">⚙️ הגדרות, גיבוי ואבטחה</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                <div><label class="g-lab">איך לקרוא לך<input id="sName" class="g-inp" maxlength="40"></label><button class="g-btn mt-2" onclick="saveName()">💾 שמור</button></div>
+                <div><div class="g-lab mb-1">גיבוי ושחזור (כל הנתונים נשמרים רק בדפדפן הזה, ולכן חשוב לגבות)</div>
+                    <div class="flex flex-wrap gap-2"><button class="g-btn ok" onclick="GOV.exportAll()">⬇️ הורד גיבוי</button>
+                    <label class="g-btn cursor-pointer">⬆️ שחזר מקובץ<input type="file" accept="application/json" class="hidden" onchange="doImport(event)"></label></div></div>
+                <div id="pinBox"></div>
+            </div>
+            <p class="text-[10px] text-slate-500 mt-3 leading-relaxed">קוד הגישה הוא שער נוחות בלבד: הוא מסתיר את המסך מפני מי שמציץ, אך אינו מצפין את הנתונים. מי שיש לו גישה לדפדפן הפתוח יכול לקרוא אותם. נעילה אמיתית (הצפנה) מתוכננת בהמשך, ראה SPEC.md.</p>
+        </section>
+    </main>
+
+    <script>
+        const G = window.GOV, h = G.esc, $ = id => document.getElementById(id);
+        const TODAY = G.localDate(), MK = G.monthOf(TODAY);
+        let editTerm = false;
+        const closed = () => G.review.isClosed(MK);
+        const pById = id => G.portfolios.all().find(p => p.id === id);
+        const pIcon = id => (pById(id) || { icon: '📁' }).icon;
+        const pOpts = sel => '<option value="">ללא תיק</option>' + G.portfolios.all().map(p => `<option value="${h(p.id)}"${p.id === sel ? ' selected' : ''}>${p.icon} ${h(p.name)}</option>`).join('');
+        const bar = (pct, color) => `<div class="g-bar"><i style="width:${Math.max(0, Math.min(100, pct))}%;background:${color}"></i></div>`;
+
+        function renderHeader() {
+            const hr = new Date().getHours(), hello = hr >= 5 && hr < 11 ? 'בוקר טוב' : (hr >= 11 && hr < 17 ? 'צהריים טובים' : (hr >= 17 && hr < 22 ? 'ערב טוב' : 'לילה טוב'));
+            const n = G.profile.get().name;
+            $('greet').textContent = n ? `${hello}, ${n}` : hello;
+            $('dateLine').textContent = new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        }
+
+        // ---------- ממשלת החודש ----------
+        function renderTerm() {
+            const t = G.term.get(MK), box = $('termBox'), kinds = { self: 'אני עצמי', real: 'אדם אמיתי שמהווה לי השראה החודש', fictional: 'דמות פיקטיבית' };
+            if (!t || editTerm) {
+                const v = t || { kind: 'self', name: '', doctrine: '' };
+                box.innerHTML = `<div class="text-sm text-amber-300 font-bold mb-3">${t ? 'עריכת' : 'הקמת'} ממשלת ${h(G.monthLabel(MK))}</div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <label class="g-lab">מי ראש הממשלה החודש?<select id="tKind" class="g-inp">${Object.entries(kinds).map(([k, l]) => `<option value="${k}"${v.kind === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+                        <label class="g-lab">שם (אפשר להשאיר ריק אם זה אתה)<input id="tName" class="g-inp" maxlength="60" value="${h(v.name)}"></label>
+                        <label class="g-lab md:col-span-3">דוקטרינת החודש: על מה הממשלה הזו מתמקדת, ומה היא מסרבת לעשות?<textarea id="tDoc" rows="2" maxlength="500" class="g-inp">${h(v.doctrine)}</textarea></label>
+                    </div>
+                    <div class="flex gap-2 mt-3"><button class="g-btn pri" onclick="saveTerm()">💾 ${t ? 'שמור' : 'הקם ממשלה'}</button>${t ? '<button class="g-btn" onclick="editTerm=false;renderTerm()">ביטול</button>' : ''}</div>`;
+                return;
+            }
+            const who = t.kind === 'self' ? (t.name || G.profile.get().name || 'אני') : t.name || 'ללא שם';
+            box.innerHTML = `<div class="flex flex-wrap items-start justify-between gap-3">
+                <div><div class="text-[11px] font-bold text-amber-400">ממשלת ${h(G.monthLabel(MK))}</div>
+                    <div class="text-xl font-black text-white">ראש הממשלה: ${h(who)} <span class="text-[11px] font-normal text-slate-400">(${kinds[t.kind]})</span></div>
+                    ${t.doctrine ? `<p class="text-sm text-slate-300 mt-1 leading-relaxed">📌 ${h(t.doctrine)}</p>` : '<p class="text-xs text-slate-500 mt-1">לא נקבעה דוקטרינה לחודש.</p>'}</div>
+                <button class="g-btn" onclick="editTerm=true;renderTerm()">✏️ ערוך</button></div>
+                ${closed() ? '<div class="mt-2 text-xs text-violet-300">🔒 החודש הזה נסגר בדף "ציון חודשי". ההבטחות שלו הוקפאו.</div>' : ''}`;
+        }
+        function saveTerm() {
+            G.term.set(MK, { kind: $('tKind').value, name: $('tName').value, doctrine: $('tDoc').value, created: (G.term.get(MK) || {}).created });
+            editTerm = false; render();
+        }
+
+        // ---------- משימות היום ----------
+        function renderDaily() {
+            const list = G.daily.get(TODAY), done = list.filter(x => x.done).length;
+            $('today').innerHTML = `<div class="flex items-center justify-between mb-3"><h2 class="font-bold text-white text-sm">✅ פעולות היום</h2><span class="text-[11px] text-slate-400">${done}/${list.length} בוצעו</span></div>
+                ${list.length ? `<div class="mb-3">${bar(done / list.length * 100, '#34d399')}</div>` : ''}
+                <div class="space-y-1.5 mb-3">${list.map(x => `<div class="flex items-center gap-2 bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-2">
+                    <input type="checkbox" ${x.done ? 'checked' : ''} onchange="toggleDaily('${h(x.id)}')" class="w-4 h-4 accent-emerald-400 shrink-0">
+                    <span class="flex-1 text-sm ${x.done ? 'line-through text-slate-500' : 'text-slate-100'}">${pIcon(x.pid)} ${h(x.text)}</span>
+                    <button class="text-rose-400 text-xs" onclick="removeDaily('${h(x.id)}')">✕</button></div>`).join('') || '<p class="text-xs text-slate-500 py-2">אין פעולות להיום. הוסף את הפעולה הראשונה, או גלגל מאתמול.</p>'}</div>
+                <div class="flex flex-wrap gap-2"><input id="dText" class="g-inp flex-1 min-w-[10rem]" style="margin:0" maxlength="200" placeholder="פעולה חדשה להיום…" onkeydown="if(event.key==='Enter')addDaily()">
+                    <select id="dPid" class="g-inp" style="margin:0;width:auto">${pOpts('')}</select><button class="g-btn pri" onclick="addDaily()">הוסף</button><button class="g-btn" onclick="carryOver()" title="מעביר מאתמול פעולות שלא בוצעו">↪️ גלגל מאתמול</button></div>`;
+        }
+        function addDaily() { const t = $('dText').value.trim(); if (!t) return; const l = G.daily.get(TODAY); l.push({ id: G.uid(), text: t, done: false, pid: $('dPid').value }); G.daily.set(TODAY, l); renderDaily(); renderScore(); renderAlerts(); }
+        function toggleDaily(id) { const l = G.daily.get(TODAY), x = l.find(i => i.id === id); if (x) { x.done = !x.done; G.daily.set(TODAY, l); } renderDaily(); renderScore(); renderAlerts(); }
+        function removeDaily(id) { G.daily.set(TODAY, G.daily.get(TODAY).filter(i => i.id !== id)); renderDaily(); renderScore(); renderAlerts(); }
+        function carryOver() {
+            const open = G.daily.get(G.addDays(TODAY, -1)).filter(x => !x.done), l = G.daily.get(TODAY), have = new Set(l.map(x => x.text));
+            let n = 0; open.forEach(x => { if (!have.has(x.text)) { l.push({ id: G.uid(), text: x.text, done: false, pid: x.pid }); n++; } });
+            G.daily.set(TODAY, l); renderDaily(); renderScore();
+            if (!n) alert('אין פעולות פתוחות מאתמול לגלגל.');
+        }
+
+        // ---------- הבטחות החודש ----------
+        function renderPromises() {
+            const ps = G.promises.all().filter(p => p.month === MK && p.status !== 'dropped').sort((a, b) => b.priority - a.priority || a.created.localeCompare(b.created)), ro = closed();
+            $('promisesBox').innerHTML = `<div class="flex items-center justify-between mb-3"><h2 class="font-bold text-white text-sm">📜 הבטחות ${h(G.monthLabel(MK))}</h2><a href="promises.html" class="text-[11px] text-amber-400 hover:underline">לכל ההבטחות ←</a></div>
+                ${ps.length ? `<div class="space-y-2">${ps.map(p => { const s = G.STATUS[p.status]; return `<div class="bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-2" style="border-right:4px solid ${s.c}">
+                    <div class="flex items-center justify-between gap-2"><span class="text-sm text-slate-100 min-w-0">${p.priority === 3 ? '⭐ ' : ''}${pIcon(p.pid)} ${h(p.text)}</span><span class="g-chip shrink-0" style="color:${s.c};border-color:${s.c}55;background:${s.c}1a">${s.l}</span></div>
+                    <div class="flex items-center gap-2 mt-1.5">${bar(p.progress, s.c)}<select ${ro || p.status === 'failed' ? 'disabled' : ''} onchange="setProgress('${h(p.id)}',this.value)" class="g-inp" style="margin:0;width:4.5rem;padding:2px 4px;font-size:11px">${[0, 25, 50, 75, 100].map(v => `<option value="${v}"${v === p.progress ? ' selected' : ''}>${v}%</option>`).join('')}</select></div></div>`; }).join('')}</div>`
+                : '<p class="text-xs text-slate-500">עדיין לא הוגדרו הבטחות לחודש הזה. ממשלה בלי הבטחות אי אפשר למדוד.</p><a href="promises.html#promises-add" class="inline-block mt-2 g-btn pri">➕ הוסף הבטחה ראשונה</a>'}`;
+        }
+        function setProgress(id, v) {
+            const p = G.promises.get(id); if (!p || closed()) return;
+            p.progress = Number(v);
+            if (p.progress === 100) { p.status = 'done'; p.doneAt = TODAY; } else if (p.progress > 0) p.status = 'progress'; else p.status = 'open';
+            G.promises.save(p); renderPromises(); renderScore(); renderAlerts();
+        }
+
+        // ---------- סוגיות על הפרק ----------
+        function renderIssues() {
+            const list = G.issues.all().filter(i => i.status === 'open').sort((a, b) => b.severity - a.severity || a.created.localeCompare(b.created));
+            $('issuesBox').innerHTML = `<div class="flex items-center justify-between mb-3"><h2 class="font-bold text-white text-sm">🔥 סוגיות על הפרק</h2><a href="portfolios.html#portfolio-detail" class="text-[11px] text-amber-400 hover:underline">לפי תיק ←</a></div>
+                <div class="space-y-1.5 mb-3">${list.slice(0, 6).map(i => `<div class="flex items-center gap-2 bg-slate-900/70 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs"><span>${i.severity === 3 ? '🔴' : (i.severity === 2 ? '🟠' : '🟡')}</span><span class="flex-1 text-slate-200">${pIcon(i.pid)} ${h(i.title)}</span><button class="text-emerald-400 font-bold" onclick="resolveIssue('${h(i.id)}')" title="סמן כטופלה">✓</button></div>`).join('') || '<p class="text-xs text-slate-500">אין סוגיות פתוחות.</p>'}${list.length > 6 ? `<div class="text-[10px] text-slate-500">+${list.length - 6} נוספות</div>` : ''}</div>
+                <input id="iTitle" class="g-inp" style="margin:0" maxlength="200" placeholder="סוגיה חדשה… (Enter)" onkeydown="if(event.key==='Enter')addIssue()">`;
+        }
+        function addIssue() { const t = $('iTitle').value.trim(); if (!t) return; G.issues.save({ title: t, severity: 2 }); renderIssues(); }
+        function resolveIssue(id) { const i = G.issues.get(id); if (i) { i.status = 'resolved'; i.resolvedAt = TODAY; G.issues.save(i); } renderIssues(); }
+
+        // ---------- ציון ----------
+        const ring = (v, g) => { const c = 2 * Math.PI * 54; return `<svg viewBox="0 0 140 140" class="mx-auto" style="width:9rem;height:9rem"><circle cx="70" cy="70" r="54" fill="none" stroke="#0f172a" stroke-width="13"/><circle cx="70" cy="70" r="54" fill="none" stroke="${g.c}" stroke-width="13" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - v / 100)).toFixed(1)}" transform="rotate(-90 70 70)" style="filter:drop-shadow(0 0 6px ${g.c}88)"/><text x="70" y="64" text-anchor="middle" font-size="12" fill="#94a3b8">ציון</text><text x="70" y="94" text-anchor="middle" font-size="40" font-weight="900" fill="${g.c}">${g.l}</text></svg>`; };
+
+        // ---------- ויזואליזציות: מפת החודש + מכ"ם התיקים ----------
+        function heatColor(r) { return r >= 1 ? '#34d399' : r >= 0.67 ? '#a3e635' : r >= 0.34 ? '#facc15' : r > 0 ? '#fb923c' : '#f87171'; }
+        function renderViz() {
+            const dim = G.daysInMonth(MK); let cells = '', planned = 0, full = 0, tasks = 0, doneTasks = 0;
+            for (let d = 1; d <= dim; d++) {
+                const ds = MK + '-' + G.pad(d), l = G.daily.get(ds), isF = ds > TODAY, isT = ds === TODAY;
+                let bg = '#1e293b', tip = ds + ': אין רישום';
+                if (isF) { bg = '#0f172a'; tip = ds + ' (עתיד)'; }
+                else if (l.length) { const dn = l.filter(x => x.done).length, r = dn / l.length; bg = heatColor(r); tip = `${ds}: ${dn}/${l.length} בוצעו`; planned++; if (r === 1) full++; tasks += l.length; doneTasks += dn; }
+                cells += `<div title="${tip}" class="rounded-md flex items-center justify-center text-[10px] font-bold ${isT ? 'ring-2 ring-white' : ''}" style="aspect-ratio:1;background:${bg};color:${l.length && !isF ? '#0f172a' : '#64748b'}">${d}</div>`;
+            }
+            $('heatBox').innerHTML = `<h2 class="font-bold text-white text-sm mb-1">🗓️ מפת החודש</h2><p class="text-[11px] text-slate-400 mb-3">כל יום צבוע לפי אחוז הפעולות שבוצעו בו. אפור = לא תוכנן דבר.</p>
+                <div class="grid gap-1.5" style="grid-template-columns:repeat(7,minmax(0,1fr))">${cells}</div>
+                <div class="flex flex-wrap items-center gap-3 mt-3 text-[10px] text-slate-400"><span class="flex items-center gap-1"><i class="w-3 h-3 rounded inline-block" style="background:#f87171"></i>0%</span><span class="flex items-center gap-1"><i class="w-3 h-3 rounded inline-block" style="background:#facc15"></i>חלקי</span><span class="flex items-center gap-1"><i class="w-3 h-3 rounded inline-block" style="background:#34d399"></i>100%</span></div>
+                <div class="text-[11px] text-slate-300 mt-2">${planned} ימים עם תכנון • ${full} ימים מושלמים • ${tasks ? Math.round(doneTasks / tasks * 100) : 0}% מהפעולות בוצעו</div>`;
+            const act = G.promises.all().filter(p => p.month === MK && p.status !== 'dropped'), rows = G.portfolios.all().map(p => { const m = act.filter(x => x.pid === p.id); return m.length ? { l: p.name.replace(/^תיק ה?/, ''), v: Math.round(m.reduce((n, x) => n + (x.status === 'done' ? 100 : x.status === 'failed' ? 0 : x.progress), 0) / m.length), n: m.length } : null; }).filter(Boolean);
+            $('radarBox').innerHTML = `<h2 class="font-bold text-white text-sm mb-1">🕸️ איפה הממשלה מתקדמת</h2><p class="text-[11px] text-slate-400 mb-2">התקדמות ממוצעת בהבטחות, לפי תיק.</p>${rows.length ? '<div style="height:250px"><canvas id="radarC"></canvas></div>' : '<p class="text-xs text-slate-500 py-10 text-center">אין עדיין הבטחות משויכות לתיקים החודש.</p>'}`;
+            if (!rows.length || typeof Chart === 'undefined') return;
+            if (window._radar) window._radar.destroy();
+            const common = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.parsed.r !== undefined ? ` ${c.parsed.r}% (${rows[c.dataIndex].n} הבטחות)` : ` ${c.parsed.x}%` } } } };
+            window._radar = rows.length >= 3
+                ? new Chart($('radarC').getContext('2d'), { type: 'radar', data: { labels: rows.map(r => r.l), datasets: [{ data: rows.map(r => r.v), borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,.22)', pointBackgroundColor: '#fbbf24' }] }, options: Object.assign({}, common, { scales: { r: { min: 0, max: 100, angleLines: { color: '#334155' }, grid: { color: '#334155' }, pointLabels: { color: '#cbd5e1', font: { size: 11 } }, ticks: { display: false } } } }) })
+                : new Chart($('radarC').getContext('2d'), { type: 'bar', data: { labels: rows.map(r => r.l), datasets: [{ data: rows.map(r => r.v), backgroundColor: '#fbbf24' }] }, options: Object.assign({}, common, { indexAxis: 'y', scales: { x: { min: 0, max: 100, grid: { color: '#334155' }, ticks: { color: '#cbd5e1' } }, y: { grid: { display: false }, ticks: { color: '#cbd5e1' } } } }) });
+        }
+
+        // ---------- ענן ----------
+        function renderCloud() {
+            const S = window.GOV_SYNC; if (!S) { $('cloud').innerHTML = ''; return; }
+            const c = S.cfg(), st = { idle: ['⚪', 'לא מסונכרן', '#94a3b8'], ok: ['🟢', 'מסונכרן', '#34d399'], syncing: ['🔵', 'מסנכרן…', '#38bdf8'], error: ['🔴', 'שגיאה', '#f87171'], conflict: ['🟠', 'התנגשות', '#fb923c'], behind: ['🟠', 'הענן מקדים', '#fb923c'] }[c.state] || ['⚪', '', '#94a3b8'];
+            $('cloud').innerHTML = `<div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h2 class="font-bold text-white text-sm">☁️ שמירה קבועה בענן (Google Apps Script)</h2><span class="g-chip" style="color:${st[2]};border-color:${st[2]}66;background:${st[2]}1a">${st[0]} ${st[1]}</span></div>
+                <p class="text-[11px] text-slate-400 mb-3 leading-relaxed">הנתונים נשמרים כקובץ JSON בדרייב שלך, ונשארים גם אם הדפדפן מתנקה. הוראות הפריסה ב-README.md. הכתובת והמפתח נשמרים רק בדפדפן הזה ולא נכללים בגיבוי.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs"><label class="g-lab">כתובת ה-Web App (מסתיימת ב-/exec)<input id="cUrl" class="g-inp" dir="ltr" value="${h(c.url)}" placeholder="https://script.google.com/macros/s/.../exec"></label>
+                    <label class="g-lab">מפתח (GOV_TOKEN)<input id="cTok" type="password" class="g-inp" dir="ltr" value="${h(c.token)}" autocomplete="off"></label></div>
+                <label class="flex items-center gap-2 text-xs text-slate-300 mt-2"><input type="checkbox" id="cAuto" ${c.auto ? 'checked' : ''} class="accent-sky-400"> סנכרון אוטומטי (דחיפה לענן 5 שניות אחרי כל שינוי)</label>
+                <div class="flex flex-wrap gap-2 mt-3"><button class="g-btn pri" onclick="cloudSave()">💾 שמור ובדוק חיבור</button><button class="g-btn ok" onclick="cloudPush(false)">⬆️ דחוף לענן</button><button class="g-btn" onclick="cloudPull()">⬇️ משוך מהענן</button><button class="g-btn red" onclick="cloudPush(true)" title="דורס את גרסת הענן">דרוס את הענן</button></div>
+                <div class="text-[11px] mt-2" style="color:${st[2]}">${h(c.msg)}${c.last ? ' • סנכרון אחרון: ' + new Date(c.last).toLocaleString('he-IL') : ''}</div>`;
+        }
+        async function cloudSave() { window.GOV_SYNC.setConfig({ url: $('cUrl').value, token: $('cTok').value, auto: $('cAuto').checked }); renderCloud(); await window.GOV_SYNC.ping(); renderCloud(); }
+        async function cloudPush(force) { if (force && !confirm('לדרוס את הנתונים שבענן בנתונים של המכשיר הזה? גרסת הענן הקודמת נשמרת כגיבוי בדרייב (עד 5 גרסאות).')) return; window.GOV_SYNC.setConfig({ url: $('cUrl').value, token: $('cTok').value, auto: $('cAuto').checked }); await window.GOV_SYNC.push(force); renderCloud(); }
+        async function cloudPull() { if (!confirm('למשוך מהענן? הנתונים במכשיר הזה יוחלפו בנתוני הענן. מומלץ להוריד קודם גיבוי מקומי.')) return; window.GOV_SYNC.setConfig({ url: $('cUrl').value, token: $('cTok').value, auto: $('cAuto').checked }); const c = await window.GOV_SYNC.pull(); if (c.state === 'ok') render(); else renderCloud(); }
+        window.addEventListener('gov:sync', () => { if (!document.activeElement || !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) renderCloud(); });
+
+        function renderScore() {
+            const sc = G.score(MK), names = { promises: 'הבטחות', daily: 'עקביות יומית', self: 'הערכה עצמית' };
+            const g = sc.total != null ? G.gradeFor(sc.total) : null, day = Number(TODAY.slice(8)), dim = G.daysInMonth(MK);
+            $('scoreBox').innerHTML = `<div class="flex items-center justify-between mb-3"><h2 class="font-bold text-white text-sm">📊 ציון הממשלה (עד כה)</h2><a href="review.html" class="text-[11px] text-amber-400 hover:underline">פירוט ←</a></div>
+                <div class="text-center mb-3">${g ? ring(sc.total, g) + `<div class="text-xs text-slate-400 -mt-1">${sc.total} מתוך 100</div>` : '<div class="text-sm text-slate-400 py-3">אין עדיין מספיק נתונים לציון</div>'}</div>
+                <div class="space-y-2 text-[11px]">${sc.parts.map(p => `<div><div class="flex justify-between text-slate-300"><span>${names[p.id]} <span class="text-slate-500">(${p.w}%)</span></span><span>${p.v == null ? 'אין מספיק נתונים' : Math.round(p.v)}</span></div>${bar(p.v || 0, '#fbbf24')}</div>`).join('')}</div>
+                <div class="text-[10px] text-slate-500 mt-3">יום ${day} מתוך ${dim} בחודש. ציון ההבטחות דורש לפחות ${sc.min.promises} הבטחות (יש ${sc.promisesN}), והעקביות היומית לפחות ${sc.min.daily} ימים עם רישום (יש ${sc.dailyDays}).</div>`;
+        }
+
+        // ---------- התראות (כללים פשוטים, לא AI) ----------
+        function renderAlerts() {
+            const sc = G.score(MK), ps = G.promises.all().filter(p => p.month === MK), act = ps.filter(p => p.status !== 'dropped'), items = [];
+            const day = Number(TODAY.slice(8)), dim = G.daysInMonth(MK);
+            if (!closed()) {
+                if (!ps.length) items.push(['amber', 'לחודש הזה אין אף הבטחה. אי אפשר למדוד ממשלה בלי הבטחות.']);
+                if (act.length >= 3 && act.every(p => p.priority === 3)) items.push(['amber', 'כל ההבטחות מסומנות "מכרעת". כשהכול מכריע אין סדר עדיפויות.']);
+                if (act.length > 10) items.push(['amber', `${act.length} הבטחות פעילות בחודש אחד הן עומס גדול. שקול לצמצם או להסיר בנימוק.`]);
+                if (act.length >= 3) { const avg = act.reduce((n, p) => n + (p.status === 'done' ? 100 : p.status === 'failed' ? 0 : p.progress), 0) / act.length, elapsed = day / dim * 100; if (avg < elapsed - 25) items.push(['rose', `פיגור: עברו ${Math.round(elapsed)}% מהחודש אך ההתקדמות הממוצעת בהבטחות היא ${Math.round(avg)}%.`]); }
+                if (ps.length >= 4 && sc.droppedN / ps.length > 0.25) items.push(['amber', `${sc.droppedN} מתוך ${ps.length} הבטחות הוסרו החודש. הסרה בנימוק שמרנית מאוד היא עדיין התחמקות כשהיא חוזרת על עצמה.`]);
+            }
+            const dsAll = G.decisions.all(), tsAct = G.treaties.all().filter(t => t.status === 'active');
+            const overT = tsAct.filter(t => t.due && t.due < TODAY).length, dueD = dsAll.filter(needsReview).length, staleD = dsAll.filter(d => d.status === 'open' && d.created < G.addDays(TODAY, -14)).length;
+            if (overT) items.unshift(['rose', `${overT} אמנות באיחור. סגור אותן ב"קוימה" או "הופרה" בדף יחסי חוץ, גם אם התשובה לא נעימה.`]);
+            if (dueD) items.push(['amber', `${dueD} החלטות ממתינות לבדיקת תוצאה בדיעבד בדף הקבינט.`]);
+            if (staleD) items.push(['amber', `${staleD} החלטות פתוחות כבר יותר מ-14 ימים. דחיית החלטה היא גם החלטה, ולרוב היא יקרה.`]);
+            const cls = { amber: 'border-amber-500/30 bg-amber-500/10 text-amber-100', rose: 'border-rose-500/30 bg-rose-500/10 text-rose-100' };
+            $('alerts').innerHTML = items.slice(0, 4).map(a => `<div class="border rounded-xl px-3 py-2 mb-2 text-xs ${cls[a[0]]}">${a[1]}</div>`).join('');
+        }
+
+        // ---------- קבינט ויחסי חוץ ----------
+        const needsReview = d => d.status === 'decided' && !d.reviewedAt && d.reviewAt && d.reviewAt <= TODAY;
+        function renderGov() {
+            const ds = G.decisions.all(), ts = G.treaties.all().filter(t => t.status === 'active');
+            const open = ds.filter(d => d.status === 'open'), due = ds.filter(needsReview), over = ts.filter(t => t.due && t.due < TODAY), soon = ts.filter(t => t.due && t.due >= TODAY && t.due <= G.addDays(TODAY, 14));
+            const tile = (v, l, c, href) => `<a href="${href}" class="block bg-slate-900/70 border border-slate-700 hover:border-amber-400 rounded-xl p-3 text-center transition"><div class="text-2xl font-black" style="color:${c}">${v}</div><div class="text-[11px] text-slate-400">${l}</div></a>`;
+            $('govBox').innerHTML = `<div class="flex items-center justify-between mb-3"><h2 class="font-bold text-white text-sm">🏛️ קבינט ויחסי חוץ</h2><span class="text-[11px] text-slate-500"><a href="cabinet.html" class="text-amber-400 hover:underline">קבינט</a> • <a href="treaties.html" class="text-amber-400 hover:underline">יחסי חוץ</a></span></div>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-2">${tile(open.length, 'החלטות פתוחות', open.length ? '#fbbf24' : '#64748b', 'cabinet.html#cabinet-list')}${tile(due.length, 'ממתינות לבדיקת תוצאה', due.length ? '#fb923c' : '#64748b', 'cabinet.html#cabinet-list')}${tile(ts.length, 'אמנות בתוקף', '#38bdf8', 'treaties.html#treaties-list')}${tile(over.length, 'אמנות באיחור', over.length ? '#f87171' : '#64748b', 'treaties.html#treaties-overview')}${tile(soon.length, 'מועד ב-14 ימים הקרובים', soon.length ? '#fb923c' : '#64748b', 'treaties.html#treaties-overview')}</div>`;
+        }
+
+        // ---------- הגדרות ----------
+        function renderSettings() {
+            $('sName').value = G.profile.get().name;
+            $('pinBox').innerHTML = !G.lock.supported() ? '<div class="g-lab">קוד גישה אינו זמין בדפדפן או בהקשר הזה (נדרש https או localhost).</div>'
+                : G.lock.isSet() ? '<div class="g-lab mb-1">קוד גישה פעיל</div><button class="g-btn red" onclick="removePin()">הסר קוד גישה</button>'
+                : '<label class="g-lab">קוד גישה (לפחות 4 תווים)<input id="sPin" type="password" class="g-inp" autocomplete="new-password"></label><button class="g-btn mt-2" onclick="setPin()">🔒 הפעל</button>';
+        }
+        function saveName() { G.profile.set({ name: $('sName').value }); renderHeader(); }
+        async function setPin() { const v = $('sPin').value; if (v.length < 4) { alert('קוד הגישה חייב להכיל לפחות 4 תווים.'); return; } if (await G.lock.set(v)) location.reload(); }
+        function removePin() { if (confirm('להסיר את קוד הגישה?')) { G.lock.remove(); location.reload(); } }
+        function doImport(ev) { const f = ev.target.files[0]; if (!f) return; G.importAll(f, (n, err) => { if (err) alert(err); else { alert('שוחזרו ' + n + ' רשומות.'); render(); } }); ev.target.value = ''; }
+
+        function render() { renderHeader(); renderTerm(); renderAlerts(); renderDaily(); renderPromises(); renderIssues(); renderScore(); renderGov(); renderViz(); renderCloud(); renderSettings(); }
+        window.addEventListener('DOMContentLoaded', render);
+        window.addEventListener('storage', render);
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+    </script>
+</body>
+</html>

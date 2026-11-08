@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>קבינט - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+    <script src="gov-core.js"></script>
+    <script src="gov-nav.js"></script>
+
+    <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
+        <h1 class="text-3xl font-black text-white">🏛️ קבינט הממשלה</h1>
+        <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">החלטות מרכזיות מתקבלות כאן, בצורה מסודרת: לפחות שתי אפשרויות, השפעה על ההבטחות והאמנות שלך, הכרעה מנומקת, ובדיקה בדיעבד שלא ניתנת לשכתוב. המטרה היא להשתפר בהחלטות, לא להצדיק אותן.</p>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 space-y-5 mt-4">
+        <div id="summary" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+        <section id="cabinet-new" class="g-card"></section>
+        <section id="cabinet-list" class="space-y-4"></section>
+        <section id="cabinet-detail"></section>
+        <section id="cabinet-insight" class="g-card"></section>
+    </main>
+
+    <script>
+        const G = window.GOV, h = G.esc, $ = id => document.getElementById(id);
+        const NOW = G.localDate();
+        let sel = (location.hash.match(/^#d=(.+)$/) || [])[1] || null;
+        const pById = id => G.portfolios.get(id);
+        const pIcon = id => (pById(id) || { icon: '📁' }).icon;
+        const pOpts = s => '<option value="">ללא תיק</option>' + G.portfolios.all().map(p => `<option value="${h(p.id)}"${p.id === s ? ' selected' : ''}>${p.icon} ${h(p.name)}</option>`).join('');
+        const needsReview = d => d.status === 'decided' && !d.reviewedAt && d.reviewAt && d.reviewAt <= NOW;
+
+        function renderSummary() {
+            const all = G.decisions.all(), rev = all.filter(d => d.reviewedAt);
+            const avg = rev.length ? (rev.reduce((n, d) => n + (d.processRating || 0), 0) / rev.length).toFixed(1) : '—';
+            const card = (v, l, c) => `<div class="g-card text-center" style="padding:10px"><div class="text-2xl font-black" style="color:${c}">${v}</div><div class="text-[11px] text-slate-400">${l}</div></div>`;
+            $('summary').innerHTML = card(all.filter(d => d.status === 'open').length, 'פתוחות לדיון', '#fbbf24') + card(all.filter(needsReview).length, 'ממתינות לבדיקת תוצאה', '#fb923c') + card(rev.length, 'נבדקו בדיעבד', '#34d399') + card(avg, 'איכות תהליך ממוצעת (1-5)', '#38bdf8');
+        }
+
+        function renderNew() {
+            $('cabinet-new').innerHTML = `<h2 class="font-bold text-white text-sm mb-3">➕ נושא חדש לדיון בקבינט</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <label class="g-lab md:col-span-2">מה צריך להחליט? (נסח כשאלה)<input id="nTitle" class="g-inp" maxlength="160" placeholder="למשל: האם לקבל את ההצעה בעבודה החדשה?"></label>
+                    <label class="g-lab">תיק קשור<select id="nPid" class="g-inp">${pOpts('')}</select></label>
+                    <label class="g-lab md:col-span-3">הרקע: מה המצב, מה אילוצים, מה ידוע ומה לא?<textarea id="nCtx" rows="2" maxlength="800" class="g-inp"></textarea></label>
+                </div><button class="g-btn pri mt-3" onclick="createDecision()">פתח דיון</button>`;
+        }
+        function createDecision() {
+            const t = $('nTitle').value.trim(); if (t.length < 5) { alert('נסח את הנושא בלפחות 5 תווים.'); return; }
+            const d = G.decisions.save({ title: t, context: $('nCtx').value, pid: $('nPid').value, status: 'open' }); if (!d) return;
+            openD(d.id);
+        }
+
+        function renderList() {
+            const all = G.decisions.all().sort((a, b) => b.created.localeCompare(a.created)), box = $('cabinet-list');
+            if (!all.length) { box.innerHTML = '<div class="g-card text-center text-sm text-slate-400">עדיין אין החלטות. פתח את הדיון הראשון למעלה.</div>'; return; }
+            const groups = [['פתוחות לדיון', all.filter(d => d.status === 'open')], ['ממתינות לבדיקת תוצאה', all.filter(needsReview)], ['הוכרעו', all.filter(d => d.status === 'decided' && !needsReview(d))], ['בוטלו', all.filter(d => d.status === 'revoked')]];
+            box.innerHTML = groups.filter(g => g[1].length).map(g => `<div><h3 class="text-sm font-bold text-slate-300 mb-2">${g[0]} (${g[1].length})</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-2">${g[1].map(d => {
+                const s = G.DECISION_STATUS[d.status], ch = d.options.find(o => o.id === d.chosen);
+                return `<button type="button" onclick="openD('${h(d.id)}')" class="g-card text-right hover:border-amber-400 transition ${sel === d.id ? 'border-amber-400' : ''}" style="border-right:4px solid ${s.c};padding:12px"><div class="font-bold text-white text-sm">${pIcon(d.pid)} ${h(d.title)}</div>
+                    <div class="text-[11px] text-slate-400 mt-1">${d.options.length} אפשרויות • נפתחה ${h(d.created)}${d.decidedAt ? ' • הוכרעה ' + h(d.decidedAt) : ''}</div>
+                    ${ch ? `<div class="text-[11px] text-emerald-300 mt-1">✅ ${h(ch.text)}</div>` : ''}${d.reviewedAt ? `<div class="text-[11px] text-sky-300 mt-1">נבדקה: תהליך ${d.processRating}/5, תוצאה ${d.outcomeRating}/5</div>` : (needsReview(d) ? '<div class="text-[11px] text-orange-300 mt-1">⏰ הגיע מועד הבדיקה</div>' : (d.status === 'decided' ? `<div class="text-[11px] text-slate-500 mt-1">בדיקה ב-${h(d.reviewAt)}</div>` : ''))}</button>`; }).join('')}</div></div>`).join('');
+        }
+        function openD(id) { sel = id; history.replaceState(null, '', '#d=' + id); render(); $('cabinet-detail').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+
+        // ---------- השוואת השפעה (אינפוגרפיה): יחידות ירוקות = מקדם, אדומות = פוגע ----------
+        const unit = (n, c) => Array.from({ length: n }, () => `<i style="display:inline-block;width:14px;height:14px;border-radius:4px;background:${c};margin-left:3px"></i>`).join('') || '<span class="text-slate-600">—</span>';
+        function compareHtml(d) {
+            return `<div class="space-y-2">${d.options.map(o => { const s = G.optionImpact(o), chosen = d.chosen === o.id, harmed = s.items.filter(x => x.effect === 'harms' && x.counts);
+                return `<div class="rounded-xl border ${chosen ? 'border-emerald-400 bg-emerald-500/10' : 'border-slate-700 bg-slate-900/60'} p-3"><div class="font-bold text-sm text-white">${chosen ? '✅ ' : ''}${h(o.text)}</div>
+                    <div class="text-[11px] text-slate-300 mt-1.5 flex items-center gap-2"><span class="w-14 text-slate-400">מקדמת</span>${unit(s.supports, '#34d399')}<span class="text-slate-500">(${s.supports})</span></div>
+                    <div class="text-[11px] text-slate-300 mt-1 flex items-center gap-2"><span class="w-14 text-slate-400">פוגעת</span>${unit(s.harms, '#f87171')}<span class="text-slate-500">(${s.harms})</span></div>
+                    ${s.treatyCost ? `<div class="text-[11px] text-amber-300 mt-1.5">⚠️ מחיר הפרת אמנות: ${s.treatyCost} (חומרה 1-3 לכל אמנה שנפגעת)</div>` : ''}
+                    ${harmed.map(x => `<div class="text-[11px] text-rose-200/90 mt-0.5">🔻 ${x.kind === 'treaty' ? '🤝' : '📜'} ${h(x.label)}${x.cost ? ' — מחיר: ' + h(x.cost) : ''}</div>`).join('')}</div>`; }).join('')}</div>
+                <p class="text-[10px] text-slate-500 mt-2 leading-relaxed">זו אינדיקציה, לא המלצה: היא סופרת רק מה שקישרת, ורק הבטחות שטרם הושלמו ואמנות שבתוקף. אפשרות עם פחות נזק אינה בהכרח הנכונה, ואפשרות שפוגעת באמנה יכולה להיות מוצדקת. הערך האמיתי הוא שההפרה תהיה מודעת ומתועדת.</p>`;
+        }
+
+        // ---------- דיון: בניית אפשרויות ----------
+        function impactChoices() {
+            const ps = G.promises.all().filter(p => p.status === 'open' || p.status === 'progress').sort((a, b) => b.month.localeCompare(a.month) || b.priority - a.priority), ts = G.treaties.all().filter(t => t.status === 'active');
+            return '<option value="">קשר להבטחה או לאמנה…</option>' + (ps.length ? `<optgroup label="הבטחות פעילות">${ps.map(p => `<option value="promise:${h(p.id)}">${h(G.monthLabel(p.month))}: ${h(p.text.slice(0, 60))}</option>`).join('')}</optgroup>` : '') + (ts.length ? `<optgroup label="אמנות בתוקף">${ts.map(t => `<option value="treaty:${h(t.id)}">${h(t.party)}: ${h(t.title.slice(0, 60))}</option>`).join('')}</optgroup>` : '');
+        }
+        function optionCard(o) {
+            const imp = o.impacts.map((m, k) => { const it = G.impactItem(m); return `<div class="flex items-center gap-2 text-[11px] bg-slate-900/70 border border-slate-700 rounded-lg px-2 py-1"><span>${m.effect === 'harms' ? '🔻 פוגעת' : '🔺 מקדמת'}</span><span class="flex-1 min-w-0">${it.kind === 'treaty' ? '🤝' : '📜'} ${h(it.label)}${!it.missing && !it.counts ? ' <span class="text-slate-500">(לא רלוונטי כרגע)</span>' : ''}</span><button class="text-rose-400" onclick="rmImpact('${h(o.id)}',${k})">✕</button></div>`; }).join('');
+            return `<div class="rounded-xl border border-slate-700 bg-slate-900/60 p-3 space-y-2">
+                <div class="flex items-center gap-2"><input id="ot_${h(o.id)}" class="g-inp" style="margin:0" maxlength="200" value="${h(o.text)}" aria-label="אפשרות"><button class="g-btn red" onclick="rmOption('${h(o.id)}')" title="הסר אפשרות">✕</button></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2"><label class="g-lab">יתרונות<textarea id="op_${h(o.id)}" rows="2" maxlength="300" class="g-inp">${h(o.pros)}</textarea></label><label class="g-lab">חסרונות וסיכונים<textarea id="oc_${h(o.id)}" rows="2" maxlength="300" class="g-inp">${h(o.cons)}</textarea></label></div>
+                <div class="space-y-1">${imp || '<div class="text-[11px] text-slate-500">עוד לא קישרת את האפשרות הזו להבטחות או לאמנות.</div>'}</div>
+                <div class="flex flex-wrap gap-2"><select id="is_${h(o.id)}" class="g-inp" style="margin:0;flex:1;min-width:10rem">${impactChoices()}</select><select id="ie_${h(o.id)}" class="g-inp" style="margin:0;width:auto"><option value="supports">מקדמת</option><option value="harms">פוגעת</option></select><button class="g-btn" onclick="addImpact('${h(o.id)}')">קשר</button></div></div>`;
+        }
+
+        function readDetail(d) {
+            if ($('dTitle')) { d.title = $('dTitle').value; d.context = $('dCtx').value; d.pid = $('dPid').value; }
+            d.options.forEach(o => { const t = $('ot_' + o.id); if (t) { o.text = t.value; o.pros = $('op_' + o.id).value; o.cons = $('oc_' + o.id).value; } });
+        }
+        function mut(fn) { const d = G.decisions.get(sel); if (!d || d.status !== 'open') return; readDetail(d); fn(d); G.decisions.save(d); render(); }
+        function addOption() { const t = $('aoText').value.trim(); if (t.length < 2) { alert('נסח את האפשרות (לפחות 2 תווים).'); return; } const p = $('aoPros').value, c = $('aoCons').value; mut(d => { if (d.options.length < 6) d.options.push({ id: G.uid(), text: t, pros: p, cons: c, impacts: [] }); }); }
+        function rmOption(oid) { if (confirm('להסיר את האפשרות?')) mut(d => { d.options = d.options.filter(o => o.id !== oid); }); }
+        function addImpact(oid) {
+            const v = $('is_' + oid).value; if (!v) return; const i = v.indexOf(':'), kind = v.slice(0, i), ref = v.slice(i + 1), eff = $('ie_' + oid).value;
+            mut(d => { const o = d.options.find(x => x.id === oid); if (o && o.impacts.length < 12 && !o.impacts.some(m => m.kind === kind && m.ref === ref)) o.impacts.push({ kind, ref, effect: eff }); });
+        }
+        function rmImpact(oid, k) { mut(d => { const o = d.options.find(x => x.id === oid); if (o) o.impacts.splice(k, 1); }); }
+        function deleteDecision() { if (confirm('למחוק את הדיון הפתוח?')) { G.decisions.remove(sel); sel = null; history.replaceState(null, '', location.pathname); render(); } }
+        function decide() {
+            const d = G.decisions.get(sel); if (!d || d.status !== 'open') return;
+            readDetail(d); G.decisions.save(d);
+            const chosen = (document.querySelector('input[name=chosen]:checked') || {}).value;
+            if (!confirm('להכריע? אחרי ההכרעה האפשרויות והנימוק ננעלים, ואפשר רק לבטל בנימוק או לבדוק את התוצאה בדיעבד.')) { render(); return; }
+            const r = G.decisions.decide(sel, chosen, $('dRat').value, $('dDoubts').value, $('dReview').value);
+            if (!r.ok) { alert(r.error); render(); return; } render();
+        }
+        function revoke() { const r = prompt('ביטול החלטה דורש נימוק (לפחות 10 תווים):'); if (r === null) return; const x = G.decisions.revoke(sel, r); if (!x.ok) { alert(x.error); return; } render(); }
+        function submitReview() {
+            const x = G.decisions.review(sel, { outcome: $('rOut').value, outcomeRating: $('rOR').value, processRating: $('rPR').value });
+            if (!x.ok) { alert(x.error); return; } render();
+        }
+
+        function renderDetail() {
+            const box = $('cabinet-detail'), d = sel && G.decisions.get(sel);
+            if (!d) { box.innerHTML = '<div class="g-card text-center text-sm text-slate-400">בחר החלטה מהרשימה, או פתח נושא חדש, כדי לדון בו.</div>'; return; }
+            const s = G.DECISION_STATUS[d.status], ch = d.options.find(o => o.id === d.chosen);
+            let html = `<div class="g-card space-y-4" style="border-right:4px solid ${s.c}"><div class="flex flex-wrap items-center justify-between gap-2"><span class="g-chip" style="color:${s.c};border-color:${s.c}55;background:${s.c}1a">${s.l}</span><span class="text-[11px] text-slate-500">נפתחה ${h(d.created)}${d.decidedAt ? ' • הוכרעה ' + h(d.decidedAt) : ''}</span></div>`;
+            if (d.status === 'open') {
+                html += `<div class="grid grid-cols-1 md:grid-cols-3 gap-3"><label class="g-lab md:col-span-2">הנושא<input id="dTitle" class="g-inp" maxlength="160" value="${h(d.title)}"></label><label class="g-lab">תיק<select id="dPid" class="g-inp">${pOpts(d.pid)}</select></label>
+                    <label class="g-lab md:col-span-3">הרקע<textarea id="dCtx" rows="2" maxlength="800" class="g-inp">${h(d.context)}</textarea></label></div>
+                    <div><h3 class="font-bold text-white text-sm mb-2">🧩 אפשרויות (${d.options.length}/6)</h3><div class="space-y-3">${d.options.map(optionCard).join('') || '<p class="text-xs text-slate-500">עוד אין אפשרויות. החלטה דורשת לפחות שתיים, כולל "לא לעשות כלום" כשזה רלוונטי.</p>'}</div>
+                    ${d.options.length < 6 ? `<div class="rounded-xl border border-dashed border-slate-600 p-3 mt-3 space-y-2"><input id="aoText" class="g-inp" style="margin:0" maxlength="200" placeholder="אפשרות חדשה…"><div class="grid grid-cols-1 md:grid-cols-2 gap-2"><input id="aoPros" class="g-inp" style="margin:0" maxlength="300" placeholder="יתרונות (אופציונלי)"><input id="aoCons" class="g-inp" style="margin:0" maxlength="300" placeholder="חסרונות וסיכונים (אופציונלי)"></div><button class="g-btn" onclick="addOption()">➕ הוסף אפשרות</button></div>` : ''}</div>
+                    ${d.options.length ? `<div><h3 class="font-bold text-white text-sm mb-2">⚖️ השוואת השפעה</h3>${compareHtml(d)}</div>` : ''}
+                    ${d.options.length >= 2 ? `<div class="rounded-xl border border-amber-500/40 bg-amber-500/5 p-3 space-y-3"><h3 class="font-bold text-amber-300 text-sm">🔨 הכרעה</h3>
+                        <div class="space-y-1.5">${d.options.map(o => `<label class="flex items-center gap-2 text-sm bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-2 cursor-pointer"><input type="radio" name="chosen" value="${h(o.id)}" class="accent-amber-400"><span>${h(o.text)}</span></label>`).join('')}</div>
+                        <label class="g-lab">למה? מה הנימוק לבחירה הזו, ומה ויתרת עליו? (לפחות 15 תווים)<textarea id="dRat" rows="2" maxlength="800" class="g-inp"></textarea></label>
+                        <label class="g-lab">ספקות והתנגדויות: מה יכול להשתבש, ומה הטיעון החזק ביותר נגד הבחירה שלך?<textarea id="dDoubts" rows="2" maxlength="600" class="g-inp"></textarea></label>
+                        <label class="g-lab">מתי תבדוק בדיעבד איך זה יצא? (תאריך עתידי)<input id="dReview" type="date" class="g-inp" style="max-width:12rem" value="${G.addDays(NOW, 30)}" min="${G.addDays(NOW, 1)}"></label>
+                        <button class="g-btn pri" onclick="decide()">🔨 הכרע</button></div>` : '<p class="text-[11px] text-slate-500">כשיהיו לפחות שתי אפשרויות תופיע כאן ההכרעה.</p>'}
+                    <div class="flex gap-2 no-print"><button class="g-btn pri" onclick="mut(function(){})">💾 שמור טיוטה</button><button class="g-btn red" onclick="deleteDecision()">🗑️ מחק דיון</button></div>`;
+            } else {
+                html += `<div><h2 class="text-xl font-black text-white">${pIcon(d.pid)} ${h(d.title)}</h2>${d.context ? `<p class="text-sm text-slate-300 mt-1 leading-relaxed">${h(d.context)}</p>` : ''}</div>
+                    ${d.status === 'revoked' ? `<div class="text-sm text-violet-200 bg-violet-500/10 border border-violet-500/30 rounded-xl p-3">ההחלטה בוטלה. נימוק: ${h(d.revokeReason)}</div>` : ''}
+                    <div><h3 class="font-bold text-white text-sm mb-2">⚖️ האפשרויות וההשפעה (מחושב לפי המצב הנוכחי של ההבטחות והאמנות)</h3>${compareHtml(d)}</div>
+                    ${ch ? `<div class="rounded-xl border border-slate-700 bg-slate-900/60 p-3 text-sm space-y-2"><div><b class="text-emerald-300">הוחלט:</b> ${h(ch.text)}</div><div><b class="text-slate-300">נימוק:</b> ${h(d.rationale)}</div>${d.doubts ? `<div><b class="text-slate-300">ספקות והתנגדויות שנרשמו מראש:</b> ${h(d.doubts)}</div>` : ''}</div>` : ''}`;
+                if (d.status === 'decided') {
+                    if (d.reviewedAt) html += `<div class="rounded-xl border border-sky-500/40 bg-sky-500/5 p-3 text-sm space-y-1"><h3 class="font-bold text-sky-300">🔍 בדיקה בדיעבד (${h(d.reviewedAt)})</h3><div>${h(d.outcome)}</div><div class="text-[12px] text-slate-300">איכות התהליך: <b>${d.processRating}/5</b> • איך זה יצא: <b>${d.outcomeRating}/5</b></div></div>`;
+                    else if (d.reviewAt > NOW) html += `<div class="text-[12px] text-slate-400 bg-slate-900/60 border border-slate-700 rounded-xl p-3">הבדיקה בדיעבד תיפתח ב-${h(d.reviewAt)}. עד אז ההחלטה נעולה: זה מה שמונע לשכתב אותה מתוך ידיעה מה קרה.</div>`;
+                    else html += `<div class="rounded-xl border border-orange-500/40 bg-orange-500/5 p-3 space-y-2"><h3 class="font-bold text-orange-300 text-sm">⏰ הגיע מועד הבדיקה בדיעבד</h3>
+                        <label class="g-lab">מה קרה בפועל?<textarea id="rOut" rows="2" maxlength="800" class="g-inp"></textarea></label>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3"><label class="g-lab">איך זה יצא (1 גרוע, 5 מצוין)<select id="rOR" class="g-inp">${[1, 2, 3, 4, 5].map(n => `<option>${n}</option>`).join('')}</select></label>
+                            <label class="g-lab">איכות ההחלטה לפי מה שידעת אז (1 חלשה, 5 מצוינת)<select id="rPR" class="g-inp">${[1, 2, 3, 4, 5].map(n => `<option>${n}</option>`).join('')}</select></label></div>
+                        <p class="text-[10px] text-slate-500">שני הדירוגים נפרדים בכוונה. החלטה טובה יכולה להסתיים רע (מזל רע), והחלטה חלשה יכולה להסתיים טוב (מזל). הבדיקה נעשית פעם אחת ונעולה.</p>
+                        <button class="g-btn pri" onclick="submitReview()">💾 שמור בדיקה</button></div>`;
+                    if (!d.reviewedAt) html += `<div class="no-print"><button class="g-btn red" onclick="revoke()">בטל החלטה (בנימוק)</button></div>`;
+                }
+            }
+            box.innerHTML = html + '</div>';
+        }
+
+        // ---------- איכות החלטות: מטריצת תהליך מול תוצאה ----------
+        function renderInsight() {
+            const rev = G.decisions.all().filter(d => d.reviewedAt), box = $('cabinet-insight');
+            const head = '<h2 class="font-bold text-white text-sm mb-1">🎯 איכות ההחלטות שלי: תהליך מול תוצאה</h2><p class="text-[11px] text-slate-400 mb-3">כל נקודה היא החלטה שנבדקה בדיעבד. המטרה לא להגיע לפינה הימנית-עליונה בכל פעם, אלא לשפר את התהליך ולא להתבלבל בין מזל לכישרון.</p>';
+            if (!rev.length) { box.innerHTML = head + '<p class="text-xs text-slate-500 text-center py-6">עוד אין החלטות שנבדקו בדיעבד.</p>'; return; }
+            const cnt = (p, o) => rev.filter(d => d.processRating === p && d.outcomeRating === o).length, mx = Math.max(1, ...[1, 2, 3, 4, 5].flatMap(p => [1, 2, 3, 4, 5].map(o => cnt(p, o))));
+            let grid = '';
+            for (let o = 5; o >= 1; o--) { grid += `<div style="display:flex;align-items:center;gap:4px"><span style="width:14px;text-align:center;font-size:10px;color:#94a3b8">${o}</span>`; for (let p = 1; p <= 5; p++) { const c = cnt(p, o); grid += `<div title="תהליך ${p}, תוצאה ${o}: ${c}" style="flex:1;aspect-ratio:1;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;background:${c ? `rgba(251,191,36,${0.25 + 0.75 * c / mx})` : '#1e293b'};color:${c ? '#0f172a' : '#475569'}">${c || ''}</div>`; } grid += '</div>'; }
+            grid += '<div style="display:flex;gap:4px;margin-right:18px;margin-top:2px">' + [1, 2, 3, 4, 5].map(p => `<span style="flex:1;text-align:center;font-size:10px;color:#94a3b8">${p}</span>`).join('') + '</div>';
+            const goodBad = rev.filter(d => d.processRating >= 4 && d.outcomeRating <= 2).length, badGood = rev.filter(d => d.processRating <= 2 && d.outcomeRating >= 4).length, weak = rev.filter(d => d.processRating <= 2).length;
+            box.innerHTML = head + `<div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start"><div dir="ltr" style="max-width:20rem"><div style="font-size:10px;color:#94a3b8;margin-bottom:4px">↑ איך זה יצא</div>${grid}<div style="font-size:10px;color:#94a3b8;text-align:center;margin-top:2px">איכות התהליך →</div></div>
+                <div class="text-xs text-slate-300 space-y-1.5"><div>נבדקו: <b>${rev.length}</b></div>${rev.length >= 5 ? `<div>🍀 תהליך חלש ותוצאה טובה (מזל): <b>${badGood}</b></div><div>🎲 תהליך טוב ותוצאה רעה (מזל רע): <b>${goodBad}</b></div><div>${weak / rev.length >= 0.4 ? '⚠️ ' : ''}החלטות עם תהליך חלש (1-2): <b>${weak}</b> מתוך ${rev.length}</div>` : `<div class="text-slate-500">מסקנות יוצגו אחרי לפחות 5 החלטות שנבדקו (כרגע ${rev.length}). ממעט נתונים קל להסיק מסקנות שגויות.</div>`}</div></div>`;
+        }
+
+        function render() { renderSummary(); renderNew(); renderList(); renderDetail(); renderInsight(); }
+        window.addEventListener('DOMContentLoaded', render);
+        window.addEventListener('storage', render);
+    </script>
+</body>
+</html>

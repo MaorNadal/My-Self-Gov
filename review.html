@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ציון חודשי - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+    <script src="gov-core.js"></script>
+    <script src="gov-nav.js"></script>
+
+    <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
+        <h1 class="text-3xl font-black text-white">📊 ציון הממשלה</h1>
+        <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">בסוף החודש הממשלה נמדדת: האם עמדה בהבטחות, האם הייתה עקבית, ומה אתה חושב על עצמך. סגירת חודש מקפיאה את התוצאה.</p>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 space-y-5 mt-4">
+        <div class="flex items-center justify-center gap-3">
+            <button class="g-btn" onclick="shift(-1)">→</button>
+            <div class="text-center"><div id="monthLabel" class="text-xl font-black text-amber-400"></div><button class="text-[11px] text-slate-400 hover:text-slate-200 underline" onclick="goNow()">חזרה לחודש הנוכחי</button></div>
+            <button class="g-btn" onclick="shift(1)">←</button>
+        </div>
+        <section id="review-current" class="space-y-4"></section>
+        <section id="review-history" class="g-card"></section>
+    </main>
+
+    <script>
+        const G = window.GOV, h = G.esc, $ = id => document.getElementById(id);
+        const NOW = G.localDate(), NOW_MK = G.monthOf(NOW);
+        let mk = NOW_MK, chart = null;
+        const NAMES = { promises: 'ביצוע הבטחות', daily: 'עקביות יומית', self: 'הערכה עצמית' };
+        const bar = (pct, color) => `<div class="g-bar"><i style="width:${Math.max(0, Math.min(100, pct))}%;background:${color}"></i></div>`;
+        const pIcon = id => (G.portfolios.get(id) || { icon: '📁' }).icon;
+        function shift(n) { mk = G.addMonths(mk, n); render(); }
+        function goNow() { mk = NOW_MK; render(); }
+
+        function renderCurrent() {
+            $('monthLabel').textContent = G.monthLabel(mk);
+            const rv = G.review.get(mk), live = G.score(mk), snap = rv.closed && rv.snapshot ? rv.snapshot : null, ro = rv.closed;
+            const total = snap ? snap.total : live.total, parts = snap ? snap.parts.map(p => Object.assign({}, p)) : live.parts, g = total != null ? G.gradeFor(total) : null;
+            const term = G.term.get(mk);
+            const proms = snap ? snap.promises : G.promises.all().filter(p => p.month === mk);
+            const self = parts.find(p => p.id === 'self'), obj = parts.filter(p => p.id !== 'self' && p.v != null);
+            const objAvg = obj.length ? obj.reduce((a, p) => a + p.w * p.v, 0) / obj.reduce((a, p) => a + p.w, 0) : null;
+            const gap = self && self.v != null && objAvg != null ? Math.round(self.v - objAvg) : null;
+            const stuck = proms.filter(p => p.status === 'open' || p.status === 'progress').length;
+            $('review-current').innerHTML = `
+                ${ro ? `<div class="border border-violet-500/30 bg-violet-500/10 text-violet-100 rounded-xl px-3 py-2 text-xs text-center">🔒 החודש נסגר ב-${h(rv.closedAt)}. הנתונים מוקפאים.</div>` : ''}
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div class="g-card text-center"><div class="text-[11px] text-slate-400 mb-1">ממשלת ${h(G.monthLabel(mk))}${term ? ' • ' + h(term.name || 'ראש הממשלה') : ''}</div>
+                        ${g ? `<div class="text-6xl font-black" style="color:${g.c}">${g.l}</div><div class="text-sm text-slate-300">${total} מתוך 100</div>` : '<div class="text-sm text-slate-400 py-6">אין מספיק נתונים לציון</div>'}
+                        <div class="text-[10px] text-slate-500 mt-2">${snap ? 'ציון מוקפא' : 'ציון חי: משתנה ככל שהחודש מתקדם'}</div></div>
+                    <div class="g-card lg:col-span-2"><h2 class="font-bold text-white text-sm mb-3">איך הציון נבנה</h2><div class="space-y-3 text-xs">
+                        ${parts.map(p => `<div><div class="flex justify-between text-slate-200 mb-1"><span>${NAMES[p.id]} <span class="text-slate-500">(משקל ${p.w}%)</span></span><span>${p.v == null ? '<span class="text-slate-500">אין מספיק נתונים, לא נספר</span>' : Math.round(p.v)}</span></div>${bar(p.v || 0, '#fbbf24')}</div>`).join('')}</div>
+                        <p class="text-[10px] text-slate-500 mt-3 leading-relaxed">ביצוע הבטחות מחושב לפי עדיפות (מכרעת פי 3, רגילה פי 2, נמוכה פי 1), ודורש ${live.min.promises} הבטחות פעילות לפחות. עקבית יומית היא ממוצע אחוז הפעולות שבוצעו בימים שבהם תוכננו פעולות, ודורשת ${live.min.daily} ימים לפחות. ללא רכיב אובייקטיבי אחד לפחות אין ציון. המשקלים הם הנחת פתיחה ואפשר לשנות אותם.</p></div></div>
+                ${gap !== null && Math.abs(gap) >= 20 ? `<div class="border border-amber-500/30 bg-amber-500/10 text-amber-100 rounded-xl px-3 py-2 text-xs">${gap > 0 ? `ההערכה העצמית שלך גבוהה ב-${gap} נקודות מהציון האובייקטיבי.` : `ההערכה העצמית שלך נמוכה ב-${-gap} נקודות מהציון האובייקטיבי.`} פער גדול כזה שווה התבוננות: ייתכן שהקריטריונים של ההבטחות לא משקפים מה שחשוב לך, או שהתמונה העצמית מוטה.</div>` : ''}
+                ${snap && snap.dropped ? `<div class="text-[11px] text-violet-300">${snap.dropped} הבטחות הוסרו בנימוק ולא נספרו בציון.</div>` : (live.droppedN && !snap ? `<div class="text-[11px] text-violet-300">${live.droppedN} הבטחות הוסרו בנימוק ולא נספרות בציון.</div>` : '')}
+                <div class="g-card"><h2 class="font-bold text-white text-sm mb-3">📜 ההבטחות של החודש</h2>
+                    ${proms.length ? `<div class="space-y-1.5">${proms.map(p => `<div class="text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1.5 flex justify-between gap-2"><span>${pIcon(p.pid)} ${p.priority === 3 ? '⭐ ' : ''}${h(p.text)}${p.status === 'dropped' ? ` <span class="text-violet-300">(נימוק: ${h(p.dropReason)})</span>` : ''}</span><span class="shrink-0" style="color:${G.STATUS[p.status].c}">${G.STATUS[p.status].l}${p.status === 'progress' ? ' ' + p.progress + '%' : ''}</span></div>`).join('')}</div>` : '<p class="text-xs text-slate-500">אין הבטחות בחודש הזה.</p>'}</div>
+                <div class="g-card"><h2 class="font-bold text-white text-sm mb-3">🪞 הערכה עצמית וסיכום</h2>
+                    <div class="mb-3"><label class="g-lab"><input type="checkbox" id="noSelf" ${rv.selfScore == null ? 'checked' : ''} ${ro ? 'disabled' : ''} onchange="$('selfRange').disabled=this.checked"> לא להזין ציון עצמי (אז הרכיב הזה לא נספר)</label>
+                        <div class="flex items-center gap-3 mt-2"><input id="selfRange" type="range" min="0" max="100" value="${rv.selfScore == null ? 60 : rv.selfScore}" ${ro || rv.selfScore == null ? 'disabled' : ''} class="flex-1 accent-amber-400" oninput="$('selfVal').textContent=this.value"><span id="selfVal" class="font-black text-amber-300 w-8">${rv.selfScore == null ? 60 : rv.selfScore}</span></div></div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <label class="g-lab">מה עבד החודש?<textarea id="rWell" rows="3" maxlength="800" ${ro ? 'disabled' : ''} class="g-inp">${h(rv.well)}</textarea></label>
+                        <label class="g-lab">מה לא עבד, ולמה בכנות?<textarea id="rBad" rows="3" maxlength="800" ${ro ? 'disabled' : ''} class="g-inp">${h(rv.bad)}</textarea></label>
+                        <label class="g-lab">מה משנים בחודש הבא?<textarea id="rLes" rows="3" maxlength="800" ${ro ? 'disabled' : ''} class="g-inp">${h(rv.lessons)}</textarea></label></div>
+                    <div class="flex flex-wrap gap-2 mt-3 no-print">${ro ? '<button class="g-btn" onclick="reopen()">🔓 פתח מחדש</button>' : `<button class="g-btn pri" onclick="saveReview(false)">💾 שמור הערכה</button><button class="g-btn ok" onclick="closeMonth()">🔒 סגור את החודש</button>`}</div>
+                    ${!ro && stuck ? `<p class="text-[11px] text-amber-300 mt-2">שים לב: ${stuck} הבטחות עדיין "פעילות". בסגירה הן יישמרו בסטטוס הנוכחי והציון יחושב לפי ההתקדמות שלהן. אם הן לא בוצעו, כדאי לסמן אותן "לא בוצעה" לפני הסגירה.</p>` : ''}</div>`;
+        }
+
+        function readForm() {
+            const rv = G.review.get(mk);
+            rv.selfScore = $('noSelf').checked ? null : Number($('selfRange').value);
+            rv.well = $('rWell').value; rv.bad = $('rBad').value; rv.lessons = $('rLes').value; return rv;
+        }
+        function saveReview(quiet) { if (G.review.isClosed(mk)) return; const rv = readForm(); G.review.set(mk, rv); if (!quiet) render(); }
+        function closeMonth() {
+            if (mk > NOW_MK) { alert('אי אפשר לסגור חודש עתידי.'); return; }
+            const live = G.score(mk);
+            const msg = (mk === NOW_MK ? 'החודש עוד לא הסתיים. ' : '') + (live.total == null ? 'אין מספיק נתונים לציון, והחודש ייסגר ללא ציון. ' : '') + 'סגירה מקפיאה את ההבטחות והציון. להמשיך?';
+            if (!confirm(msg)) return;
+            const rv = readForm(), sc = (G.review.set(mk, rv), G.score(mk)), t = G.term.get(mk);
+            rv.closed = true; rv.closedAt = NOW;
+            rv.snapshot = { total: sc.total, parts: sc.parts.map(p => ({ id: p.id, v: p.v, w: p.w })), pm: t ? (t.name || 'אני') : '', dropped: sc.droppedN, promises: G.promises.all().filter(p => p.month === mk).map(p => ({ text: p.text, status: p.status, progress: p.progress, priority: p.priority, pid: p.pid, dropReason: p.dropReason })) };
+            G.review.set(mk, rv); render();
+        }
+        function reopen() { if (!confirm('לפתוח את החודש מחדש? הציון המוקפא יימחק ויחושב מחדש. פתיחות חוזרות פוגעות באמינות ההיסטוריה.')) return; const rv = G.review.get(mk); rv.closed = false; rv.closedAt = ''; rv.snapshot = null; G.review.set(mk, rv); render(); }
+
+        function renderHistory() {
+            const months = G.review.closedMonths(), box = $('review-history');
+            if (!months.length) { box.innerHTML = '<h2 class="font-bold text-white text-sm mb-2">🏛️ היסטוריית ממשלות</h2><p class="text-xs text-slate-500">עדיין לא נסגר אף חודש. ממשלה שנסגרת מופיעה כאן, עם הציון שלה.</p>'; if (chart) { chart.destroy(); chart = null; } return; }
+            const rows = months.map(m => { const r = G.review.get(m), s = r.snapshot, ps = s ? s.promises.filter(p => p.status !== 'dropped') : []; return { m, s, r, done: ps.filter(p => p.status === 'done').length, n: ps.length }; });
+            box.innerHTML = `<h2 class="font-bold text-white text-sm mb-3">🏛️ היסטוריית ממשלות</h2>
+                <div style="height:220px"><canvas id="hChart"></canvas></div>
+                <div class="overflow-x-auto mt-4"><table class="w-full text-xs"><thead><tr class="text-slate-400 border-b border-slate-700 text-right"><th class="p-2">חודש</th><th class="p-2">ראש ממשלה</th><th class="p-2">ציון</th><th class="p-2">הבטחות שבוצעו</th><th class="p-2">לקח לחודש הבא</th></tr></thead><tbody>
+                ${rows.slice().reverse().map(x => { const g = x.s && x.s.total != null ? G.gradeFor(x.s.total) : null; return `<tr class="border-b border-slate-800 hover:bg-slate-800/50 cursor-pointer" onclick="mk='${x.m}';render();scrollTo({top:0,behavior:'smooth'})"><td class="p-2 text-slate-200">${h(G.monthLabel(x.m))}</td><td class="p-2 text-slate-300">${h(x.s ? x.s.pm : '') || '—'}</td><td class="p-2 font-black" style="color:${g ? g.c : '#64748b'}">${g ? g.l + ' (' + x.s.total + ')' : '—'}</td><td class="p-2 text-slate-300">${x.done}/${x.n}</td><td class="p-2 text-slate-400">${h(x.r.lessons).slice(0, 80) || '—'}</td></tr>`; }).join('')}</tbody></table></div>`;
+            if (typeof Chart === 'undefined') return;
+            const pts = rows.filter(x => x.s && x.s.total != null);
+            if (chart) chart.destroy();
+            chart = new Chart($('hChart').getContext('2d'), { type: 'line', data: { labels: pts.map(x => G.monthLabel(x.m)), datasets: [{ label: 'ציון הממשלה', data: pts.map(x => x.s.total), borderColor: '#fbbf24', backgroundColor: '#fbbf24', tension: .25, pointRadius: 4 }] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: 100, grid: { color: '#334155' }, ticks: { color: '#cbd5e1' } }, x: { grid: { color: '#334155' }, ticks: { color: '#cbd5e1' } } }, plugins: { legend: { labels: { color: '#f8fafc' } } } } });
+        }
+        function render() { renderCurrent(); renderHistory(); }
+        window.addEventListener('DOMContentLoaded', render);
+    </script>
+</body>
+</html>
