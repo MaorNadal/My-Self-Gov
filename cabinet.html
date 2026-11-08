@@ -71,8 +71,10 @@
 
         // ---------- השוואת השפעה (אינפוגרפיה): יחידות ירוקות = מקדם, אדומות = פוגע ----------
         const unit = (n, c) => Array.from({ length: n }, () => `<i style="display:inline-block;width:14px;height:14px;border-radius:4px;background:${c};margin-left:3px"></i>`).join('') || '<span class="text-slate-600">—</span>';
+        // החלטה שהוכרעה מציגה את צילום ההשפעה שנשמר בשעת ההכרעה (לא מתעדכן בדיעבד). החלטות ישנות ללא צילום מחושבות חי.
+        function impactOf(d, o) { if (d.status !== 'open') { const sn = d.impactSnapshot.find(x => x.optionId === o.id); if (sn) return sn; } return G.optionImpact(o); }
         function compareHtml(d) {
-            return `<div class="space-y-2">${d.options.map(o => { const s = G.optionImpact(o), chosen = d.chosen === o.id, harmed = s.items.filter(x => x.effect === 'harms' && x.counts);
+            return `<div class="space-y-2">${d.options.map(o => { const s = impactOf(d, o), chosen = d.chosen === o.id, harmed = s.items.filter(x => x.effect === 'harms' && x.counts);
                 return `<div class="rounded-xl border ${chosen ? 'border-emerald-400 bg-emerald-500/10' : 'border-slate-700 bg-slate-900/60'} p-3"><div class="font-bold text-sm text-white">${chosen ? '✅ ' : ''}${h(o.text)}</div>
                     <div class="text-[11px] text-slate-300 mt-1.5 flex items-center gap-2"><span class="w-14 text-slate-400">מקדמת</span>${unit(s.supports, '#34d399')}<span class="text-slate-500">(${s.supports})</span></div>
                     <div class="text-[11px] text-slate-300 mt-1 flex items-center gap-2"><span class="w-14 text-slate-400">פוגעת</span>${unit(s.harms, '#f87171')}<span class="text-slate-500">(${s.harms})</span></div>
@@ -122,6 +124,25 @@
             if (!x.ok) { alert(x.error); return; } render();
         }
 
+        function adviserHtml(d) {
+            const p = d.pid && G.portfolios.get(d.pid), who = p && p.minister ? p.minister : 'היועץ';
+            return `<div class="rounded-xl border border-violet-500/40 bg-violet-500/5 p-3 space-y-2"><h3 class="font-bold text-violet-300 text-sm">🤖 ייעוץ שר${p ? ' ' + h(p.icon + ' ' + p.name) : ''} (Gemini)</h3>
+                <p class="text-[11px] text-slate-400">${h(who)} לא מחליט: הוא מציג את הטיעון החזק ביותר נגד כל אפשרות, מה חסר בניתוח ואילו שאלות כדאי לשאול. אתה תראה ותאשר את הטקסט המדויק לפני שליחה.</p>
+                <button class="g-btn" onclick="askMinister()">🤖 בקש ייעוץ</button><div id="aiOut" class="text-xs whitespace-pre-wrap text-slate-200"></div>
+                ${d.aiNotes.slice().reverse().map(n => `<div class="text-xs bg-slate-900/70 border border-slate-700 rounded-lg p-2"><div class="text-[10px] text-slate-500 mb-1">ייעוץ שמור מ-${h(n.at)}</div><div class="whitespace-pre-wrap text-slate-300">${h(n.text)}</div></div>`).join('')}</div>`;
+        }
+        async function askMinister() {
+            const d = G.decisions.get(sel); if (!d || d.status !== 'open') return; readDetail(d); G.decisions.save(d);
+            if (!window.GOVAI || !GOVAI.hasKey()) { alert('לא הוגדר מפתח Gemini. הגדר אותו פעם אחת בלוח הבקרה.'); return; }
+            const p = d.pid && G.portfolios.get(d.pid), parties = G.treaties.all().map(t => t.party), people = G.people.all().map(x => x.name);
+            const data = `נושא: ${d.title}\nרקע: ${d.context || '(לא נכתב)'}\nתיק: ${p ? p.name + ' (משימה: ' + (p.mission || 'לא הוגדרה') + ')' : 'ללא'}\nאפשרויות:\n` + d.options.map((o, i) => { const s = G.optionImpact(o); return `${i + 1}. ${o.text}\n   יתרונות: ${o.pros || '-'}\n   חסרונות: ${o.cons || '-'}\n   מקדמת ${s.supports} פריטים, פוגעת ב-${s.harms}, מחיר הפרת אמנות ${s.treatyCost}\n   פריטים מקושרים: ${s.items.map(x => (x.effect === 'harms' ? 'פוגעת ב' : 'מקדמת ') + x.label).join('; ') || 'אין'}`; }).join('\n');
+            $('aiOut').textContent = 'ממתין לאישור…';
+            const r = await GOVAI.ask({ title: 'ייעוץ להחלטה: ' + d.title, names: parties.concat(people, [G.profile.get().name]), data,
+                task: `אתה ${p && p.minister ? 'השר/ה ' + p.minister : 'יועץ'}${p && p.style ? ' בסגנון: ' + p.style : ''}. אתה לא מחליט. ענה במבנה: 1) הטיעון החזק ביותר נגד כל אפשרות (קצר). 2) מה חסר בניתוח או באפשרויות (אפשרות שלא נשקלה, השפעה שלא קושרה). 3) הטיית החלטה אפשרית שרואים בנוסח הבעיה (רק אם יש בסיס בנתונים). 4) שלוש שאלות שכדאי לשאול לפני ההכרעה. אל תמליץ איזו אפשרות לבחור.` });
+            if (!r.ok) { $('aiOut').textContent = r.cancelled ? 'בוטל.' : '⚠️ ' + r.error; return; }
+            $('aiOut').textContent = r.text;
+            if (confirm('לשמור את הייעוץ בתיק ההחלטה?')) { G.decisions.addAiNote(d.id, r.text, r.model); render(); }
+        }
         function renderDetail() {
             const box = $('cabinet-detail'), d = sel && G.decisions.get(sel);
             if (!d) { box.innerHTML = '<div class="g-card text-center text-sm text-slate-400">בחר החלטה מהרשימה, או פתח נושא חדש, כדי לדון בו.</div>'; return; }
@@ -133,6 +154,7 @@
                     <div><h3 class="font-bold text-white text-sm mb-2">🧩 אפשרויות (${d.options.length}/6)</h3><div class="space-y-3">${d.options.map(optionCard).join('') || '<p class="text-xs text-slate-500">עוד אין אפשרויות. החלטה דורשת לפחות שתיים, כולל "לא לעשות כלום" כשזה רלוונטי.</p>'}</div>
                     ${d.options.length < 6 ? `<div class="rounded-xl border border-dashed border-slate-600 p-3 mt-3 space-y-2"><input id="aoText" class="g-inp" style="margin:0" maxlength="200" placeholder="אפשרות חדשה…"><div class="grid grid-cols-1 md:grid-cols-2 gap-2"><input id="aoPros" class="g-inp" style="margin:0" maxlength="300" placeholder="יתרונות (אופציונלי)"><input id="aoCons" class="g-inp" style="margin:0" maxlength="300" placeholder="חסרונות וסיכונים (אופציונלי)"></div><button class="g-btn" onclick="addOption()">➕ הוסף אפשרות</button></div>` : ''}</div>
                     ${d.options.length ? `<div><h3 class="font-bold text-white text-sm mb-2">⚖️ השוואת השפעה</h3>${compareHtml(d)}</div>` : ''}
+                    ${d.options.length >= 2 ? adviserHtml(d) : ''}
                     ${d.options.length >= 2 ? `<div class="rounded-xl border border-amber-500/40 bg-amber-500/5 p-3 space-y-3"><h3 class="font-bold text-amber-300 text-sm">🔨 הכרעה</h3>
                         <div class="space-y-1.5">${d.options.map(o => `<label class="flex items-center gap-2 text-sm bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-2 cursor-pointer"><input type="radio" name="chosen" value="${h(o.id)}" class="accent-amber-400"><span>${h(o.text)}</span></label>`).join('')}</div>
                         <label class="g-lab">למה? מה הנימוק לבחירה הזו, ומה ויתרת עליו? (לפחות 15 תווים)<textarea id="dRat" rows="2" maxlength="800" class="g-inp"></textarea></label>
@@ -143,7 +165,7 @@
             } else {
                 html += `<div><h2 class="text-xl font-black text-white">${pIcon(d.pid)} ${h(d.title)}</h2>${d.context ? `<p class="text-sm text-slate-300 mt-1 leading-relaxed">${h(d.context)}</p>` : ''}</div>
                     ${d.status === 'revoked' ? `<div class="text-sm text-violet-200 bg-violet-500/10 border border-violet-500/30 rounded-xl p-3">ההחלטה בוטלה. נימוק: ${h(d.revokeReason)}</div>` : ''}
-                    <div><h3 class="font-bold text-white text-sm mb-2">⚖️ האפשרויות וההשפעה (מחושב לפי המצב הנוכחי של ההבטחות והאמנות)</h3>${compareHtml(d)}</div>
+                    <div><h3 class="font-bold text-white text-sm mb-2">⚖️ האפשרויות וההשפעה ${d.impactSnapshot.length ? '(צילום מצב מרגע ההכרעה)' : '(החלטה ישנה ללא צילום: מחושב לפי המצב הנוכחי)'}</h3>${compareHtml(d)}</div>
                     ${ch ? `<div class="rounded-xl border border-slate-700 bg-slate-900/60 p-3 text-sm space-y-2"><div><b class="text-emerald-300">הוחלט:</b> ${h(ch.text)}</div><div><b class="text-slate-300">נימוק:</b> ${h(d.rationale)}</div>${d.doubts ? `<div><b class="text-slate-300">ספקות והתנגדויות שנרשמו מראש:</b> ${h(d.doubts)}</div>` : ''}</div>` : ''}`;
                 if (d.status === 'decided') {
                     if (d.reviewedAt) html += `<div class="rounded-xl border border-sky-500/40 bg-sky-500/5 p-3 text-sm space-y-1"><h3 class="font-bold text-sky-300">🔍 בדיקה בדיעבד (${h(d.reviewedAt)})</h3><div>${h(d.outcome)}</div><div class="text-[12px] text-slate-300">איכות התהליך: <b>${d.processRating}/5</b> • איך זה יצא: <b>${d.outcomeRating}/5</b></div></div>`;

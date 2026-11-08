@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>יחסים - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+    <script src="gov-core.js"></script>
+    <script src="gov-nav.js"></script>
+
+    <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
+        <h1 class="text-3xl font-black text-white">👥 ניהול יחסים</h1>
+        <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">יומן יחסים לכל אדם: אירועים, אמנות מתועדות וקצב קשר. אינדקס הקרבה משקף <b>את היומן שאתה מנהל</b>, לא את מה שהצד השני מרגיש.</p>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 space-y-5 mt-4">
+        <section id="people-overview" class="space-y-3"><div id="summary" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div><div id="alerts"></div></section>
+        <section id="people-list" class="space-y-3">
+            <div class="g-card"><h2 class="font-bold text-white text-sm mb-3">➕ אדם חדש</h2>
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                    <label class="g-lab md:col-span-2">שם<input id="nName" class="g-inp" maxlength="40"></label>
+                    <label class="g-lab">סוג הקשר<select id="nRel" class="g-inp"></select></label>
+                    <label class="g-lab">קצב קשר רצוי (ימים, אופציונלי)<input id="nRhythm" type="number" min="1" max="365" class="g-inp" placeholder="למשל 14"></label>
+                    <button class="g-btn pri" onclick="addPerson()">הוסף</button></div></div>
+            <div id="grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+        </section>
+        <section id="people-detail"></section>
+    </main>
+
+    <script>
+        const G = window.GOV, h = G.esc, $ = id => document.getElementById(id);
+        const NOW = G.localDate();
+        let sel = (location.hash.match(/^#p=(.+)$/) || [])[1] || null;
+        const gCol = s => s == null ? '#64748b' : s >= 65 ? '#34d399' : s >= 40 ? '#fbbf24' : '#f87171';
+        const IMP = { '-3': 'פגיעה קשה', '-2': 'פגיעה', '-1': 'פגיעה קלה', 0: 'ניטרלי', 1: 'חיזוק קל', 2: 'חיזוק', 3: 'חיזוק משמעותי' };
+        $('nRel').innerHTML = Object.entries(G.REL).map(([k, o]) => `<option value="${k}">${o.i} ${o.l}</option>`).join('');
+
+        function gauge(c) {   // חצי טבעת: מוצג רק מ-3 אירועים
+            const R = 44, L = Math.PI * R, v = c.score == null ? 0 : c.score, col = gCol(c.score);
+            return `<svg viewBox="0 0 120 70" style="width:10rem"><path d="M16 60 A44 44 0 0 1 104 60" fill="none" stroke="#0f172a" stroke-width="12" stroke-linecap="round"/>
+                <path d="M16 60 A44 44 0 0 1 104 60" fill="none" stroke="${col}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${(L * v / 100).toFixed(1)} ${L.toFixed(1)}"/>
+                <text x="60" y="52" text-anchor="middle" font-size="22" font-weight="900" fill="${c.score == null ? '#64748b' : '#f8fafc'}">${c.score == null ? '—' : c.score}</text></svg>`;
+        }
+        function spark(tr) {
+            if (tr.length < 2) return '<div class="text-[10px] text-slate-500">מגמה תוצג אחרי שתהיה יותר מנקודת זמן אחת.</div>';
+            const W = 220, H = 50, x = i => 4 + i * (W - 8) / (tr.length - 1), y = v => H - 4 - v / 100 * (H - 8);
+            return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:15rem"><line x1="0" x2="${W}" y1="${y(50)}" y2="${y(50)}" stroke="#334155" stroke-dasharray="3 3"/><polyline fill="none" stroke="#38bdf8" stroke-width="2" points="${tr.map((p, i) => x(i) + ',' + y(p.score)).join(' ')}"/>${tr.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.score)}" r="2.5" fill="#38bdf8"><title>${h(p.date)}: ${p.score}</title></circle>`).join('')}</svg>`;
+        }
+
+        function renderOverview() {
+            const ps = G.people.all().filter(p => !p.archived), al = G.relationAlerts(), evs = G.relEvents.all(), tr = G.treaties.all().filter(t => t.status === 'active' && t.personId);
+            const c = (v, l, col) => `<div class="g-card text-center" style="padding:10px"><div class="text-2xl font-black" style="color:${col}">${v}</div><div class="text-[11px] text-slate-400">${l}</div></div>`;
+            $('summary').innerHTML = c(ps.length, 'אנשים', '#38bdf8') + c(al.length, 'מעבר לקצב הקשר', al.length ? '#fb923c' : '#64748b') + c(tr.length, 'אמנות בתוקף מול אנשים', '#a78bfa') + c(evs.length, 'אירועים ביומן', '#34d399');
+            $('alerts').innerHTML = al.length ? `<div class="g-card" style="border-color:#fb923c88"><div class="text-sm font-bold text-orange-300 mb-2">📅 קשר שעבר את הקצב שהגדרת</div>${al.map(x => `<button class="block text-right text-xs text-slate-200 underline" onclick="openP('${h(x.p.id)}')">${h(x.p.name)}: ${x.s.last ? 'קשר אחרון לפני ' + x.s.days + ' ימים' : 'עדיין אין אירוע ביומן (' + x.s.days + ' ימים מאז ההוספה)'} • קצב רצוי כל ${x.s.rhythm} ימים</button>`).join('')}</div>` : '';
+        }
+        function renderGrid() {
+            const ps = G.people.all().sort((a, b) => (a.archived ? 1 : 0) - (b.archived ? 1 : 0) || a.name.localeCompare(b.name, 'he'));
+            $('grid').innerHTML = ps.map(p => { const c = G.closeness(p.id), cs = G.contactStatus(p), n = G.treaties.all().filter(t => t.personId === p.id && t.status === 'active').length;
+                return `<button type="button" onclick="openP('${h(p.id)}')" class="g-card text-right hover:border-amber-400 transition ${sel === p.id ? 'border-amber-400' : ''}" style="${p.archived ? 'opacity:.55' : ''}">
+                    <div class="flex items-center justify-between gap-2"><span class="font-bold text-white">${G.REL[p.relation].i} ${h(p.name)}</span><span class="text-lg font-black" style="color:${gCol(c.score)}" title="${c.score == null ? 'צריך לפחות ' + c.min + ' אירועים' : 'אינדקס קרבה'}">${c.score == null ? '—' : c.score}</span></div>
+                    <div class="text-[11px] text-slate-400 mt-1">${G.REL[p.relation].l}${p.archived ? ' • בארכיון' : ''}${cs.overdue ? ' • <span style="color:#fb923c">מעבר לקצב</span>' : ''}</div>
+                    <div class="flex flex-wrap gap-1.5 mt-2 text-[10px]"><span class="g-chip text-sky-300 border-sky-500/40">${c.n} אירועים</span><span class="g-chip text-violet-300 border-violet-500/40">${n} אמנות בתוקף</span></div></button>`; }).join('') || '<p class="text-xs text-slate-500 sm:col-span-3 text-center">עדיין אין אנשים. הוסף את הראשון.</p>';
+        }
+        function addPerson() {
+            const n = $('nName').value.trim(); if (n.length < 2) { alert('הזן שם (לפחות 2 תווים).'); return; }
+            if (G.people.all().some(p => p.name.toLowerCase() === n.toLowerCase())) { alert('כבר קיים אדם בשם הזה.'); return; }
+            const p = G.people.save({ name: n, relation: $('nRel').value, rhythmDays: $('nRhythm').value }); $('nName').value = ''; $('nRhythm').value = ''; if (p) sel = p.id; render();
+        }
+        function openP(id) { sel = id; history.replaceState(null, '', '#p=' + id); render(); $('people-detail').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+
+        function mergedTimeline(p) {   // אירועי יחסים + רשומות מיומני האמנות המקושרות, ממוין מהחדש לישן
+            const out = G.relEvents.all().filter(e => e.personId === p.id).map(e => ({ at: e.date, type: 'ev', e }));
+            G.treaties.all().filter(t => t.personId === p.id).forEach(t => G.treatyTimeline(t).forEach(x => out.push({ at: x.at, type: 'tl', t, x })));
+            return out.sort((a, b) => b.at.localeCompare(a.at));
+        }
+        function renderDetail() {
+            const box = $('people-detail'), p = sel && G.people.get(sel);
+            if (!p) { box.innerHTML = '<div class="g-card text-center text-sm text-slate-400">בחר אדם כדי לראות יומן, אמנות ואינדקס קרבה.</div>'; return; }
+            const c = G.closeness(p.id), cs = G.contactStatus(p), ts = G.treaties.all().filter(t => t.personId === p.id), tl = mergedTimeline(p);
+            const kept = ts.filter(t => t.status === 'fulfilled').length, broke = ts.filter(t => t.status === 'breached').length;
+            box.innerHTML = `<div class="g-card space-y-5">
+                <div class="flex flex-wrap items-center justify-between gap-2"><h2 class="text-xl font-black text-amber-400">${G.REL[p.relation].i} ${h(p.name)}</h2>
+                    <div class="flex gap-2"><button class="g-btn" onclick="archiveP()">${p.archived ? '↩️ החזר מהארכיון' : '📦 העבר לארכיון'}</button><button class="g-btn red" onclick="delP()">🗑️ מחק</button></div></div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                    <div class="text-center">${gauge(c)}<div class="text-[11px] text-slate-400">אינדקס קרבה${c.score == null ? ': יוצג מ-' + c.min + ' אירועים (יש ' + c.n + ')' : ''}</div></div>
+                    <div>${spark(c.trend)}<div class="text-[10px] text-slate-500">מגמת האינדקס לאורך זמן</div></div>
+                    <div class="text-xs space-y-1 text-slate-300"><div>✅ אירועים מחזקים: <b>${c.positive}</b> • ❌ פוגעים: <b>${c.negative}</b></div><div>📅 קשר אחרון: <b>${c.lastContact ? h(c.lastContact) + ' (לפני ' + cs.days + ' ימים)' : 'אין'}</b></div><div>🤝 אמנות: ${ts.filter(t => t.status === 'active').length} בתוקף • ${kept} קוימו • ${broke} הופרו</div></div></div>
+                <p class="text-[10px] text-slate-500">האינדקס = 50 + סכום השפעות האירועים (דעיכה: חצי-חיים 180 יום), מוגבל ל-0 עד 100. זהו סיכום של מה שרשמת, לא מדד פסיכולוגי ולא קריאת מחשבות של הצד השני.</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <label class="g-lab">סוג הקשר<select id="eRel" class="g-inp" onchange="saveMeta()">${Object.entries(G.REL).map(([k, o]) => `<option value="${k}"${p.relation === k ? ' selected' : ''}>${o.i} ${o.l}</option>`).join('')}</select></label>
+                    <label class="g-lab">קצב קשר רצוי (ימים)<input id="eRhythm" type="number" min="1" max="365" class="g-inp" value="${p.rhythmDays || ''}" onchange="saveMeta()"></label>
+                    <label class="g-lab">הערות כלליות<input id="eNotes" class="g-inp" maxlength="400" value="${h(p.notes)}" onchange="saveMeta()"></label></div>
+
+                <div><h3 class="font-bold text-white text-sm mb-2">➕ אירוע ביומן היחסים</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
+                        <label class="g-lab md:col-span-3">מה קרה? (עובדה, לא פרשנות)<input id="vText" class="g-inp" maxlength="300" onkeydown="if(event.key==='Enter')addEv()"></label>
+                        <label class="g-lab">תאריך<input id="vDate" type="date" class="g-inp" value="${NOW}" max="${NOW}"></label>
+                        <label class="g-lab">השפעה על הקשר<select id="vImp" class="g-inp">${[3, 2, 1, 0, -1, -2, -3].map(n => `<option value="${n}"${n === 0 ? ' selected' : ''}>${n > 0 ? '+' + n : n} ${IMP[n]}</option>`).join('')}</select></label>
+                        <button class="g-btn pri" onclick="addEv()">הוסף</button></div></div>
+
+                <div><h3 class="font-bold text-white text-sm mb-2">🤝 אמנות מול ${h(p.name)}</h3>
+                    ${ts.map(t => `<div class="text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-2 mb-1.5" style="border-right:4px solid ${G.TREATY_STATUS[t.status].c}"><div class="flex justify-between gap-2"><b>${h(t.title)}</b><span style="color:${G.TREATY_STATUS[t.status].c}">${G.TREATY_STATUS[t.status].l}</span></div><div class="g-bar mt-1.5"><i style="width:${t.progress}%;background:${G.TREATY_STATUS[t.status].c}"></i></div><div class="text-[10px] text-slate-500 mt-1">התקדמות ${t.progress}% • ${t.log.length || 1} רשומות ביומן האמנה • <a class="text-sky-300 underline" href="treaties.html">פתח בדף האמנות</a></div></div>`).join('') || '<p class="text-xs text-slate-500">אין אמנות מקושרות. קשר אמנה לאדם בטופס האמנה בדף יחסי חוץ.</p>'}</div>
+
+                <div><h3 class="font-bold text-white text-sm mb-2">🕰️ ציר זמן משולב (אירועים + יומני אמנות)</h3>
+                    <div class="space-y-1.5 max-h-96 overflow-auto">${tl.map(r => r.type === 'ev'
+                        ? `<div class="text-xs flex gap-2 items-start bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1.5"><span style="color:${r.e.impact > 0 ? '#34d399' : r.e.impact < 0 ? '#f87171' : '#94a3b8'}" class="font-black shrink-0">${r.e.impact > 0 ? '+' : ''}${r.e.impact}</span><span class="flex-1"><span class="text-slate-500">${h(r.e.date)}</span> ${h(r.e.text)}${r.e.auto ? ' <span class="g-chip text-violet-300 border-violet-500/40">אוטומטי</span>' : ''}</span>${r.e.auto ? '' : `<button class="text-rose-400" onclick="delEv('${h(r.e.id)}')">✕</button>`}</div>`
+                        : `<div class="text-xs flex gap-2 items-start px-3 py-1.5 border-r-2 border-slate-600"><span>🤝</span><span class="flex-1 text-slate-300"><span class="text-slate-500">${h(r.at)}</span> <b>${h(r.t.title)}</b>: ${h(r.x.text) || h(r.x.kind)}${r.x.kind === 'update' && r.x.progress != null ? ' (' + r.x.progress + '%)' : ''}</span></div>`).join('') || '<p class="text-xs text-slate-500">אין רשומות עדיין.</p>'}</div></div>
+
+                <div><h3 class="font-bold text-white text-sm mb-2">🤖 ניתוח יחסים (Gemini)</h3>
+                    <p class="text-[11px] text-slate-400 mb-2">ניתוח של <b>היומן שרשמת בלבד</b>: דפוסים, פערים בין אמנות לקשר, ושאלות למחשבה. הוא חד-צדדי וללא ראיות על מה שהצד השני חושב.</p>
+                    <button class="g-btn pri" onclick="analyze()">🤖 נתח את היחסים</button>
+                    <div id="aiOut" class="mt-3 text-xs whitespace-pre-wrap text-slate-200"></div>
+                    ${p.aiNotes.slice().reverse().map(n => `<div class="mt-2 text-xs bg-slate-900/70 border border-slate-700 rounded-lg p-2"><div class="text-[10px] text-slate-500 mb-1">ניתוח שמור מ-${h(n.at)}</div><div class="whitespace-pre-wrap text-slate-300">${h(n.text)}</div></div>`).join('')}</div>
+            </div>`;
+        }
+        function saveMeta() { const p = G.people.get(sel); if (!p) return; p.relation = $('eRel').value; p.rhythmDays = $('eRhythm').value; p.notes = $('eNotes').value; G.people.save(p); render(); }
+        function addEv() {
+            const t = $('vText').value.trim(); if (t.length < 3) { alert('תאר מה קרה (לפחות 3 תווים).'); return; }
+            const d = $('vDate').value; if (!d || d > NOW) { alert('התאריך לא יכול להיות בעתיד.'); return; }
+            G.relEvents.save({ personId: sel, date: d, text: t, impact: $('vImp').value }); render();
+        }
+        function delEv(id) { if (confirm('למחוק את האירוע מהיומן?')) { G.relEvents.remove(id); render(); } }
+        function archiveP() { const p = G.people.get(sel); p.archived = !p.archived; G.people.save(p); render(); }
+        function delP() { if (confirm('למחוק את האדם ואת יומן האירועים שלו? האמנות מולו יישארו (עם שם הצד).')) { G.people.remove(sel); sel = null; history.replaceState(null, '', location.pathname); render(); } }
+
+        async function analyze() {
+            const p = G.people.get(sel); if (!p) return;
+            if (!window.GOVAI || !GOVAI.hasKey()) { alert('לא הוגדר מפתח Gemini. הגדר אותו פעם אחת בלוח הבקרה.'); return; }
+            const c = G.closeness(p.id), evs = G.relEvents.all().filter(e => e.personId === p.id).sort((a, b) => a.date.localeCompare(b.date)).slice(-40), ts = G.treaties.all().filter(t => t.personId === p.id);
+            if (evs.length + ts.length < 3) { alert('אין מספיק נתונים לניתוח (לפחות 3 אירועים או אמנות).'); return; }
+            const data = `אדם: ${p.name} (סוג קשר: ${G.REL[p.relation].l})\nקצב קשר רצוי: ${p.rhythmDays || 'לא הוגדר'} ימים\nאינדקס קרבה מחושב: ${c.score == null ? 'לא מחושב' : c.score}\nאירועים (תאריך | השפעה | טקסט):\n${evs.map(e => `${e.date} | ${e.impact} | ${e.text}`).join('\n') || '(אין)'}\nאמנות:\n${ts.map(t => `- ${t.title} | סטטוס: ${G.TREATY_STATUS[t.status].l} | התקדמות ${t.progress}% | חומרה ${G.LEVEL[t.costLevel]} | יומן: ${G.treatyTimeline(t).map(x => x.at + ' ' + x.text).join('; ')}`).join('\n') || '(אין)'}`;
+            $('aiOut').textContent = 'ממתין לאישור…';
+            const r = await GOVAI.ask({ title: 'ניתוח יחסים עם ' + p.name, names: [p.name, G.profile && G.profile.get ? (G.profile.get().name || '') : ''], data,
+                task: 'נתח את יומן היחסים הבא. ענה במבנה: 1) מה עולה מהנתונים (עובדות בלבד). 2) דפוסים או פערים (למשל בין אמנות שהופרו לבין האירועים). 3) מה לא ניתן לדעת מהנתונים הללו. 4) שלוש שאלות למחשבה שמתאימות למשתמש. התייחס לכך שהיומן חד-צדדי.' });
+            if (!r.ok) { $('aiOut').textContent = r.cancelled ? 'בוטל.' : '⚠️ ' + r.error; return; }
+            $('aiOut').textContent = r.text;
+            if (confirm('לשמור את הניתוח ליומן של ' + p.name + '?')) { const q = G.people.get(p.id); q.aiNotes = q.aiNotes.concat([{ at: NOW, text: r.text, by: r.model }]); G.people.save(q); render(); }
+        }
+
+        function render() { renderOverview(); renderGrid(); renderDetail(); }
+        window.addEventListener('DOMContentLoaded', render);
+        window.addEventListener('storage', render);
+    </script>
+</body>
+</html>

@@ -34,7 +34,9 @@
     <script>
         const G = window.GOV, h = G.esc, $ = id => document.getElementById(id);
         const NOW = G.localDate();
-        let editId = null;
+        let editId = null; const openIds = new Set();
+        const KIND_L = { created: ['🆕', 'נוצרה', '#38bdf8'], update: ['📈', 'עדכון התקדמות', '#34d399'], edited: ['✏️', 'עריכה', '#a78bfa'], closed: ['🔒', 'נסגרה', '#fbbf24'], note: ['📝', 'הערה', '#94a3b8'] };
+        const peopleOpts = s => '<option value="">ללא קישור (טקסט חופשי בלבד)</option>' + G.people.all().filter(p => !p.archived || p.id === s).map(p => `<option value="${h(p.id)}"${p.id === s ? ' selected' : ''}>${G.REL[p.relation].i} ${h(p.name)}</option>`).join('');
         const daysTo = ds => Math.round((new Date(ds + 'T00:00:00') - new Date(NOW + 'T00:00:00')) / 864e5);
         const pById = id => G.portfolios.get(id);
         const pOpts = s => '<option value="">ללא תיק</option>' + G.portfolios.all().map(p => `<option value="${h(p.id)}"${p.id === s ? ' selected' : ''}>${p.icon} ${h(p.name)}</option>`).join('');
@@ -66,28 +68,34 @@
         }
 
         function renderForm() {
-            const t = editId ? G.treaties.get(editId) : null, v = t || { party: '', kind: 'person', title: '', terms: '', cost: '', costLevel: 2, due: '', pid: '' };
+            const t = editId ? G.treaties.get(editId) : null, v = t || { party: '', kind: 'person', title: '', terms: '', cost: '', costLevel: 2, due: '', pid: '', personId: '', recur: [] };
             if (editId && !t) editId = null;
             $('treaties-form').innerHTML = `<h2 class="font-bold text-white text-sm mb-3">${t ? '✏️ עריכת אמנה' : '➕ אמנה חדשה'}</h2>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <label class="g-lab md:col-span-2">מול מי? (שם אדם, קבוצה או גוף)<input id="tParty" class="g-inp" maxlength="60" value="${h(v.party)}"></label>
+                    <label class="g-lab md:col-span-2">קישור לאדם מיומן היחסים (אופציונלי: הפרה/קיום יירשמו אוטומטית ביומן שלו)<select id="tPerson" class="g-inp" onchange="fillParty()">${peopleOpts(v.personId)}</select></label>
                     <label class="g-lab">סוג הצד<select id="tKind" class="g-inp">${Object.entries(G.PARTY_KIND).map(([k, o]) => `<option value="${k}"${v.kind === k ? ' selected' : ''}>${o.i} ${o.l}</option>`).join('')}</select></label>
                     <label class="g-lab">תיק קשור<select id="tPid" class="g-inp">${pOpts(v.pid)}</select></label>
                     <label class="g-lab md:col-span-2">כותרת האמנה<input id="tTitle" class="g-inp" maxlength="140" placeholder="למשל: ערב קבוע של זוגיות בכל שבוע" value="${h(v.title)}"></label>
                     <label class="g-lab">מועד (אם יש)<input id="tDue" type="date" class="g-inp" value="${h(v.due)}"></label>
                     <label class="g-lab">חומרת הפרה<select id="tLevel" class="g-inp">${[1, 2, 3].map(n => `<option value="${n}"${v.costLevel === n ? ' selected' : ''}>${G.LEVEL[n]}</option>`).join('')}</select></label>
+                    <div class="md:col-span-4"><div class="g-lab">מחויבות קבועה (אופציונלי): באילו ימים האמנה מחייבת פעולה?</div><div class="flex flex-wrap items-center gap-1.5 mt-1">${G.DOW.map((d, k) => `<label class="text-xs px-2 py-1 rounded-lg border border-slate-600 cursor-pointer"><input type="checkbox" class="tDay accent-amber-400" value="${k}" ${v.recur.includes(k) ? 'checked' : ''}> ${d}׳</label>`).join('')}
+                        <button type="button" class="g-btn" onclick="setDays([0,1,2,3,4,5,6])">כל יום</button><button type="button" class="g-btn" onclick="setDays([0,2,4])">א׳ ג׳ ה׳</button><button type="button" class="g-btn" onclick="setDays([5])">פעם בשבוע (ו׳)</button><button type="button" class="g-btn" onclick="setDays([])">ללא</button></div>
+                        <p class="text-[10px] text-slate-500 mt-1">אמנה עם ימים קבועים מופיעה בלוח הבקרה בכל יום רלוונטי, ואפשר לסמן בה ביצוע. שינוי הימים מתועד ביומן האמנה ומשפיע על חישוב העמידה בה.</p></div>
                     <label class="g-lab md:col-span-2">התנאים: מה בדיוק התחייבת ומה הצד השני התחייב?<textarea id="tTerms" rows="2" maxlength="600" class="g-inp">${h(v.terms)}</textarea></label>
                     <label class="g-lab md:col-span-2">מה המחיר אם תפר? (אמון, כסף, יחסים, מוניטין…)<textarea id="tCost" rows="2" maxlength="300" class="g-inp">${h(v.cost)}</textarea></label>
                 </div>
                 <div class="flex gap-2 mt-3"><button class="g-btn pri" onclick="saveTreaty()">💾 ${t ? 'שמור שינויים' : 'הוסף אמנה'}</button>${t ? '<button class="g-btn" onclick="editId=null;render()">ביטול</button>' : ''}</div>
-                <p class="text-[10px] text-slate-500 mt-2">אמנה בתוקף ניתנת לעריכה. אחרי שנסגרה (קוימה / הופרה / הסתיימה) היא נעולה, כדי שהיסטוריית ההתחייבויות שלך לא תשוכתב.</p>`;
+                <p class="text-[10px] text-slate-500 mt-2">כל שינוי באמנה מתועד ביומן שלה (יצירה, עדכוני התקדמות, עריכות, סגירה והערות). אמנה בתוקף ניתנת לעריכה. אחרי שנסגרה (קוימה / הופרה / הסתיימה) היא נעולה, כדי שהיסטוריית ההתחייבויות שלך לא תשוכתב.</p>`;
         }
+        function setDays(a) { document.querySelectorAll('.tDay').forEach(c => { c.checked = a.includes(Number(c.value)); }); }
+        function fillParty() { const p = G.people.get($('tPerson').value); if (p) { $('tParty').value = p.name; $('tKind').value = 'person'; } }
         function saveTreaty() {
             const party = $('tParty').value.trim(), title = $('tTitle').value.trim();
             if (party.length < 2) { alert('הזן מול מי האמנה (לפחות 2 תווים).'); return; }
             if (title.length < 3) { alert('הזן כותרת לאמנה (לפחות 3 תווים).'); return; }
             const base = editId ? G.treaties.get(editId) : {};
-            const item = Object.assign({}, base, { party, title, kind: $('tKind').value, pid: $('tPid').value, due: $('tDue').value, costLevel: $('tLevel').value, terms: $('tTerms').value, cost: $('tCost').value, status: 'active' });
+            const item = Object.assign({}, base, { recur: [...document.querySelectorAll('.tDay:checked')].map(c => Number(c.value)), party, personId: $('tPerson').value, title, kind: $('tKind').value, pid: $('tPid').value, due: $('tDue').value, costLevel: $('tLevel').value, terms: $('tTerms').value, cost: $('tCost').value, status: 'active' });
             if (!G.treaties.save(item)) { alert('לא ניתן לשמור: ייתכן שהאמנה כבר נסגרה.'); return; }
             editId = null; render();
         }
@@ -95,13 +103,36 @@
         function card(t) {
             const s = G.TREATY_STATUS[t.status], act = t.status === 'active', port = t.pid && pById(t.pid), d = t.due ? daysTo(t.due) : null;
             const dueTxt = t.due ? (act && d < 0 ? `<span style="color:#f87171">מועד ${h(t.due)} (באיחור ${-d} ימים)</span>` : act && d <= 14 ? `<span style="color:#fb923c">מועד ${h(t.due)} (בעוד ${d} ימים)</span>` : `מועד ${h(t.due)}`) : '';
+            const person = t.personId && G.people.get(t.personId), tl = G.treatyTimeline(t), isOpen = openIds.has(t.id), nUp = tl.filter(x => x.kind === 'update').length;
             return `<div class="g-card" style="border-right:4px solid ${s.c};padding:12px">
                 <div class="flex flex-wrap items-start justify-between gap-2"><div class="min-w-0"><div class="font-bold text-white">${h(t.title)}</div>
-                    <div class="text-[11px] text-slate-400 mt-0.5">${port ? port.icon + ' ' + h(port.name) + ' • ' : ''}${dueTxt}${t.closedAt ? ' • נסגרה ב-' + h(t.closedAt) : ''}</div></div>
+                    <div class="text-[11px] text-slate-400 mt-0.5">${person ? '👤 <a class="text-sky-300 underline" href="people.html#p=' + h(person.id) + '">' + h(person.name) + '</a> • ' : ''}${port ? port.icon + ' ' + h(port.name) + ' • ' : ''}${dueTxt}${t.closedAt ? ' • נסגרה ב-' + h(t.closedAt) : ''}</div></div>
                     <div class="flex items-center gap-1.5"><span class="g-chip" style="color:${lvlColor[t.costLevel]};border-color:${lvlColor[t.costLevel]}66;background:${lvlColor[t.costLevel]}1a">חומרת הפרה: ${G.LEVEL[t.costLevel]}</span><span class="g-chip" style="color:${s.c};border-color:${s.c}55;background:${s.c}1a">${s.l}</span></div></div>
                 ${t.terms ? `<div class="text-[11px] text-slate-300 mt-2">📄 ${h(t.terms)}</div>` : ''}${t.cost ? `<div class="text-[11px] text-amber-200/80 mt-1">⚠️ מחיר הפרה: ${h(t.cost)}</div>` : ''}${t.note ? `<div class="text-[11px] text-violet-300 mt-1">📝 ${h(t.note)}</div>` : ''}
+                ${recurHtml(t)}
+                <div class="mt-2"><div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>התקדמות</span><b class="text-slate-200">${t.progress}%</b></div><div class="g-bar"><i style="width:${t.progress}%;background:${s.c}"></i></div></div>
+                <button class="text-[11px] text-sky-300 mt-2 underline" onclick="toggleOpen('${h(t.id)}')">${isOpen ? '▲ הסתר תיעוד' : '▼ תיעוד ויומן (' + tl.length + ' רשומות' + (nUp ? ', ' + nUp + ' עדכוני התקדמות' : '') + ')'}</button>
+                ${isOpen ? timeline(t, tl) : ''}
                 ${act ? `<div class="flex flex-wrap gap-2 mt-3"><button class="g-btn ok" onclick="closeT('${h(t.id)}','fulfilled')">✓ קוימה</button><button class="g-btn red" onclick="closeT('${h(t.id)}','breached')">✗ הופרה</button><button class="g-btn" onclick="closeT('${h(t.id)}','ended')">⏹ הסתיימה</button><button class="g-btn" onclick="editId='${h(t.id)}';render();scrollToForm()">✏️ ערוך</button><button class="g-btn" onclick="delT('${h(t.id)}')">🗑️</button></div>` : ''}</div>`;
         }
+        function recurHtml(t) {
+            if (!t.recur.length) return '';
+            const c = G.treaties.compliance(t), days = []; for (let k = 6; k >= 0; k--) days.push(G.addDays(NOW, -k));
+            return `<div class="mt-2 bg-slate-900/60 border border-slate-700 rounded-lg p-2"><div class="flex flex-wrap justify-between gap-2 text-[11px] text-slate-300"><span>🔁 מחויבות קבועה: <b>${h(G.routines.dayLabel(t.recur))}</b></span><span>${c.pct == null ? 'אחוז עמידה יוצג אחרי 3 ימים מתוזמנים (' + c.scheduled + ')' : 'עמידה: <b style="color:' + (c.pct >= 80 ? '#34d399' : c.pct >= 50 ? '#fbbf24' : '#f87171') + '">' + c.pct + '%</b> (' + c.done + ' מתוך ' + c.scheduled + ')'}</span></div>
+                <div class="flex gap-1 mt-1.5">${days.map(d => { const on = G.dowOf(d), sch = t.recur.includes(on), done = t.checks.includes(d), can = sch && t.status === 'active'; return `<button type="button" ${can ? '' : 'disabled'} onclick="chk('${h(t.id)}','${d}')" title="${h(d)}" class="text-[10px] w-9 py-1 rounded-md border" style="${!sch ? 'opacity:.25;border-color:#334155' : done ? 'background:#047857;border-color:#34d399;color:#fff' : d === NOW ? 'border-color:#fbbf24' : 'border-color:#64748b'}">${G.DOW[on]}׳${done ? ' ✓' : ''}</button>`; }).join('')}</div></div>`;
+        }
+        function chk(id, d) { const r = G.treaties.check(id, d); if (!r.ok) alert(r.error); render(); }
+        function timeline(t, tl) {
+            const act = t.status === 'active';
+            return `<div class="mt-2 border-t border-slate-700 pt-2"><div class="space-y-1.5">${tl.map(x => { const k = KIND_L[x.kind]; return `<div class="flex gap-2 text-[11px]"><span style="color:${k[2]}">${k[0]}</span><div class="min-w-0"><span class="text-slate-500">${h(x.at)}</span> <b style="color:${k[2]}">${k[1]}${x.status ? ': ' + G.TREATY_STATUS[x.status].l : ''}${x.progress != null && x.kind === 'update' ? ' (' + x.progress + '%)' : ''}</b><div class="text-slate-300">${h(x.text) || '<span class="text-slate-500">ללא הערה</span>'}</div></div></div>`; }).join('')}</div>
+                <div class="flex flex-wrap gap-2 mt-3 items-end">
+                    ${act ? `<input id="up_${h(t.id)}" class="g-inp flex-1 min-w-[10rem]" style="margin:0" maxlength="300" placeholder="עדכון התקדמות: מה קרה?"><label class="text-[10px] text-slate-400">%<input id="upp_${h(t.id)}" type="number" min="0" max="100" value="${t.progress}" class="g-inp" style="margin:0;width:4.5rem"></label><button class="g-btn ok" onclick="addUp('${h(t.id)}')">📈 עדכן</button>` : ''}
+                    <input id="nt_${h(t.id)}" class="g-inp flex-1 min-w-[10rem]" style="margin:0" maxlength="300" placeholder="${act ? 'הערה (בלי שינוי אחוז)' : 'הערה לאחר הסגירה (למשל: היחסים התאוששו)'}"><button class="g-btn" onclick="addNote('${h(t.id)}')">📝 הערה</button></div>
+                <p class="text-[10px] text-slate-500 mt-1">היומן הוא תוספת בלבד: רשומות לא נמחקות ולא נערכות${act ? '' : '. אמנה סגורה ממשיכה לקבל הערות'}.</p></div>`;
+        }
+        function toggleOpen(id) { openIds.has(id) ? openIds.delete(id) : openIds.add(id); render(); }
+        function addUp(id) { const r = G.treaties.addUpdate(id, $('up_' + id).value, $('upp_' + id).value); if (!r.ok) { alert(r.error); return; } render(); }
+        function addNote(id) { const r = G.treaties.addNote(id, $('nt_' + id).value); if (!r.ok) { alert(r.error); return; } render(); }
         function scrollToForm() { $('treaties-form').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 
         function renderList() {
@@ -117,7 +148,7 @@
             if (status === 'breached') { note = prompt('הפרת אמנה נרשמת בכנות. מה קרה, ולמה? (לפחות 10 תווים)'); if (note === null) return; }
             else if (status === 'fulfilled') { note = prompt('הערה אופציונלית (אפשר להשאיר ריק):'); if (note === null) return; }
             else { note = prompt('למה האמנה הסתיימה? (אופציונלי)'); if (note === null) return; }
-            const r = G.treaties.close(id, status, note); if (!r.ok) { alert(r.error); return; } render();
+            const r = G.treaties.close(id, status, note); if (!r.ok) { alert(r.error); return; } if (r.eventAdded) alert('נרשם אירוע אוטומטי ביומן היחסים של האדם המקושר.'); render();
         }
         function delT(id) { if (confirm('למחוק את האמנה? (אם היא פשוט לא קוימה, עדיף לסגור אותה כ"הופרה" ולא למחוק)')) { G.treaties.remove(id); render(); } }
 

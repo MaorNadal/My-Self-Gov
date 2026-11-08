@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>שרים והיסטוריה - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+    <script src="gov-core.js"></script>
+    <script src="gov-nav.js"></script>
+    <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
+        <h1 class="text-3xl font-black text-white">🎖️ שרים והיסטוריית ממשלות</h1>
+        <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">שר מכהן בתיק מרגע שמינית אותו בדף התיקים, ועד שהחלפת אותו. הדירוג נגזר מפעילות אמיתית בתיק (משימות, הבטחות, רעיונות, סוגיות והחלטות). ציוני האישיות הם דמיוניים ובהגרלה, ולא נגזרים ממך.</p>
+    </header>
+    <main class="max-w-6xl mx-auto px-4 space-y-5 mt-4">
+        <section id="min-list" class="space-y-3"></section>
+        <section id="min-history" class="space-y-3"></section>
+        <section id="min-diff" class="g-card"></section>
+    </main>
+    <div id="modal" style="display:none;position:fixed;inset:0;z-index:900;background:#020617cc;align-items:center;justify-content:center;padding:14px" onclick="if(event.target===this)closeM()"><div id="modalBox" class="g-card" style="max-width:640px;width:100%;max-height:92vh;overflow:auto;background:#0f172a;border-color:#fbbf24"></div></div>
+    <script>
+        const G = window.GOV, h = G.esc, $ = id => document.getElementById(id), NOW = G.localDate();
+        const AV = ['🧑‍⚖️', '🧑‍🔬', '🧑‍🏫', '🧑‍💼', '🧑‍🚀', '🧑‍🍳', '🧑‍🎨', '🧑‍🔧', '🕵️', '🦉', '🦊', '🦁'];
+        const avatar = m => AV[m.seed % AV.length];
+        const pf = id => G.portfolios.get(id) || { icon: '📁', name: 'תיק שנמחק' };
+        const days = m => Math.max(1, Math.round((Date.parse(m.to || NOW) - Date.parse(m.from)) / 864e5) + 1);
+
+        function radar(tr) {   // רדאר 5 ממדים (1-9)
+            const keys = G.ministers.TRAITS, N = keys.length, cx = 90, cy = 85, R = 58, pt = (i, v) => { const a = -Math.PI / 2 + i * 2 * Math.PI / N; return [cx + Math.cos(a) * R * v / 9, cy + Math.sin(a) * R * v / 9]; };
+            const ring = k => keys.map((_, i) => pt(i, k).join(',')).join(' ');
+            return `<svg viewBox="0 0 180 170" style="width:100%;max-width:15rem">${[3, 6, 9].map(k => `<polygon points="${ring(k)}" fill="none" stroke="#334155"/>`).join('')}${keys.map((_, i) => `<line x1="${cx}" y1="${cy}" x2="${pt(i, 9)[0]}" y2="${pt(i, 9)[1]}" stroke="#334155"/>`).join('')}
+                <polygon points="${keys.map(([k], i) => pt(i, tr[k]).join(',')).join(' ')}" fill="#a78bfa55" stroke="#a78bfa" stroke-width="2"/>
+                ${keys.map(([k, l], i) => { const [x, y] = pt(i, 11.2); return `<text x="${x}" y="${y}" text-anchor="middle" font-size="9" fill="#cbd5e1">${l} ${tr[k]}</text>`; }).join('')}</svg>`;
+        }
+        function renderList() {
+            const all = G.ministers.all(), cur = all.filter(m => !m.to), rk = G.ministers.ranking(), rankOf = id => { const i = rk.findIndex(x => x.m.id === id); return i < 0 ? null : i + 1; };
+            const card = m => { const s = G.ministers.stats(m), p = pf(m.pid), r = rankOf(m.id);
+                return `<button type="button" onclick="openM('${h(m.id)}')" class="g-card text-right hover:border-amber-400 transition" style="${m.to ? 'opacity:.7' : ''}"><div class="flex items-center gap-3"><span class="text-4xl">${avatar(m)}</span><div class="min-w-0"><div class="font-bold text-white">${h(m.name)}${r ? ' <span class="text-amber-300 text-xs">#' + r + '</span>' : ''}</div><div class="text-[11px] text-slate-400">${p.icon} שר/ת ${h(p.name)} • ${m.to ? 'כיהן/ה ' + h(m.from) + ' עד ' + h(m.to) : 'מכהן/ת מ-' + h(m.from)}</div></div></div>
+                    <div class="flex flex-wrap gap-1.5 mt-2 text-[10px]"><span class="g-chip text-emerald-300 border-emerald-500/40">משימות ${s.tasksDone}</span><span class="g-chip text-sky-300 border-sky-500/40">הבטחות ${s.promisesDone}</span><span class="g-chip text-amber-300 border-amber-500/40">רעיונות ${s.ideas}</span><span class="g-chip text-violet-300 border-violet-500/40">החלטות ${s.decisions}</span></div>
+                    <div class="text-[11px] mt-2 text-slate-300">${s.perMonth == null ? 'אין מספיק פעילות לדירוג (נדרשות 5 פעולות)' : 'קצב פעילות: <b>' + s.perMonth + '</b> נק׳ לחודש'}</div></button>`; };
+            $('min-list').innerHTML = `<h2 class="font-bold text-white text-sm">👔 השרים המכהנים (${cur.length})</h2><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">${cur.map(card).join('') || '<p class="text-xs text-slate-500">אין שרים מכהנים. מנה שרים בדף התיקים.</p>'}</div>
+                ${all.some(m => m.to) ? `<h3 class="font-bold text-slate-300 text-sm mt-2">🕰️ שרים שסיימו כהונה</h3><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">${all.filter(m => m.to).sort((a, b) => b.to.localeCompare(a.to)).map(card).join('')}</div>` : ''}
+                <p class="text-[10px] text-slate-500">הדירוג מבוסס כמות פעילות רשומה בתיק, לא איכות. נקודות: משימה 1, הבטחה שבוצעה 3, רעיון 0.5 (+1 אם אומץ), סוגיה שנסגרה 2, החלטה 1.5. תיק עם הרבה משימות קטנות ייראה פעיל יותר מתיק עם מעט משימות גדולות.</p>`;
+        }
+        function openM(id) {
+            const m = G.ministers.get(id); if (!m) return; const s = G.ministers.stats(m), p = pf(m.pid), tr = G.ministers.traitsOf(m.seed), d = G.difficulty(m.pid);
+            const prev = G.ministers.all().filter(x => x.pid === m.pid && x.id !== m.id).sort((a, b) => b.from.localeCompare(a.from));
+            $('modalBox').innerHTML = `<div class="flex items-start justify-between"><div class="flex items-center gap-3"><span class="text-6xl">${avatar(m)}</span><div><div class="text-2xl font-black text-amber-400">${h(m.name)}</div><div class="text-sm text-slate-300">${p.icon} שר/ת ${h(p.name)}</div><div class="text-[11px] text-slate-500">${m.style ? 'סגנון: ' + h(m.style) + ' • ' : ''}${m.to ? 'כיהן/ה ' + h(m.from) + ' – ' + h(m.to) : 'מכהן/ת מ-' + h(m.from)} (${days(m)} ימים)</div></div></div><button class="g-btn" onclick="closeM()">✕</button></div>
+                <div class="grid grid-cols-3 gap-2 mt-4 text-center">${[['משימות שבוצעו', s.tasksDone, '#34d399'], ['הבטחות שבוצעו', s.promisesDone, '#38bdf8'], ['רעיונות', s.ideas + ' (' + s.adopted + ' אומצו)', '#fbbf24'], ['החלטות בתיק', s.decisions, '#a78bfa'], ['סוגיות שנסגרו', s.issuesResolved, '#fb923c'], ['איכות תהליך בחזרה', s.avgProcess == null ? '—' : s.avgProcess + '/5', '#e2e8f0']].map(x => `<div class="bg-slate-900/70 border border-slate-700 rounded-xl p-2"><div class="text-lg font-black" style="color:${x[2]}">${x[1]}</div><div class="text-[10px] text-slate-400">${x[0]}</div></div>`).join('')}</div>
+                <div class="mt-3 text-sm">${s.perMonth == null ? '<span class="text-slate-400">אין מספיק פעילות לדירוג (נדרשות 5 פעולות).</span>' : 'קצב פעילות: <b class="text-amber-300">' + s.perMonth + '</b> נקודות לחודש • סה״כ ' + s.points + ' נקודות'}</div>
+                <div class="mt-4"><div class="text-xs font-bold text-violet-300 mb-1">🎲 אישיות (דמיונית, בהגרלה קבועה לשר הזה; אינה נגזרת מנתונים)</div><div class="flex justify-center">${radar(tr)}</div></div>
+                <div class="mt-3 text-xs text-slate-300">🏢 קושי המשרד כרגע: <b>${d.score == null ? 'אין מספיק נתונים' : d.score + '/10'}</b>${d.doneRate != null ? ' • אחוז הבטחות שבוצעו בתיק: ' + d.doneRate + '%' : ''}</div>
+                ${prev.length ? `<div class="mt-3"><div class="text-xs font-bold text-slate-300 mb-1">שרים קודמים ובאים אחריו בתיק</div>${prev.map(x => `<button class="block text-right text-xs text-sky-300 underline" onclick="openM('${h(x.id)}')">${avatar(x)} ${h(x.name)} (${h(x.from)}${x.to ? ' – ' + h(x.to) : ' – היום'})</button>`).join('')}</div>` : ''}`;
+            $('modal').style.display = 'flex';
+        }
+        function closeM() { $('modal').style.display = 'none'; }
+
+        function renderHistory() {
+            const hs = G.history(), byPm = {};
+            hs.forEach(x => { const b = byPm[x.pm] = byPm[x.pm] || { n: 0, sc: [], done: 0, total: 0 }; b.n++; if (x.score != null && x.closed) b.sc.push(x.score); b.done += x.done; b.total += x.total; });
+            $('min-history').innerHTML = `<h2 class="font-bold text-white text-sm">🏛️ היסטוריית הממשלות</h2>` + (hs.length ? `<div class="space-y-2">${hs.map(x => { const g = x.score == null ? null : G.gradeFor(x.score), t = x.term;
+                return `<div class="g-card" style="border-right:4px solid ${g ? g.c : '#475569'};padding:12px"><div class="flex flex-wrap items-center justify-between gap-2"><div><div class="font-bold text-white">ממשלת ${h(G.monthLabel(x.mk))} • ראש הממשלה ${h(x.pm)}</div><div class="text-[11px] text-slate-400">הושבעה ${h(t.startAt.replace('T', ' ').slice(0, 16))} • ${x.closed ? 'הסתיימה ' + h(t.endAt.replace('T', ' ')) : 'מכהנת (תסתיים ' + h(t.endAt.replace('T', ' ').slice(0, 16)) + ')'} • דרך הקמה: ${h(G.METHODS[t.method])}</div></div>
+                    <div class="text-center">${g ? `<div class="text-2xl font-black" style="color:${g.c}">${g.l} ${x.score}</div>` : '<div class="text-xs text-slate-500">ללא ציון</div>'}<div class="text-[10px] text-slate-500">${x.closed ? 'ציון סופי' : 'ציון נוכחי'}</div></div></div>
+                    ${t.doctrine ? `<div class="text-[11px] text-slate-300 mt-1">📌 ${h(t.doctrine)}</div>` : ''}<div class="text-[11px] text-slate-300 mt-1">📜 הבטחות שבוצעו: ${x.done}/${x.total}${x.wins.length ? ' — ' + x.wins.map(h).join(' • ') : ''}</div>
+                    <div class="text-[11px] text-slate-400 mt-1">👔 שרים: ${x.ministers.map(m => h(m.name) + ' (' + pf(m.pid).icon + ')').join(', ') || 'לא מונו שרים'}</div></div>`; }).join('')}</div>
+                <div class="g-card"><h3 class="font-bold text-slate-200 text-sm mb-2">דירוג ראשי ממשלה</h3>${Object.entries(byPm).map(([n, b]) => ({ n, b, avg: b.sc.length ? Math.round(b.sc.reduce((a, v) => a + v, 0) / b.sc.length) : null })).sort((a, b) => (b.avg == null ? -1 : b.avg) - (a.avg == null ? -1 : a.avg)).map(r => `<div class="flex justify-between text-xs border-b border-slate-800 py-1"><span>${h(r.n)}</span><span class="text-slate-400">${r.b.n} כהונות • ${r.avg == null ? 'אין ציון סופי' : 'ממוצע ' + r.avg} • הבטחות ${r.b.done}/${r.b.total}</span></div>`).join('')}<p class="text-[10px] text-slate-500 mt-2">הממוצע כולל רק ממשלות שנסגרו בדף "ציון חודשי". אם אתה ראש הממשלה בכל החודשים, זה בעצם ציון של עצמך לאורך זמן.</p></div>` : '<p class="text-xs text-slate-500">עוד לא הוקמה אף ממשלה.</p>');
+        }
+        function renderDiff() {
+            const rows = G.portfolios.all().map(p => ({ p, d: G.difficulty(p.id) })).sort((a, b) => (b.d.score || 0) - (a.d.score || 0));
+            $('min-diff').innerHTML = `<h2 class="font-bold text-white text-sm mb-1">🏢 קושי המשרדים</h2><p class="text-[11px] text-slate-400 mb-3">עומס ואתגר בכל תיק: סוגיות פתוחות לפי חומרה, הבטחות פעילות, הבטחות שנכשלו (פי 2) ומשימות באיחור (פי 1.5). מוצג רק כשיש לפחות 5 פריטים בתיק. זו יוריסטיקה שקופה ולא מדד מדעי.</p>
+                <div class="space-y-1.5">${rows.map(({ p, d }) => `<div class="flex items-center gap-2 text-xs"><span class="w-32 shrink-0">${p.icon} ${h(p.name)}</span><div class="flex-1 g-bar"><i style="width:${(d.score || 0) * 10}%;background:${d.score >= 7 ? '#f87171' : d.score >= 4 ? '#fbbf24' : '#34d399'}"></i></div><span class="w-44 shrink-0 text-slate-400">${d.score == null ? 'אין מספיק נתונים (' + d.items + '/5)' : d.score + '/10 • עומס ' + d.load + (d.doneRate != null ? ' • בוצע ' + d.doneRate + '%' : '')}</span></div>`).join('')}</div>`;
+        }
+        function render() { renderList(); renderHistory(); renderDiff(); }
+        window.addEventListener('DOMContentLoaded', render); window.addEventListener('storage', render);
+    </script>
+</body>
+</html>

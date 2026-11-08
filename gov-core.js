@@ -6,7 +6,8 @@
     const HEB_MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
     const DATE_RE = /^\d{4}-\d{2}-\d{2}$/, MONTH_RE = /^\d{4}-\d{2}$/;
     const MIN_PROMISES = 3, MIN_DAILY_DAYS = 5;                 // ספי נתונים מינימליים לפני שניתן ציון
-    const W = { promises: 60, daily: 25, self: 15 };            // משקלי הציון החודשי
+    const W = { promises: 60, daily: 25, self: 15 };
+    const SECRET_KEYS = [PREFIX + 'lock', PREFIX + 'sync', PREFIX + 'ai'];   // לעולם לא מיוצאים, לא מיובאים ולא מסונכרנים (נעילה, הגדרות ענן, מפתח Gemini)            // משקלי הציון החודשי
 
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const uid = () => 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -60,7 +61,32 @@
         return { id: str(o.id, 40) || uid(), month: MONTH_RE.test(o.month || '') ? o.month : monthOf(localDate()), pid: str(o.pid, 40), text: str(o.text, 300), why: str(o.why, 300), measure: str(o.measure, 300),
             priority: clampInt(o.priority, 1, 3, 2), status, progress: status === 'done' ? 100 : clampInt(o.progress, 0, 100, 0), created: dateOr(o.created, localDate()), doneAt: dateOr(o.doneAt, ''), dropReason: str(o.dropReason, 300), carried: o.carried === true };
     });
-    const issues = collection('issues', p => { const o = base(p); return { id: str(o.id, 40) || uid(), title: str(o.title, 200), pid: str(o.pid, 40), severity: clampInt(o.severity, 1, 3, 2), status: o.status === 'resolved' ? 'resolved' : 'open', created: dateOr(o.created, localDate()), resolvedAt: dateOr(o.resolvedAt, ''), note: str(o.note, 400) }; });
+    // ---------- עזרי חזרתיות וזמן ----------
+    const DOW = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];                       // 0 = יום ראשון
+    const dowOf = ds => new Date(ds + 'T00:00:00').getDay();
+    const cleanDays = v => [...new Set((Array.isArray(v) ? v : []).map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 6))].sort();
+    const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/, timeOr = (v, d) => TIME_RE.test(v || '') ? v : d;
+    const toMin = t => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+    const idList = (v, n) => [...new Set((Array.isArray(v) ? v : []).map(x => str(x, 40)).filter(Boolean))].slice(0, n);
+    const ERR0 = m => ({ ok: false, error: m });
+
+    // ---------- סוגיות: עולות על הפרק, מקושרות להבטחות ולמשימות, ונסגרות רק בנימוק ----------
+    const ISSUE_STATUS = { open: { l: 'עומדת על הפרק', c: '#fbbf24' }, handling: { l: 'בטיפול', c: '#38bdf8' }, resolved: { l: 'נסגרה', c: '#34d399' } };
+    const issuesCol = collection('issues', p => { const o = base(p); return { id: str(o.id, 40) || uid(), title: str(o.title, 200), pid: str(o.pid, 40), severity: clampInt(o.severity, 1, 3, 2), status: ISSUE_STATUS[o.status] ? o.status : 'open',
+        detail: str(o.detail, 600), promiseIds: idList(o.promiseIds, 10), created: dateOr(o.created, localDate()), resolvedAt: dateOr(o.resolvedAt, ''), note: str(o.note, 400) }; });
+    const issues = {
+        all: issuesCol.all, get: issuesCol.get,
+        save(item) { const ex = item && item.id ? issuesCol.get(item.id) : null; if (ex && ex.status === 'resolved') return null; return issuesCol.save(item); },
+        remove(id) { tasks.all().filter(t => t.issueId === id).forEach(t => { t.issueId = ''; tasksCol.save(t); }); return issuesCol.remove(id); },
+        setStatus(id, st) { const x = issuesCol.get(id); if (!x || x.status === 'resolved' || !['open', 'handling'].includes(st)) return false; x.status = st; return !!issuesCol.save(x); },
+        link(id, promiseId, on) { const x = issuesCol.get(id); if (!x || x.status === 'resolved') return false; x.promiseIds = on ? x.promiseIds.concat([promiseId]) : x.promiseIds.filter(v => v !== promiseId); return !!issuesCol.save(x); },
+        resolve(id, note) {
+            const x = issuesCol.get(id); if (!x) return ERR0('הסוגיה לא נמצאה.'); if (x.status === 'resolved') return ERR0('הסוגיה כבר נסגרה.');
+            note = str(note, 400); if (note.length < 10) return ERR0('סגירת סוגיה דורשת תיעוד: מה טופל ואיך (לפחות 10 תווים).');
+            const openT = tasks.all().filter(t => t.issueId === id && !t.done).length; if (openT) return ERR0('יש ' + openT + ' משימות פתוחות שמקושרות לסוגיה. השלם אותן או נתק אותן קודם.');
+            x.status = 'resolved'; x.resolvedAt = localDate(); x.note = note; return issuesCol.save(x) ? { ok: true } : ERR0('השמירה נכשלה.');
+        }
+    };
     const ideas = collection('ideas', p => { const o = base(p); return { id: str(o.id, 40) || uid(), pid: str(o.pid, 40), text: str(o.text, 300), status: ['new', 'adopted', 'rejected'].includes(o.status) ? o.status : 'new', created: dateOr(o.created, localDate()) }; });
 
     // משימות יומיות: מפתח לכל תאריך
@@ -70,8 +96,11 @@
     };
 
     // ממשלה חודשית (ראש ממשלה + דוקטרינה)
-    const cleanTerm = v => { const o = base(v); return { kind: ['self', 'real', 'fictional'].includes(o.kind) ? o.kind : 'self', name: str(o.name, 60), doctrine: str(o.doctrine, 500), created: dateOr(o.created, '') }; };
-    const term = { get(mk) { const v = rd('term_' + mk, null); return v && typeof v === 'object' ? cleanTerm(v) : null; }, set(mk, o) { const c = cleanTerm(o); if (!c.created) c.created = localDate(); return MONTH_RE.test(mk) && wr('term_' + mk, c); } };
+    const METHODS = { self: 'מינוי עצמי', election: 'בחירות (משאל)', rotation: 'רוטציה', inherited: 'המשכיות מהממשלה הקודמת', other: 'אחר' };
+    const cleanTerm = v => { const o = base(v); return { kind: ['self', 'real', 'fictional'].includes(o.kind) ? o.kind : 'self', name: str(o.name, 60), doctrine: str(o.doctrine, 500), created: dateOr(o.created, ''), method: METHODS[o.method] ? o.method : 'self', startAt: dtOr(o.startAt, ''), endAt: dtOr(o.endAt, '') }; };
+    const term = { get(mk) { const v = rd('term_' + mk, null); if (!v || typeof v !== 'object') return null; const c = cleanTerm(v), d = termDefaults(mk, c.created); return Object.assign(c, { startAt: c.startAt || d.startAt, endAt: c.endAt || d.endAt }); },
+        set(mk, o) { if (!MONTH_RE.test(mk)) return false; const c = cleanTerm(o); if (!c.created) c.created = localDate(); const d = termDefaults(mk, c.created); if (!c.startAt) c.startAt = c.created === localDate() ? localDate() + 'T' + pad(new Date().getHours()) + ':' + pad(new Date().getMinutes()) + ':00' : d.startAt; if (!c.endAt) c.endAt = d.endAt; if (c.endAt <= c.startAt) return false; return wr('term_' + mk, c); },
+        state: (now) => termState(now), METHODS };
 
     // סיכום והערכה חודשית (כולל "סגירת חודש" שמקפיאה צילום מצב)
     function cleanSnap(s) {
@@ -101,22 +130,115 @@
     const TREATY_STATUS = { active: { l: 'בתוקף', c: '#38bdf8' }, fulfilled: { l: 'קוימה', c: '#34d399' }, breached: { l: 'הופרה', c: '#f87171' }, ended: { l: 'הסתיימה', c: '#94a3b8' } };
     const PARTY_KIND = { person: { l: 'אדם', i: '👤' }, group: { l: 'קבוצה', i: '👥' }, org: { l: 'גוף / ארגון', i: '🏢' } };
     const LEVEL = { 1: 'נמוך', 2: 'בינוני', 3: 'גבוה' };
-    const treatyCol = collection('treaties', p => { const o = base(p); return {
-        id: str(o.id, 40) || uid(), party: str(o.party, 60), kind: PARTY_KIND[o.kind] ? o.kind : 'person', title: str(o.title, 140), terms: str(o.terms, 600),
+    // ---------- אנשים וקשרים ----------
+    // אינדקס קרבה = 50 + Σ(השפעת אירוע × 4 × דעיכה), דעיכה בחצי-חיים של 180 יום, חסום ל-0..100. מוצג רק מ-3 אירועים (דירוג רק אחרי מספר מקרים).
+    // זה יומן חד-צדדי של המשתמש: הוא אינו מודד מה האדם השני מרגיש.
+    const REL = { partner: { l: 'בן/בת זוג', i: '💞' }, family: { l: 'משפחה', i: '🏠' }, friend: { l: 'חבר/ה', i: '🤝' }, colleague: { l: 'עבודה', i: '💼' }, mentor: { l: 'מנטור/ית', i: '🎓' }, other: { l: 'אחר', i: '👤' } };
+    const MIN_EVENTS = 3, HALF_LIFE_DAYS = 180, EVENT_K = 4;
+    const cleanNotes = v => (Array.isArray(v) ? v : []).slice(-5).map(x => { const o = base(x); return { at: dateOr(o.at, localDate()), text: str(o.text, 1800), by: str(o.by, 40) }; }).filter(x => x.text);
+    const peopleCol = collection('people', p => { const o = base(p), r = Number(o.rhythmDays); return {
+        id: str(o.id, 40) || uid(), name: str(o.name, 40), relation: REL[o.relation] ? o.relation : 'other', notes: str(o.notes, 400),
+        rhythmDays: (o.rhythmDays != null && o.rhythmDays !== '' && isFinite(r) && r >= 1) ? clampInt(r, 1, 365, null) : null,
+        created: dateOr(o.created, localDate()), archived: o.archived === true, aiNotes: cleanNotes(o.aiNotes) }; });
+    const relEvCol = collection('relevents', p => { const o = base(p); return { id: str(o.id, 40) || uid(), personId: str(o.personId, 40), date: dateOr(o.date, localDate()), text: str(o.text, 300), impact: clampInt(o.impact, -3, 3, 0), treatyId: str(o.treatyId, 40), auto: o.auto === true }; });
+    const people = {
+        all: peopleCol.all, get: peopleCol.get, save: peopleCol.save,
+        remove(id) { wr('relevents', relEvCol.all().filter(e => e.personId !== id)); return peopleCol.remove(id); }   // האמנות נשארות (עם שם הצד), רק האירועים של האדם נמחקים
+    };
+    const relEvents = {
+        all: relEvCol.all, get: relEvCol.get, save: relEvCol.save,
+        remove(id) { const e = relEvCol.get(id); if (e && e.auto) return false; return relEvCol.remove(id); }   // אירוע אוטומטי משקף רישום אמנה ונעול
+    };
+    const dayDiff = (a, b) => Math.round((Date.parse(a) - Date.parse(b)) / 864e5);
+    function closenessAt(evs, asOf) { let sum = 0; evs.forEach(e => { if (e.date > asOf) return; sum += e.impact * EVENT_K * Math.pow(0.5, Math.max(0, dayDiff(asOf, e.date)) / HALF_LIFE_DAYS); }); return Math.max(0, Math.min(100, Math.round(50 + sum))); }
+    function closeness(pid) {
+        const evs = relEvCol.all().filter(e => e.personId === pid).sort((a, b) => a.date.localeCompare(b.date)), n = evs.length, today = localDate();
+        const dates = [...new Set(evs.map(e => e.date))].filter(d => evs.filter(e => e.date <= d).length >= MIN_EVENTS);
+        return { n, min: MIN_EVENTS, score: n >= MIN_EVENTS ? closenessAt(evs, today) : null, trend: dates.map(d => ({ date: d, score: closenessAt(evs, d) })),
+            lastContact: n ? evs[n - 1].date : '', positive: evs.filter(e => e.impact > 0).length, negative: evs.filter(e => e.impact < 0).length };
+    }
+    function contactStatus(p) {
+        const last = relEvCol.all().filter(e => e.personId === p.id).reduce((m, e) => e.date > m ? e.date : m, ''), days = dayDiff(localDate(), last || p.created);
+        return { last, days, rhythm: p.rhythmDays, overdue: !!(p.rhythmDays && !p.archived && days > p.rhythmDays) };
+    }
+    const relationAlerts = () => peopleCol.all().map(p => ({ p, s: contactStatus(p) })).filter(x => x.s.overdue);
+
+    // ---------- יחסי חוץ ואמנות (מתועדות בכל מצב) ----------
+    // לכל אמנה יומן append-only: יצירה, עדכוני התקדמות (עם אחוז), עריכות (מה השתנה), סגירה (קוימה/הופרה/הסתיימה) והערות, גם אחרי הסגירה.
+    // אין פעולה שמוחקת או משנה רשומת יומן. אמנה שנסגרה נעולה לעריכה, אך ממשיכה לקבל הערות (למשל "היחסים התאוששו").
+    const LOG_KINDS = ['created', 'update', 'edited', 'closed', 'note'];
+    const cleanLog = v => (Array.isArray(v) ? v : []).slice(-300).map(x => { const o = base(x); return { id: str(o.id, 40) || uid(), at: dateOr(o.at, localDate()), kind: LOG_KINDS.includes(o.kind) ? o.kind : 'note', text: str(o.text, 300),
+        progress: (o.progress == null || o.progress === '' || !isFinite(o.progress)) ? null : clampInt(o.progress, 0, 100, null), status: TREATY_STATUS[o.status] ? o.status : '' }; });
+    const cleanTreaty = p => { const o = base(p); return {
+        id: str(o.id, 40) || uid(), party: str(o.party, 60), personId: str(o.personId, 40), kind: PARTY_KIND[o.kind] ? o.kind : 'person', title: str(o.title, 140), terms: str(o.terms, 600),
         cost: str(o.cost, 300), costLevel: clampInt(o.costLevel, 1, 3, 2), status: TREATY_STATUS[o.status] ? o.status : 'active', due: dateOr(o.due, ''), pid: str(o.pid, 40),
-        created: dateOr(o.created, localDate()), closedAt: dateOr(o.closedAt, ''), note: str(o.note, 400) }; });
+        progress: clampInt(o.progress, 0, 100, 0), created: dateOr(o.created, localDate()), closedAt: dateOr(o.closedAt, ''), note: str(o.note, 400), log: cleanLog(o.log),
+        recur: cleanDays(o.recur), checks: [...new Set((Array.isArray(o.checks) ? o.checks : []).filter(d => DATE_RE.test(d || '')))].sort().slice(-400) }; };
+    const treatyCol = collection('treaties', cleanTreaty);
+    const EDIT_LABELS = { party: 'הצד', personId: 'הקישור לאדם', kind: 'סוג הצד', title: 'הכותרת', terms: 'התנאים', cost: 'מחיר ההפרה', costLevel: 'חומרת ההפרה', due: 'המועד', pid: 'התיק', recur: 'התדירות' };
+    const ERR = m => ({ ok: false, error: m });
+    function treatyTimeline(t) {
+        const log = t.log.slice();
+        if (!log.some(x => x.kind === 'created')) log.unshift({ id: 'syn-c', at: t.created, kind: 'created', text: 'נוצרה אמנה מול ' + t.party, progress: null, status: '', synthetic: true });
+        if (t.status !== 'active' && !log.some(x => x.kind === 'closed')) log.push({ id: 'syn-x', at: t.closedAt || t.created, kind: 'closed', text: t.note || '', progress: null, status: t.status, synthetic: true });
+        return log.sort((a, b) => a.at.localeCompare(b.at));
+    }
     const treaties = {
         all: treatyCol.all, get: treatyCol.get,
-        save(item) { const ex = item && item.id ? treatyCol.get(item.id) : null; if (ex && ex.status !== 'active') return null; return treatyCol.save(item); },
+        save(item) {
+            const ex = item && item.id ? treatyCol.get(item.id) : null;
+            if (ex && ex.status !== 'active') return null;
+            const nx = Object.assign({}, item, { status: 'active' }), c = cleanTreaty(nx);
+            if (!ex) nx.log = [{ kind: 'created', at: localDate(), text: 'נוצרה אמנה מול ' + c.party + (c.due ? ' (מועד ' + c.due + ')' : ''), progress: c.progress }];
+            else {
+                nx.log = ex.log.slice(); nx.progress = ex.progress; nx.checks = ex.checks;          // התקדמות משתנה רק דרך addUpdate, כדי שכל שינוי יתועד
+                const ch = Object.keys(EDIT_LABELS).filter(f => String(ex[f]) !== String(c[f]));
+                if (ch.length) nx.log.push({ kind: 'edited', at: localDate(), text: 'עודכנו: ' + ch.map(f => EDIT_LABELS[f]).join(', ') + (ch.includes('due') ? ` (מועד: ${ex.due || 'ללא'} ← ${c.due || 'ללא'})` : '') + (ch.includes('costLevel') ? ` (חומרת הפרה: ${LEVEL[ex.costLevel]} ← ${LEVEL[c.costLevel]})` : '') });
+            }
+            return treatyCol.save(nx);
+        },
         remove(id) { const ex = treatyCol.get(id); if (ex && ex.status !== 'active') return false; return treatyCol.remove(id); },
+        dueOn: ds => treatyCol.all().filter(t => t.status === 'active' && t.recur.includes(dowOf(ds)) && t.created <= ds),
+        check(id, ds) {   // סימון ביצוע של מחויבות קבועה: היום או עד 7 ימים אחורה, ורק ביום שבו היא חלה
+            const t = treatyCol.get(id); if (!t || t.status !== 'active') return ERR('האמנה לא פעילה.');
+            if (!DATE_RE.test(ds || '') || ds > localDate() || ds < addDays(localDate(), -7)) return ERR('אפשר לסמן היום או עד 7 ימים אחורה.');
+            if (!t.recur.includes(dowOf(ds))) return ERR('המחויבות לא חלה ביום הזה.');
+            t.checks = t.checks.includes(ds) ? t.checks.filter(x => x !== ds) : t.checks.concat([ds]); return treatyCol.save(t) ? { ok: true } : ERR('השמירה נכשלה.');
+        },
+        compliance(t) {
+            if (!t.recur.length) return null; const end = t.closedAt || localDate(), y = addDays(localDate(), -1); let sched = 0, done = 0;
+            for (let d = t.created; d <= end; d = addDays(d, 1)) { if (!t.recur.includes(dowOf(d))) continue; const ok = t.checks.includes(d); if (d <= y || ok) { sched++; if (ok) done++; } }
+            return { scheduled: sched, done, pct: sched >= 3 ? Math.round(done / sched * 100) : null };
+        },
+        addUpdate(id, text, progress) {
+            const t = treatyCol.get(id); if (!t) return ERR('האמנה לא נמצאה.');
+            if (t.status !== 'active') return ERR('אמנה שנסגרה אינה מקבלת עדכוני התקדמות. אפשר להוסיף הערה.');
+            text = str(text, 300); if (text.length < 3) return ERR('תאר את העדכון (לפחות 3 תווים).');
+            const pr = (progress == null || progress === '') ? t.progress : clampInt(progress, 0, 100, t.progress);
+            t.progress = pr; t.log = t.log.concat([{ kind: 'update', at: localDate(), text, progress: pr }]);
+            return treatyCol.save(t) ? { ok: true } : ERR('השמירה נכשלה.');
+        },
+        addNote(id, text) {
+            const t = treatyCol.get(id); if (!t) return ERR('האמנה לא נמצאה.');
+            text = str(text, 300); if (text.length < 3) return ERR('כתוב הערה (לפחות 3 תווים).');
+            t.log = t.log.concat([{ kind: 'note', at: localDate(), text }]);
+            return treatyCol.save(t) ? { ok: true } : ERR('השמירה נכשלה.');
+        },
         close(id, status, note) {
-            const t = treatyCol.get(id); if (!t) return { ok: false, error: 'האמנה לא נמצאה.' };
-            if (t.status !== 'active') return { ok: false, error: 'האמנה כבר נסגרה ואי אפשר לשנות אותה.' };
-            if (!['fulfilled', 'breached', 'ended'].includes(status)) return { ok: false, error: 'סטטוס לא חוקי.' };
+            const t = treatyCol.get(id); if (!t) return ERR('האמנה לא נמצאה.');
+            if (t.status !== 'active') return ERR('האמנה כבר נסגרה ואי אפשר לשנות אותה.');
+            if (!['fulfilled', 'breached', 'ended'].includes(status)) return ERR('סטטוס לא חוקי.');
             note = str(note, 400);
-            if (status === 'breached' && note.length < 10) return { ok: false, error: 'הפרת אמנה דורשת תיעוד: מה קרה ולמה (לפחות 10 תווים).' };
-            t.status = status; t.closedAt = localDate(); t.note = note;
-            return treatyCol.save(t) ? { ok: true } : { ok: false, error: 'השמירה נכשלה.' };
+            if (status === 'breached' && note.length < 10) return ERR('הפרת אמנה דורשת תיעוד: מה קרה ולמה (לפחות 10 תווים).');
+            t.status = status; t.closedAt = localDate(); t.note = note; if (status === 'fulfilled') t.progress = 100;
+            t.log = t.log.concat([{ kind: 'closed', at: localDate(), text: note, status, progress: t.progress }]);
+            if (!treatyCol.save(t)) return ERR('השמירה נכשלה.');
+            // אירוע אוטומטי ביומן היחסים של האדם המקושר: הפרה פוגעת בקרבה לפי חומרתה, קיום תורם פחות (קיום הוא ברירת המחדל הצפויה).
+            let eventAdded = false;
+            if (t.personId && peopleCol.get(t.personId) && (status === 'breached' || status === 'fulfilled')) {
+                eventAdded = !!relEvCol.save({ personId: t.personId, date: localDate(), treatyId: t.id, auto: true, impact: status === 'breached' ? -t.costLevel : Math.ceil(t.costLevel / 2), text: `אמנה "${t.title}" ${status === 'breached' ? 'הופרה' : 'קוימה'}` });
+            }
+            return { ok: true, eventAdded };
         }
     };
 
@@ -127,12 +249,16 @@
     const cleanImpact = i => { const o = base(i); return { kind: o.kind === 'treaty' ? 'treaty' : 'promise', ref: str(o.ref, 40), effect: o.effect === 'harms' ? 'harms' : 'supports' }; };
     const cleanOption = v => { const o = base(v); return { id: str(o.id, 40) || uid(), text: str(o.text, 200), pros: str(o.pros, 300), cons: str(o.cons, 300), impacts: (Array.isArray(o.impacts) ? o.impacts : []).slice(0, 12).map(cleanImpact).filter(i => i.ref) }; };
     const cleanRating = v => (v == null || v === '' || !isFinite(v)) ? null : clampInt(v, 1, 5, null);
+    // צילום מצב של ההשפעה בשעת ההכרעה: נשמר כדי שהתצוגה לא תשתנה בדיעבד כשאמנה נסגרת או הבטחה מושלמת.
+    const cleanSnapshot = v => (Array.isArray(v) ? v : []).slice(0, 6).map(x => { const o = base(x); return { optionId: str(o.optionId, 40), supports: clampInt(o.supports, 0, 99, 0), harms: clampInt(o.harms, 0, 99, 0), treatyCost: clampInt(o.treatyCost, 0, 999, 0), promiseCost: clampInt(o.promiseCost, 0, 999, 0),
+        items: (Array.isArray(o.items) ? o.items : []).slice(0, 12).map(i => { const q = base(i); return { kind: q.kind === 'treaty' ? 'treaty' : 'promise', effect: q.effect === 'harms' ? 'harms' : 'supports', label: str(q.label, 160), counts: q.counts === true, level: clampInt(q.level, 0, 3, 0), cost: str(q.cost, 300), missing: q.missing === true }; }) }; }).filter(x => x.optionId);
     const cleanDecision = p => {
         const o = base(p), options = (Array.isArray(o.options) ? o.options : []).slice(0, 6).map(cleanOption).filter(x => x.text);
         return { id: str(o.id, 40) || uid(), title: str(o.title, 160), context: str(o.context, 800), pid: str(o.pid, 40), status: DECISION_STATUS[o.status] ? o.status : 'open',
             created: dateOr(o.created, localDate()), decidedAt: dateOr(o.decidedAt, ''), reviewAt: dateOr(o.reviewAt, ''), options, chosen: options.some(x => x.id === o.chosen) ? o.chosen : '',
             rationale: str(o.rationale, 800), doubts: str(o.doubts, 600), revokeReason: str(o.revokeReason, 300),
-            outcome: str(o.outcome, 800), outcomeRating: cleanRating(o.outcomeRating), processRating: cleanRating(o.processRating), reviewedAt: dateOr(o.reviewedAt, '') };
+            outcome: str(o.outcome, 800), outcomeRating: cleanRating(o.outcomeRating), processRating: cleanRating(o.processRating), reviewedAt: dateOr(o.reviewedAt, ''),
+            impactSnapshot: cleanSnapshot(o.impactSnapshot), aiNotes: cleanNotes(o.aiNotes) };
     };
     const decCol = collection('decisions', cleanDecision);
     const decisions = {
@@ -147,6 +273,7 @@
             if (str(rationale, 800).length < 15) return { ok: false, error: 'הנימוק קצר מדי (לפחות 15 תווים).' };
             if (!DATE_RE.test(reviewAt || '') || reviewAt <= localDate()) return { ok: false, error: 'תאריך הבדיקה בדיעבד חייב להיות עתידי.' };
             d.status = 'decided'; d.chosen = chosen; d.rationale = rationale; d.doubts = doubts; d.reviewAt = reviewAt; d.decidedAt = localDate();
+            d.impactSnapshot = d.options.map(o => { const q = optionImpact(o); return { optionId: o.id, supports: q.supports, harms: q.harms, treatyCost: q.treatyCost, promiseCost: q.promiseCost, items: q.items }; });
             return decCol.save(d) ? { ok: true } : { ok: false, error: 'השמירה נכשלה.' };
         },
         revoke(id, reason) {
@@ -156,6 +283,13 @@
             if (str(reason, 300).length < 10) return { ok: false, error: 'ביטול החלטה דורש נימוק (לפחות 10 תווים).' };
             d.status = 'revoked'; d.revokeReason = reason;
             return decCol.save(d) ? { ok: true } : { ok: false, error: 'השמירה נכשלה.' };
+        },
+        addAiNote(id, text, by) {
+            const d = decCol.get(id); if (!d) return ERR('ההחלטה לא נמצאה.');
+            if (d.status !== 'open') return ERR('אפשר לצרף ייעוץ רק להחלטה פתוחה.');
+            text = str(text, 1800); if (text.length < 20) return ERR('התשובה קצרה מדי.');
+            d.aiNotes = d.aiNotes.concat([{ at: localDate(), text, by: str(by, 40) }]).slice(-5);
+            return decCol.save(d) ? { ok: true } : ERR('השמירה נכשלה.');
         },
         review(id, o) {
             const d = decCol.get(id); if (!d) return { ok: false, error: 'ההחלטה לא נמצאה.' };
@@ -203,7 +337,7 @@
         let planned = 0, doneN = 0, days = 0, ratio = 0;
         for (let d = 1; d <= n; d++) {
             const ds = mk + '-' + pad(d); if (ds > t) break;
-            const l = daily.get(ds); if (!l.length) continue;
+            const l = dayItems(ds); if (!l.length) continue;
             const dn = l.filter(x => x.done).length; days++; planned += l.length; doneN += dn; ratio += dn / l.length;
         }
         const dl = days >= MIN_DAILY_DAYS ? ratio / days * 100 : null;
@@ -227,10 +361,132 @@
         lockNow() { ss.del('gov_unlocked'); location.reload(); }
     };
 
+    // ---------- משימות (מקושרות להבטחה ו/או סוגיה; התקדמות ההבטחה נגזרת מהן) ----------
+    const tasksCol = collection('tasks', p => { const o = base(p); return { id: str(o.id, 40) || uid(), text: str(o.text, 200), promiseId: str(o.promiseId, 40), issueId: str(o.issueId, 40), pid: str(o.pid, 40),
+        due: dateOr(o.due, ''), done: o.done === true, doneAt: dateOr(o.doneAt, ''), created: dateOr(o.created, localDate()) }; });
+    function syncPromise(id) {   // התקדמות = אחוז משימות שבוצעו. לא נוגע בהבטחה שהוכרעה (בוצעה/נכשלה/הוסרה) או בחודש שנסגר.
+        const p = id && promises.get(id); if (!p || ['done', 'failed', 'dropped'].includes(p.status) || review.isClosed(p.month)) return;
+        const ts = tasksCol.all().filter(t => t.promiseId === id); if (!ts.length) return;
+        const pr = Math.round(ts.filter(t => t.done).length / ts.length * 100), st = pr > 0 ? 'progress' : 'open';
+        if (p.progress !== pr || p.status !== st) { p.progress = pr; p.status = st; promises.save(p); }
+    }
+    const tasks = {
+        all: tasksCol.all, get: tasksCol.get,
+        save(item) { const c = tasksCol.save(item); if (c) syncPromise(c.promiseId); return c; },
+        remove(id) { const t = tasksCol.get(id), r = tasksCol.remove(id); if (t) syncPromise(t.promiseId); return r; },
+        toggle(id) { const t = tasksCol.get(id); if (!t) return null; t.done = !t.done; t.doneAt = t.done ? localDate() : ''; const c = tasksCol.save(t); syncPromise(t.promiseId); return c; },
+        forPromise: id => tasksCol.all().filter(t => t.promiseId === id),
+        forIssue: id => tasksCol.all().filter(t => t.issueId === id)
+    };
+
+    // ---------- שגרות (משימות בסיס): עוברות בירושה מממשלה לממשלה; שינוי בימים יוצר גרסה חדשה מהיום ----------
+    const cleanRlog = v => (Array.isArray(v) ? v : []).slice(-60).map(x => { const o = base(x); return { at: dateOr(o.at, localDate()), text: str(o.text, 200) }; }).filter(x => x.text);
+    const routinesCol = collection('routines', p => { const o = base(p); return { id: str(o.id, 40) || uid(), text: str(o.text, 200), pid: str(o.pid, 40), days: cleanDays(o.days),
+        since: dateOr(o.since, localDate()), endedAt: dateOr(o.endedAt, ''), log: cleanRlog(o.log) }; });
+    const dayLbl = d => d.length === 7 ? 'כל יום' : d.length ? 'ימים ' + d.map(x => DOW[x]).join('׳, ') + '׳' : 'ללא ימים';
+    const routines = {
+        all: routinesCol.all, get: routinesCol.get, dayLabel: dayLbl,
+        active: () => routinesCol.all().filter(r => !r.endedAt),
+        save(item) {
+            const c = base(item), ex = c.id ? routinesCol.get(c.id) : null, days = cleanDays(c.days), text = str(c.text, 200);
+            if (text.length < 2 || !days.length) return null;
+            if (!ex) return routinesCol.save({ text, pid: c.pid, days, since: localDate(), log: [{ at: localDate(), text: 'נקבעה שגרה: ' + dayLbl(days) }] });
+            if (ex.endedAt) return null;
+            if (String(ex.days) !== String(days) && ex.since < localDate()) {   // היסטוריה לא משוכתבת: הגרסה הישנה מסתיימת אתמול, וגרסה חדשה מתחילה היום
+                ex.endedAt = addDays(localDate(), -1); ex.log = ex.log.concat([{ at: localDate(), text: 'הוחלפה בגרסה חדשה: ' + dayLbl(days) }]); routinesCol.save(ex);
+                return routinesCol.save({ text, pid: c.pid, days, since: localDate(), log: [{ at: localDate(), text: 'המשך השגרה "' + ex.text + '" בימים: ' + dayLbl(days) }] });
+            }
+            const ch = []; if (ex.text !== text) ch.push('הנוסח'); if (ex.pid !== str(c.pid, 40)) ch.push('התיק'); if (String(ex.days) !== String(days)) ch.push('הימים');
+            return routinesCol.save(Object.assign({}, ex, { text, pid: c.pid, days, log: ch.length ? ex.log.concat([{ at: localDate(), text: 'עודכנו: ' + ch.join(', ') }]) : ex.log }));
+        },
+        stop(id, reason) { const r = routinesCol.get(id); reason = str(reason, 200); if (!r || r.endedAt || reason.length < 5) return false; r.endedAt = localDate(); r.log = r.log.concat([{ at: localDate(), text: 'הופסקה: ' + reason }]); return !!routinesCol.save(r); },
+        dueOn: ds => routinesCol.all().filter(r => r.since <= ds && (!r.endedAt || ds <= r.endedAt) && r.days.includes(dowOf(ds))),
+        doneIds: ds => { const v = rd('rdone_' + ds, []); return Array.isArray(v) ? v.map(x => str(x, 40)) : []; },
+        forDay(ds) { const d = routines.doneIds(ds); return routines.dueOn(ds).map(r => ({ r, done: d.includes(r.id) })); },
+        setDone(ds, id, on) { if (!DATE_RE.test(ds) || ds > localDate()) return false; const d = routines.doneIds(ds).filter(x => x !== id); if (on) d.push(id); if (!d.length) { del('rdone_' + ds); return true; } return wr('rdone_' + ds, d); }
+    };
+    const dayItems = ds => daily.get(ds).concat(routines.forDay(ds).map(x => ({ done: x.done })));   // לציון העקביות היומית
+
+    // ---------- פגישות ואירועים ----------
+    const eventsCol = collection('events', p => { const o = base(p); const st = timeOr(o.start, ''), en = timeOr(o.end, ''); return { id: str(o.id, 40) || uid(), title: str(o.title, 140), date: dateOr(o.date, localDate()),
+        start: st, end: (st && en && toMin(en) > toMin(st)) ? en : '', place: str(o.place, 100), pid: str(o.pid, 40), personId: str(o.personId, 40), notes: str(o.notes, 400), done: o.done === true }; });
+    const events = { all: eventsCol.all, get: eventsCol.get, remove: eventsCol.remove, save(item) { const o = base(item); if (str(o.title, 140).length < 2) return null; return eventsCol.save(item); },
+        on: ds => eventsCol.all().filter(e => e.date === ds).sort((a, b) => (a.start || '99').localeCompare(b.start || '99')),
+        upcoming: (from, to) => eventsCol.all().filter(e => e.date >= from && e.date <= to).sort((a, b) => a.date.localeCompare(b.date) || (a.start || '99').localeCompare(b.start || '99')) };
+
+    // ---------- יומן ניצול זמן ----------
+    const timeCol = collection('timelog', p => { const o = base(p), st = timeOr(o.start, '00:00'), en = timeOr(o.end, '00:00'); return { id: str(o.id, 40) || uid(), date: dateOr(o.date, localDate()), start: st, end: en, mins: Math.max(0, toMin(en) - toMin(st)),
+        text: str(o.text, 140), pid: str(o.pid, 40), promiseId: str(o.promiseId, 40), taskId: str(o.taskId, 40) }; });
+    const timelog = {
+        all: timeCol.all, get: timeCol.get, remove: timeCol.remove,
+        on: ds => timeCol.all().filter(x => x.date === ds).sort((a, b) => a.start.localeCompare(b.start)),
+        add(o) {   // אי אפשר לחפוף: אי אפשר להיות בשני מקומות בו-זמנית
+            o = base(o); const st = o.start, en = o.end;
+            if (!DATE_RE.test(o.date || '') || o.date > localDate()) return ERR0('תאריך לא חוקי (לא בעתיד).');
+            if (!TIME_RE.test(st || '') || !TIME_RE.test(en || '') || toMin(en) <= toMin(st)) return ERR0('שעת סיום חייבת להיות אחרי שעת ההתחלה.');
+            if (str(o.text, 140).length < 2) return ERR0('תאר מה עשית (לפחות 2 תווים).');
+            const clash = timelog.on(o.date).find(x => toMin(st) < toMin(x.end) && toMin(en) > toMin(x.start)); if (clash) return ERR0('חפיפה עם "' + clash.text + '" (' + clash.start + '-' + clash.end + ').');
+            const c = timeCol.save(o); return c ? { ok: true, item: c } : ERR0('השמירה נכשלה.');
+        },
+        byPortfolio(from, to) { const m = {}; timeCol.all().filter(x => x.date >= from && x.date <= to).forEach(x => { m[x.pid || ''] = (m[x.pid || ''] || 0) + x.mins; }); return m; }
+    };
+
+    // ---------- כהונת הממשלה: מועד הקמה/סיום, דרך בחירה, וממשלת מעבר ----------
+    const dtOr = (v, d) => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(v || '') ? v : d;
+    function termDefaults(mk, created) { return { startAt: (created || mk + '-01') + 'T00:00:00', endAt: mk + '-' + pad(daysInMonth(mk)) + 'T23:59:59' }; }
+    const termState = (now) => {
+        const nowS = (now || new Date()); const ns = localDate(nowS) + 'T' + pad(nowS.getHours()) + ':' + pad(nowS.getMinutes()) + ':' + pad(nowS.getSeconds()), mk = monthOf(localDate(nowS));
+        const cur = term.get(mk);
+        if (cur) return { state: ns < cur.startAt ? 'pending' : ns <= cur.endAt ? 'active' : 'caretaker', mk, term: cur };
+        const prev = keysWith('term_').map(k => k.slice(5)).filter(m => MONTH_RE.test(m) && m < mk).sort().pop();
+        return prev ? { state: 'caretaker', mk: prev, term: term.get(prev) } : { state: 'none', mk, term: null };
+    };
+
+    // ---------- שרים: כהונות, פעילות, אישיות (בדיונית) וקושי משרד ----------
+    const TRAITS = [['drive', 'נחישות'], ['creative', 'יצירתיות'], ['integrity', 'יושרה'], ['resilience', 'חוסן'], ['team', 'שיתוף פעולה']];
+    function traitsOf(seed) { let a = (Number(seed) || 1) >>> 0; const r = () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; const o = {}; TRAITS.forEach(([k]) => { o[k] = 1 + Math.floor(r() * 9); }); return o; }
+    const minCol = collection('ministers', p => { const o = base(p); return { id: str(o.id, 40) || uid(), pid: str(o.pid, 40), name: str(o.name, 40), style: str(o.style, 60), from: dateOr(o.from, localDate()), to: dateOr(o.to, ''), seed: clampInt(o.seed, 1, 2147483646, 1 + Math.floor(Math.random() * 2147483000)) }; });
+    const inRange = (d, m) => d && d >= m.from && d <= (m.to || '9999-12-31');
+    const ministers = {
+        all: minCol.all, get: minCol.get, traitsOf, TRAITS,
+        ensure() {   // מסנכרן כהונות מול התיקים: החלפת שר סוגרת כהונה ופותחת חדשה
+            const ps = portfolios.all(), td = localDate();
+            minCol.all().filter(m => !m.to).forEach(m => { const p = ps.find(x => x.id === m.pid); if (!p || p.minister !== m.name) { m.to = td; minCol.save(m); } });
+            ps.forEach(p => { if (p.minister && !minCol.all().some(m => m.pid === p.id && !m.to)) minCol.save({ pid: p.id, name: p.minister, style: p.style, from: td }); });
+        },
+        stats(m) {
+            const end = m.to || localDate(), T = tasksCol.all(), proms = promises.all(), mine = t => t.pid === m.pid || (t.promiseId && (proms.find(p => p.id === t.promiseId) || {}).pid === m.pid);
+            const td = T.filter(t => t.done && mine(t) && inRange(t.doneAt, m)).length, pd = proms.filter(p => p.pid === m.pid && p.status === 'done' && inRange(p.doneAt, m)).length;
+            const ids = ideas.all().filter(i => i.pid === m.pid && inRange(i.created, m)), ia = ids.filter(i => i.status === 'adopted').length;
+            const ds = decisions.all().filter(d => d.pid === m.pid && (inRange(d.created, m) || inRange(d.decidedAt, m))), rv = ds.filter(d => d.reviewedAt);
+            const is = issues.all().filter(i => i.pid === m.pid && i.status === 'resolved' && inRange(i.resolvedAt, m)).length;
+            const actions = td + pd + ids.length + ds.length + is, points = td + pd * 3 + ids.length * 0.5 + ia + ds.length * 1.5 + is * 2, days = Math.max(1, dayDiff(end, m.from) + 1);
+            return { tasksDone: td, promisesDone: pd, ideas: ids.length, adopted: ia, decisions: ds.length, issuesResolved: is, actions, points: Math.round(points * 10) / 10, days,
+                perMonth: actions >= 5 ? Math.round(points / Math.max(days, 7) * 30 * 10) / 10 : null,
+                avgProcess: rv.length >= 2 ? Math.round(rv.reduce((a, d) => a + d.processRating, 0) / rv.length * 10) / 10 : null };
+        },
+        ranking() { return minCol.all().map(m => ({ m, s: ministers.stats(m) })).filter(x => x.s.perMonth != null).sort((a, b) => b.s.perMonth - a.s.perMonth); }
+    };
+    function difficulty(pid) {   // היוריסטיקה שקופה של "עומס ואתגר" בתיק (לא מדד מדעי)
+        const is = issues.all().filter(i => i.pid === pid), proms = promises.all().filter(p => p.pid === pid && p.status !== 'dropped'), td = localDate();
+        const openI = is.filter(i => i.status !== 'resolved').reduce((a, i) => a + i.severity, 0), failed = proms.filter(p => p.status === 'failed').length, activeP = proms.filter(p => !['done', 'failed'].includes(p.status)).length;
+        const overdue = tasksCol.all().filter(t => !t.done && t.due && t.due < td && (t.pid === pid || (t.promiseId && (promises.get(t.promiseId) || {}).pid === pid))).length;
+        const items = is.length + proms.length, load = openI + failed * 2 + activeP + overdue * 1.5;
+        return { items, load: Math.round(load * 10) / 10, score: items >= 5 ? Math.max(1, Math.min(10, Math.round(1 + load * 9 / (load + 8)))) : null, openI, failed, activeP, overdue, doneRate: proms.length >= 3 ? Math.round(proms.filter(p => p.status === 'done').length / proms.length * 100) : null };
+    }
+    function history() {   // כל הממשלות שהיו: ראש ממשלה, תאריכים, דרך בחירה, ציון, הישגים ושרים
+        return keysWith('term_').map(k => k.slice(5)).filter(m => MONTH_RE.test(m)).sort().reverse().map(mk => {
+            const t = term.get(mk), rv = review.get(mk), sn = rv.snapshot, ps = promises.all().filter(p => p.month === mk && p.status !== 'dropped'), sc = sn ? sn.total : (mk === monthOf(localDate()) ? score(mk).total : null);
+            const a = mk + '-01', b = mk + '-' + pad(daysInMonth(mk));
+            return { mk, term: t, pm: t.kind === 'self' ? (t.name || profile.get().name || 'אני') : (t.name || 'ללא שם'), closed: rv.closed, score: sc, done: ps.filter(p => p.status === 'done').length, total: ps.length, wins: ps.filter(p => p.status === 'done').map(p => p.text).slice(0, 5),
+                ministers: minCol.all().filter(m => m.from <= b && (m.to || '9999-12-31') >= a) };
+        });
+    }
+
     // ---------- גיבוי ושחזור (הנעילה לעולם לא נכללת) ----------
     function exportAll() {
         const out = {};
-        try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(PREFIX) && k !== PREFIX + 'lock' && k !== PREFIX + 'sync') out[k] = localStorage.getItem(k); } } catch (e) {}
+        try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(PREFIX) && !SECRET_KEYS.includes(k)) out[k] = localStorage.getItem(k); } } catch (e) {}
         if (!Object.keys(out).length) { alert('אין נתונים לגיבוי עדיין.'); return; }
         const url = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }));
         const a = document.createElement('a'); a.href = url; a.download = 'gov_backup_' + localDate() + '.json'; a.click(); URL.revokeObjectURL(url);
@@ -243,7 +499,7 @@
                 const data = JSON.parse(ev.target.result);
                 if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('bad');
                 let n = 0;
-                Object.entries(data).forEach(([k, v]) => { if (k.startsWith(PREFIX) && k !== PREFIX + 'lock' && k !== PREFIX + 'sync' && typeof v === 'string') { JSON.parse(v); localStorage.setItem(k, v); n++; } });
+                Object.entries(data).forEach(([k, v]) => { if (k.startsWith(PREFIX) && !SECRET_KEYS.includes(k) && typeof v === 'string') { JSON.parse(v); localStorage.setItem(k, v); n++; } });
                 if (n) changed();
                 cb(n, n ? null : 'לא נמצאו נתוני ממשל אישי בקובץ.');
             } catch (e) { cb(0, 'קובץ לא תקין. ודא שזה קובץ גיבוי שיוצא מהמערכת.'); }
@@ -261,5 +517,7 @@
     ];
     try { if (localStorage.getItem(PREFIX + 'portfolios') === null) wr('portfolios', DEFAULT_PORTFOLIOS.map(d => ({ id: d[0], icon: d[1], name: d[2], minister: d[3], style: d[4], mission: '', builtin: true }))); } catch (e) {}
 
-    window.GOV = { esc, uid, pad, localDate, monthOf, addDays, addMonths, monthLabel, daysInMonth, HEB_MONTHS, DATE_RE, MONTH_RE, STATUS, PRIORITY, gradeFor, portfolios, promises, issues, ideas, daily, term, review, profile, score, lock, exportAll, importAll, rd, wr, TREATY_STATUS, PARTY_KIND, LEVEL, DECISION_STATUS, treaties, decisions, impactItem, optionImpact };
+    try { ministers.ensure(); } catch (e) {}
+
+    window.GOV = { esc, uid, pad, localDate, monthOf, addDays, addMonths, monthLabel, daysInMonth, HEB_MONTHS, DATE_RE, MONTH_RE, STATUS, PRIORITY, gradeFor, portfolios: Object.assign({}, portfolios, { save(p) { const r = portfolios.save(p); ministers.ensure(); return r; }, remove(id) { const r = portfolios.remove(id); ministers.ensure(); return r; } }), promises, ideas, daily, term, review, profile, score, lock, exportAll, importAll, rd, wr, TREATY_STATUS, PARTY_KIND, LEVEL, DECISION_STATUS, treaties, decisions, impactItem, optionImpact, tasks, routines, dayItems, issues: issues, ISSUE_STATUS, events, timelog, ministers, difficulty, history, METHODS, DOW, dowOf, cleanDays, people, relEvents, REL, closeness, contactStatus, relationAlerts, treatyTimeline, SECRET_KEYS };
 })();

@@ -4,10 +4,14 @@
     const G = window.GOV;
     const PAGES = [
         { file: 'index.html', icon: '🏠', title: 'לוח בקרה', desc: 'היום, החודש והסוגיות שעל הפרק במקום אחד.' },
+        { file: 'schedule.html', icon: '🗓️', title: 'לוח זמן', desc: 'יומן זמן ממשלתי, ניצול זמן ופגישות.', sections: [['sch-today', 'היום'], ['sch-pie', 'חלוקת זמן'], ['sch-events', 'פגישות']] },
         { file: 'promises.html', icon: '📜', title: 'הבטחות', desc: 'הבטחות הממשלה לחודש, עדיפויות והתקדמות.', sections: [['promises-add', 'הבטחה חדשה'], ['promises-list', 'רשימת ההבטחות']] },
         { file: 'portfolios.html', icon: '🗂️', title: 'תיקי ממשלה', desc: 'תחומי החיים, השרים, הסוגיות והרעיונות.', sections: [['portfolios-grid', 'התיקים'], ['portfolio-detail', 'פירוט תיק']] },
+        { file: 'issues.html', icon: '🔥', title: 'סוגיות', desc: 'סוגיות על הפרק, חומרה וקישור להבטחות ולמשימות.', sections: [['iss-list', 'הסוגיות'], ['iss-detail', 'פירוט']] },
         { file: 'cabinet.html', icon: '🏛️', title: 'קבינט', desc: 'החלטות מרכזיות, אפשרויות, השפעה על הבטחות ואמנות, ובדיקת תוצאה בדיעבד.', sections: [['cabinet-new', 'נושא חדש'], ['cabinet-list', 'כל ההחלטות'], ['cabinet-detail', 'דיון'], ['cabinet-insight', 'איכות החלטות']] },
         { file: 'treaties.html', icon: '🤝', title: 'יחסי חוץ', desc: 'אמנות והסכמים עם אנשים, קבוצות וגופים, ומחיר הפרה.', sections: [['treaties-overview', 'תמונת מצב'], ['treaties-form', 'אמנה חדשה'], ['treaties-list', 'לפי צד']] },
+        { file: 'people.html', icon: '👥', title: 'יחסים', desc: 'אנשים, יומן יחסים, אינדקס קרבה ואמנות לכל אדם.', sections: [['people-overview', 'תמונת מצב'], ['people-list', 'אנשים'], ['people-detail', 'פירוט']] },
+        { file: 'ministers.html', icon: '🎖️', title: 'שרים והיסטוריה', desc: 'שרים, דירוג, דפי שר והיסטוריית ממשלות.', sections: [['min-list', 'השרים'], ['min-history', 'היסטוריית ממשלות'], ['min-diff', 'קושי משרדים']] },
         { file: 'review.html', icon: '📊', title: 'ציון חודשי', desc: 'ציון הממשלה, הערכה עצמית והיסטוריית ממשלות.', sections: [['review-current', 'החודש'], ['review-history', 'היסטוריית ממשלות']] }
     ];
     window.GOV_SITE = { PAGES };
@@ -38,7 +42,28 @@
 @media print{nav,.no-print,button{display:none!important}body{background:#fff!important;color:#000!important}}`;
     document.head.appendChild(st);
     document.currentScript.insertAdjacentHTML('beforebegin', html);
-    document.write('<script src="gov-sync.js"><\/script>');    // סנכרון לענן: נטען סינכרונית בכל דף, כדי שכל שמירה תופעל אוטומטית
+    document.write('<script src="gov-sync.js"><\/script>');
+    document.write('<script src="gov-ai.js"><\/script>');    // שכבת AI משותפת (מפתח Gemini של המשתמש)    // סנכרון לענן: נטען סינכרונית בכל דף, כדי שכל שמירה תופעל אוטומטית
+
+
+    // מכשיר חדש: אם קיים gov-config.enc.json ואין עדיין הגדרות, מבקשים סיסמה, מפענחים, מתחברים לענן ונועלים באותה סיסמה.
+    (async function newDeviceSetup() {
+        try {
+            if (G.lock.isSet() || !window.crypto || !crypto.subtle) return;
+            try { if (JSON.parse(localStorage.getItem('gov_sync') || '{}').url) return; } catch (e) {}
+            const r = await fetch('gov-config.enc.json', { cache: 'no-store' }); if (!r.ok) return; const obj = await r.json(); if (!obj || !obj.ct) return;
+            document.body.insertAdjacentHTML('afterbegin', `<div id="govSetup" style="position:fixed;inset:0;z-index:1001;background:#020617;display:flex;align-items:center;justify-content:center;padding:16px"><form id="govSetupForm" style="width:100%;max-width:340px;text-align:center"><div style="font-size:48px">🏛️</div><div style="font-weight:900;font-size:20px;color:#fbbf24;margin-bottom:6px">חיבור מכשיר חדש</div><div style="font-size:12px;color:#94a3b8;margin-bottom:12px">הזן את סיסמת הממשלה. המערכת תתחבר לענן ותמשוך את הנתונים באופן אוטומטי.</div><input id="govSetupPw" type="password" autocomplete="current-password" placeholder="סיסמה" class="g-inp" style="text-align:center;font-size:16px"><button class="g-btn pri" style="width:100%;margin-top:10px;padding:9px">התחבר</button><button type="button" id="govSetupSkip" class="g-btn" style="width:100%;margin-top:6px">דלג (התחל בלי ענן)</button><div id="govSetupMsg" style="color:#f87171;font-size:12px;margin-top:8px;min-height:1rem"></div></form></div>`);
+            const msg = t => { document.getElementById('govSetupMsg').textContent = t; };
+            document.getElementById('govSetupSkip').onclick = () => document.getElementById('govSetup').remove();
+            document.getElementById('govSetupForm').addEventListener('submit', async ev => {
+                ev.preventDefault(); const pw = document.getElementById('govSetupPw').value; msg('מתחבר…');
+                const S = window.GOV_SYNC; if (!S) { msg('מודול הסנכרון לא נטען.'); return; }
+                const ok = await S.importConfig(pw, obj); if (!ok.ok) { msg(ok.error); return; }
+                const pl = await S.pull(); if (pl.state !== 'ok' && pl.state !== 'idle') { msg('החיבור נשמר, אך המשיכה נכשלה: ' + (pl.msg || '')); }
+                await G.lock.set(pw); location.reload();
+            });
+        } catch (e) {}
+    })();
 
     if (!G.lock.unlocked()) {
         document.body.insertAdjacentHTML('afterbegin', `<div id="govGate" style="position:fixed;inset:0;z-index:1000;background:#020617;display:flex;align-items:center;justify-content:center;padding:16px">

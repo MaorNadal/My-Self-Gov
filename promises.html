@@ -82,6 +82,19 @@
             if (!n) alert('כל ההבטחות כבר קיימות החודש.'); render();
         }
 
+        const openT = new Set();
+        function taskBlock(p, ro) {
+            const ts = G.tasks.forPromise(p.id).sort((a, b) => Number(a.done) - Number(b.done) || (a.due || '9').localeCompare(b.due || '9')), n = ts.filter(t => t.done).length, isO = openT.has(p.id) || (ts.length && ts.length > n && false);
+            const allDone = ts.length && n === ts.length && p.status !== 'done' && p.status !== 'failed' && !ro;
+            return `<div class="mt-3 border-t border-slate-700 pt-2"><button class="text-[11px] text-sky-300 underline" onclick="toggleT('${h(p.id)}')">${isO ? '▲' : '▼'} משימות (${n}/${ts.length})</button>
+                ${allDone ? `<button class="g-btn ok mr-2" onclick="setStatus('${h(p.id)}','done')">✅ כל המשימות הושלמו: סמן הבטחה כבוצעה</button>` : ''}
+                ${isO ? `<div class="mt-2 space-y-1">${ts.map(t => { const od = !t.done && t.due && t.due < NOW, is = t.issueId && G.issues.get(t.issueId); return `<div class="flex items-center gap-2 text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-2.5 py-1.5"><input type="checkbox" ${t.done ? 'checked' : ''} onchange="togT('${h(t.id)}')" class="w-4 h-4 accent-emerald-400"><span class="flex-1 ${t.done ? 'line-through text-slate-500' : ''}">${h(t.text)}${is ? ' <span class="text-slate-500">🔥 ' + h(is.title.slice(0, 28)) + '</span>' : ''}</span>${t.due ? `<span style="color:${od ? '#f87171' : '#94a3b8'}">${h(t.due)}${od ? ' (באיחור)' : ''}</span>` : ''}<button class="text-rose-400" onclick="delT('${h(t.id)}')">✕</button></div>`; }).join('') || '<p class="text-xs text-slate-500">אין משימות.</p>'}
+                    ${p.status === 'done' || p.status === 'failed' || p.status === 'dropped' ? '' : `<div class="flex flex-wrap gap-2 mt-2"><input id="tk_${h(p.id)}" class="g-inp flex-1 min-w-[10rem]" style="margin:0" maxlength="200" placeholder="משימה חדשה להבטחה…" onkeydown="if(event.key==='Enter')addT('${h(p.id)}')"><input id="td_${h(p.id)}" type="date" class="g-inp" style="margin:0;width:auto"><button class="g-btn" onclick="addT('${h(p.id)}')">הוסף</button></div>`}</div>` : ''}</div>`;
+        }
+        function toggleT(id) { openT.has(id) ? openT.delete(id) : openT.add(id); render(); }
+        function addT(pid) { const p = G.promises.get(pid), t = $('tk_' + pid).value.trim(); if (!p || t.length < 2) { alert('נסח את המשימה (לפחות 2 תווים).'); return; } openT.add(pid); G.tasks.save({ text: t, promiseId: pid, pid: p.pid, due: $('td_' + pid).value }); render(); }
+        function togT(id) { G.tasks.toggle(id); render(); }
+        function delT(id) { if (confirm('למחוק את המשימה?')) { G.tasks.remove(id); render(); } }
         function card(p) {
             const s = G.STATUS[p.status], port = pById(p.pid), ro = closed() || p.status === 'dropped';
             return `<div class="g-card" style="border-right:4px solid ${s.c};padding:14px">
@@ -91,8 +104,9 @@
                 ${p.measure ? `<div class="text-[11px] text-slate-300 mt-2">🎯 קריטריון: ${h(p.measure)}</div>` : ''}${p.why ? `<div class="text-[11px] text-slate-400">💭 ${h(p.why)}</div>` : ''}
                 ${p.status === 'dropped' ? `<div class="text-[11px] text-violet-300 mt-2">נימוק להסרה: ${h(p.dropReason)}</div>` : ''}
                 ${p.status !== 'dropped' ? `<div class="flex items-center gap-2 mt-3">${bar(p.progress, s.c)}<span class="text-[11px] text-slate-300 w-9 text-left">${p.progress}%</span></div>` : ''}
+                ${taskBlock(p, ro)}
                 ${ro ? '' : `<div class="flex flex-wrap items-center gap-2 mt-3">
-                    <input type="range" min="0" max="100" step="5" value="${p.progress}" class="flex-1 min-w-[8rem] accent-amber-400" onchange="setProgress('${h(p.id)}',this.value)">
+                    ${G.tasks.forPromise(p.id).length ? '<span class="flex-1 text-[11px] text-slate-400">ההתקדמות מחושבת אוטומטית מהמשימות.</span>' : `<input type="range min="0" max="100" step="5" value="${p.progress}" class="flex-1 min-w-[8rem] accent-amber-400" onchange="setProgress('${h(p.id)}',this.value)">`}
                     <select class="g-inp" style="margin:0;width:auto" onchange="setStatus('${h(p.id)}',this.value)">${['open', 'progress', 'done', 'failed'].map(k => `<option value="${k}"${p.status === k ? ' selected' : ''}>${G.STATUS[k].l}</option>`).join('')}</select>
                     <button class="g-btn" onclick="editText('${h(p.id)}')">✏️</button><button class="g-btn" onclick="dropPromise('${h(p.id)}')" title="הסרה דורשת נימוק">הסר בנימוק</button><button class="g-btn red" onclick="removePromise('${h(p.id)}')">🗑️</button></div>`}
             </div>`;
@@ -105,7 +119,7 @@
         }
         function mutate(id, fn) { if (closed()) return; const p = G.promises.get(id); if (!p) return; fn(p); G.promises.save(p); render(); }
         function setProgress(id, v) { mutate(id, p => { p.progress = Number(v); if (p.progress === 100) { p.status = 'done'; p.doneAt = NOW; } else if (p.progress > 0 && (p.status === 'open' || p.status === 'done')) { p.status = 'progress'; p.doneAt = ''; } else if (p.progress === 0 && p.status === 'progress') p.status = 'open'; }); }
-        function setStatus(id, s) { mutate(id, p => { p.status = s; if (s === 'done') { p.progress = 100; p.doneAt = NOW; } else p.doneAt = ''; }); }
+        function setStatus(id, s) { if (s === 'done' && G.tasks.forPromise(id).some(t => !t.done)) { alert('יש משימות פתוחות בהבטחה. השלם אותן, או מחק אותן אם הן כבר לא רלוונטיות.'); render(); return; } mutate(id, p => { p.status = s; if (s === 'done') { p.progress = 100; p.doneAt = NOW; } else p.doneAt = ''; }); }
         function editText(id) { const p = G.promises.get(id); if (!p) return; const t = prompt('נוסח ההבטחה:', p.text); if (t && t.trim().length >= 5) mutate(id, x => { x.text = t.trim(); }); }
         function dropPromise(id) {
             const r = prompt('הסרת הבטחה היא החלטה, לא מחיקה. מה הנימוק? (לפחות 10 תווים; הוא יוצג בסיכום החודש)');

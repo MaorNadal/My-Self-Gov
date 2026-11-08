@@ -33,7 +33,7 @@
         let sel = (location.hash.match(/^#p=(.+)$/) || [])[1] || null;
 
         function renderGrid() {
-            const ps = G.promises.all().filter(p => p.month === MK && p.status !== 'dropped'), is = G.issues.all().filter(i => i.status === 'open'), ids = G.ideas.all().filter(i => i.status === 'new');
+            const ps = G.promises.all().filter(p => p.month === MK && p.status !== 'dropped'), is = G.issues.all().filter(i => i.status !== 'resolved'), ids = G.ideas.all().filter(i => i.status === 'new');
             $('grid').innerHTML = G.portfolios.all().map(p => {
                 const mine = ps.filter(x => x.pid === p.id), done = mine.filter(x => x.status === 'done').length;
                 return `<button type="button" onclick="openP('${h(p.id)}')" class="g-card text-right hover:border-amber-400 transition ${sel === p.id ? 'border-amber-400' : ''}">
@@ -53,7 +53,7 @@
             const box = $('portfolio-detail'), p = sel && G.portfolios.get(sel);
             if (!p) { box.innerHTML = '<div class="g-card text-center text-sm text-slate-400">בחר תיק כדי לראות את הסוגיות, הרעיונות וההבטחות שלו.</div>'; return; }
             const proms = G.promises.all().filter(x => x.pid === p.id && x.month === MK && x.status !== 'dropped');
-            const is = G.issues.all().filter(x => x.pid === p.id).sort((a, b) => (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1) || b.severity - a.severity);
+            const is = G.issues.all().filter(x => x.pid === p.id).sort((a, b) => (a.status === 'resolved' ? 1 : 0) - (b.status === 'resolved' ? 1 : 0) || b.severity - a.severity);
             const ids = G.ideas.all().filter(x => x.pid === p.id && x.status !== 'rejected').sort((a, b) => (a.status === 'new' ? 0 : 1) - (b.status === 'new' ? 0 : 1));
             box.innerHTML = `<div class="g-card space-y-5">
                 <div class="flex flex-wrap items-center justify-between gap-2"><h2 class="text-xl font-black text-amber-400">${p.icon} ${h(p.name)}</h2>${p.builtin ? '' : `<button class="g-btn red" onclick="deleteP()">🗑️ מחק תיק</button>`}</div>
@@ -67,9 +67,7 @@
                     ${proms.map(x => `<div class="text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1.5 mb-1.5 flex justify-between gap-2"><span>${h(x.text)}</span><span style="color:${G.STATUS[x.status].c}">${G.STATUS[x.status].l} ${x.progress}%</span></div>`).join('') || '<p class="text-xs text-slate-500">אין הבטחות החודש בתיק הזה.</p>'}</div>
 
                 <div><h3 class="font-bold text-white text-sm mb-2">🔥 סוגיות</h3>
-                    ${is.map(x => `<div class="text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1.5 mb-1.5 flex items-center gap-2"><span>${x.severity === 3 ? '🔴' : (x.severity === 2 ? '🟠' : '🟡')}</span>
-                        <span class="flex-1 ${x.status === 'resolved' ? 'line-through text-slate-500' : ''}">${h(x.title)}</span>
-                        ${x.status === 'open' ? `<button class="text-emerald-400 font-bold" onclick="resolveI('${h(x.id)}')">✓ טופלה</button>` : `<span class="text-slate-500">${h(x.resolvedAt)}</span>`}<button class="text-rose-400" onclick="delI('${h(x.id)}')">✕</button></div>`).join('') || '<p class="text-xs text-slate-500 mb-1.5">אין סוגיות.</p>'}
+                    ${is.map(x => { const st = G.ISSUE_STATUS[x.status]; return `<a href="issues.html#i=${h(x.id)}" class="text-xs bg-slate-900/70 border border-slate-700 hover:border-amber-400 rounded-lg px-3 py-1.5 mb-1.5 flex items-center gap-2"><span>${x.severity === 3 ? '🔴' : (x.severity === 2 ? '🟠' : '🟡')}</span><span class="flex-1 ${x.status === 'resolved' ? 'line-through text-slate-500' : ''}">${h(x.title)}</span><span class="g-chip" style="color:${st.c};border-color:${st.c}55">${st.l}</span></a>`; }).join('') || '<p class="text-xs text-slate-500 mb-1.5">אין סוגיות.</p>'}
                     <div class="flex flex-wrap gap-2 mt-2"><input id="iT" class="g-inp flex-1 min-w-[10rem]" style="margin:0" maxlength="200" placeholder="סוגיה חדשה בתיק…" onkeydown="if(event.key==='Enter')addI()"><select id="iS" class="g-inp" style="margin:0;width:auto"><option value="3">חמורה</option><option value="2" selected>רגילה</option><option value="1">קלה</option></select><button class="g-btn" onclick="addI()">הוסף</button></div></div>
 
                 <div><h3 class="font-bold text-white text-sm mb-2">💡 רעיונות של התיק</h3>
@@ -81,9 +79,7 @@
         function saveP() { const p = G.portfolios.get(sel); if (!p) return; p.minister = $('pMin').value; p.style = $('pStyle').value; p.mission = $('pMission').value; G.portfolios.save(p); render(); }
         function deleteP() { if (confirm('למחוק את התיק? הסוגיות וההבטחות שלו יישארו אך ללא תיק.')) { G.portfolios.remove(sel); sel = null; history.replaceState(null, '', location.pathname); render(); } }
         function addI() { const t = $('iT').value.trim(); if (!t) return; G.issues.save({ title: t, pid: sel, severity: $('iS').value }); render(); }
-        function resolveI(id) { const i = G.issues.get(id); if (i) { i.status = 'resolved'; i.resolvedAt = NOW; G.issues.save(i); } render(); }
-        function delI(id) { G.issues.remove(id); render(); }
-        function addIdea() { const t = $('dT').value.trim(); if (!t) return; G.ideas.save({ pid: sel, text: t }); render(); }
+                function addIdea() { const t = $('dT').value.trim(); if (!t) return; G.ideas.save({ pid: sel, text: t }); render(); }
         function rejectI(id) { const i = G.ideas.get(id); if (i) { i.status = 'rejected'; G.ideas.save(i); } render(); }
         function adopt(id) {
             const i = G.ideas.get(id); if (!i) return;
