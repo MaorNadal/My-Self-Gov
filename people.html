@@ -38,7 +38,7 @@
         const NOW = G.localDate();
         let sel = (location.hash.match(/^#p=(.+)$/) || [])[1] || null;
         const gCol = s => s == null ? '#64748b' : s >= 65 ? '#34d399' : s >= 40 ? '#fbbf24' : '#f87171';
-        const IMP = { '-3': 'פגיעה קשה', '-2': 'פגיעה', '-1': 'פגיעה קלה', 0: 'ניטרלי', 1: 'חיזוק קל', 2: 'חיזוק', 3: 'חיזוק משמעותי' };
+        const IMP = { '-5': 'פגיעה קשה מאוד', '-4': 'פגיעה קשה', '-3': 'פגיעה משמעותית', '-2': 'פגיעה', '-1': 'פגיעה קלה', 0: 'ניטרלי', 1: 'חיזוק קל', 2: 'חיזוק', 3: 'חיזוק משמעותי', 4: 'חיזוק חזק', 5: 'חיזוק חזק מאוד' };
         $('nRel').innerHTML = Object.entries(G.REL).map(([k, o]) => `<option value="${k}">${o.i} ${o.l}</option>`).join('');
 
         function gauge(c) {   // חצי טבעת: מוצג רק מ-3 אירועים
@@ -101,7 +101,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
                         <label class="g-lab md:col-span-3">מה קרה? (עובדה, לא פרשנות)<input id="vText" class="g-inp" maxlength="300" onkeydown="if(event.key==='Enter')addEv()"></label>
                         <label class="g-lab">תאריך<input id="vDate" type="date" class="g-inp" value="${NOW}" max="${NOW}"></label>
-                        <label class="g-lab">השפעה על הקשר<select id="vImp" class="g-inp">${[3, 2, 1, 0, -1, -2, -3].map(n => `<option value="${n}"${n === 0 ? ' selected' : ''}>${n > 0 ? '+' + n : n} ${IMP[n]}</option>`).join('')}</select></label>
+                        <label class="g-lab">השפעה על הקשר<select id="vImp" class="g-inp">${[5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5].map(n => `<option value="${n}"${n === 0 ? ' selected' : ''}>${n > 0 ? '+' + n : n} ${IMP[n]}</option>`).join('')}</select></label>
                         <button class="g-btn pri" onclick="addEv()">הוסף</button></div></div>
 
                 <div><h3 class="font-bold text-white text-sm mb-2">🤝 אמנות מול ${h(p.name)}</h3>

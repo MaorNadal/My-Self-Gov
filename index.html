@@ -101,7 +101,7 @@
             box.innerHTML = `<div class="flex flex-wrap items-start justify-between gap-3">
                 <div><div class="text-[11px] font-bold text-amber-400">ממשלת ${h(G.monthLabel(MK))}</div>
                     <div class="text-xl font-black text-white">ראש הממשלה: ${h(who)} <span class="text-[11px] font-normal text-slate-400">(${kinds[t.kind]})</span></div>
-                    ${t.doctrine ? `<p class="text-sm text-slate-300 mt-1 leading-relaxed">📌 ${h(t.doctrine)}</p>` : '<p class="text-xs text-slate-500 mt-1">לא נקבעה דוקטרינה לחודש.</p>'}</div>
+                    ${t.doctrine ? `<p class="text-sm text-slate-300 mt-1 leading-relaxed">📌 ${G.nl(t.doctrine)}</p>` : '<p class="text-xs text-slate-500 mt-1">לא נקבעה דוקטרינה לחודש.</p>'}</div>
                 <button class="g-btn" onclick="editTerm=true;renderTerm()">✏️ ערוך</button></div>
                 <div class="mt-2 text-[11px] text-slate-400">⏱️ הושבעה ${h(t.startAt.replace('T', ' ').slice(0, 16))} • תסתיים ${h(t.endAt.replace('T', ' '))} • דרך הקמה: ${h(G.METHODS[t.method])}${transitional()}</div>
                 ${closed() ? '<div class="mt-2 text-xs text-violet-300">🔒 החודש הזה נסגר בדף "ציון חודשי". ההבטחות שלו הוקפאו.</div>' : ''}`;
@@ -115,18 +115,43 @@
         }
 
         // ---------- משימות היום ----------
-        function renderDaily() {
-            const list = G.daily.get(TODAY), done = list.filter(x => x.done).length;
-            $('today').innerHTML = `<div class="flex items-center justify-between mb-3"><h2 class="font-bold text-white text-sm">✅ פעולות היום</h2><span class="text-[11px] text-slate-400">${done}/${list.length} בוצעו</span></div>
-                ${list.length ? `<div class="mb-3">${bar(done / list.length * 100, '#34d399')}</div>` : ''}
-                <div class="space-y-1.5 mb-3">${list.map(x => `<div class="flex items-center gap-2 bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-2">
-                    <input type="checkbox" ${x.done ? 'checked' : ''} onchange="toggleDaily('${h(x.id)}')" class="w-4 h-4 accent-emerald-400 shrink-0">
-                    <span class="flex-1 text-sm ${x.done ? 'line-through text-slate-500' : 'text-slate-100'}">${pIcon(x.pid)} ${h(x.text)}</span>
-                    <button class="text-rose-400 text-xs" onclick="removeDaily('${h(x.id)}')">✕</button></div>`).join('') || '<p class="text-xs text-slate-500 py-2">אין פעולות להיום. הוסף את הפעולה הראשונה, או גלגל מאתמול.</p>'}</div>
-                <div class="flex flex-wrap gap-2"><input id="dText" class="g-inp flex-1 min-w-[10rem]" style="margin:0" maxlength="200" placeholder="פעולה חדשה להיום…" onkeydown="if(event.key==='Enter')addDaily()">
-                    <select id="dPid" class="g-inp" style="margin:0;width:auto">${pOpts('')}</select><button class="g-btn pri" onclick="addDaily()">הוסף</button><button class="g-btn" onclick="carryOver()" title="מעביר מאתמול פעולות שלא בוצעו">↪️ גלגל מאתמול</button></div>`;
+        // פעולות היום: טוען הכול ממקום אחד: פעולות ידניות, שגרות, מחויבויות אמנה, משימות שהגיע מועדן או באיחור, קריטריוני הצלחה חוזרים ופגישות. מה שהושלם נשאר בחלק נפרד.
+        const SRC = { daily: ['פעולה', '#94a3b8'], routine: ['שגרה', '#38bdf8'], treaty: ['אמנה', '#a78bfa'], task: ['משימה', '#fbbf24'], crit: ['קריטריון', '#34d399'], event: ['פגישה', '#e2e8f0'] };
+        function todayItems() {
+            const it = [];
+            G.daily.get(TODAY).forEach(x => it.push({ src: 'daily', id: x.id, text: x.text, pid: x.pid, done: x.done, time: '' }));
+            G.routines.forDay(TODAY).forEach(x => it.push({ src: 'routine', id: x.r.id, text: x.r.text, pid: x.r.pid, done: x.done, time: x.r.time }));
+            G.treaties.dueOn(TODAY).forEach(t => it.push({ src: 'treaty', id: t.id, text: t.party + ': ' + t.title, pid: t.pid, done: t.checks.includes(TODAY), time: '' }));
+            G.tasks.all().forEach(t => { if (t.done ? t.doneAt === TODAY : (t.due && t.due <= TODAY)) it.push({ src: 'task', id: t.id, text: t.text, pid: t.pid || ((G.promises.get(t.promiseId) || {}).pid) || '', done: t.done, time: t.time, late: !t.done && t.due < TODAY, due: t.due }); });
+            G.promises.all().filter(p => p.month === MK && p.crit.type === 'recurring' && !['done', 'failed', 'dropped'].includes(p.status)).forEach(p => { const c = G.critStatus(p); if (c && (c.due || c.last === TODAY)) it.push({ src: 'crit', id: p.id, text: p.text + ' (כל ' + c.every + ' ימים)', pid: p.pid, done: c.last === TODAY, time: '', late: c.overdue }); });
+            G.events.on(TODAY).forEach(e => it.push({ src: 'event', id: e.id, text: e.title + (e.place ? ' 📍' + e.place : ''), pid: e.pid, done: e.done, time: e.start }));
+            return it.sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
         }
-        function addDaily() { const t = $('dText').value.trim(); if (!t) return; const l = G.daily.get(TODAY); l.push({ id: G.uid(), text: t, done: false, pid: $('dPid').value }); G.daily.set(TODAY, l); renderDaily(); renderScore(); renderAlerts(); }
+        function renderDaily() {
+            const all = todayItems(), open = all.filter(x => !x.done), dn = all.filter(x => x.done);
+            const row = x => `<div class="flex items-center gap-2 bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-2" ${x.late ? 'style="border-right:3px solid #f87171"' : ''}>
+                    <input type="checkbox" ${x.done ? 'checked' : ''} onchange="togToday('${x.src}','${h(x.id)}')" class="w-4 h-4 accent-emerald-400 shrink-0">
+                    <span class="flex-1 text-sm ${x.done ? 'line-through text-slate-500' : 'text-slate-100'}">${x.time ? '<b class="text-sky-300" dir="ltr">' + h(x.time) + '</b> ' : ''}${pIcon(x.pid)} ${h(x.text)}${x.late ? ' <span class="text-rose-300 text-[11px]">באיחור' + (x.due ? ' (' + h(x.due.slice(5)) + ')' : '') + '</span>' : ''}</span>
+                    <span class="g-chip" style="color:${SRC[x.src][1]};border-color:${SRC[x.src][1]}55">${SRC[x.src][0]}</span>${x.src === 'daily' ? `<button class="text-rose-400 text-xs" onclick="removeDaily('${h(x.id)}')">✕</button>` : ''}</div>`;
+            $('today').innerHTML = `<div class="flex items-center justify-between mb-3"><h2 class="font-bold text-white text-sm">✅ פעולות היום</h2><span class="text-[11px] text-slate-400">${dn.length}/${all.length} בוצעו</span></div>
+                ${all.length ? `<div class="mb-3">${bar(dn.length / all.length * 100, '#34d399')}</div>` : ''}
+                <div class="space-y-1.5 mb-3">${open.map(row).join('') || `<p class="text-xs text-slate-500 py-2">${all.length ? '🎉 הכול בוצע להיום.' : 'אין מה לבצע היום. הגדר שגרות, משימות עם תאריך או פעולה חדשה.'}</p>`}</div>
+                ${dn.length ? `<details class="mb-3" open><summary class="text-[11px] font-bold text-emerald-300 cursor-pointer mb-1.5">✔️ הושלמו היום (${dn.length})</summary><div class="space-y-1.5">${dn.map(row).join('')}</div></details>` : ''}
+                <div class="flex flex-wrap gap-2"><input id="dText" class="g-inp flex-1 min-w-[10rem]" style="margin:0" maxlength="200" placeholder="פעולה או משימה חדשה…" onkeydown="if(event.key==='Enter')addDaily()">
+                    <input id="dDue" type="date" class="g-inp" style="margin:0;width:auto" title="תאריך (ריק = פעולה להיום בלבד; מלא = משימה עם תאריך)"><input id="dTime" type="time" class="g-inp" style="margin:0;width:auto" title="שעה (למשימה)">
+                    <select id="dPid" class="g-inp" style="margin:0;width:auto">${pOpts('')}</select><button class="g-btn pri" onclick="addDaily()">הוסף</button><button class="g-btn" onclick="carryOver()" title="מעביר מאתמול פעולות שלא בוצעו">↪️ גלגל מאתמול</button></div>
+                <p class="text-[10px] text-slate-500 mt-1">ללא תאריך: פעולה להיום בלבד. עם תאריך: משימה עצמאית שתופיע כאן ביום שלה. <a href="tasks.html" class="text-amber-400">כל המשימות וההיסטוריה ←</a></p>`;
+        }
+        function togToday(src, id) {
+            if (src === 'daily') { const l = G.daily.get(TODAY), x = l.find(i => i.id === id); if (x) { x.done = !x.done; G.daily.set(TODAY, l); } }
+            else if (src === 'routine') G.routines.setDone(TODAY, id, !G.routines.doneIds(TODAY).includes(id));
+            else if (src === 'treaty') G.treaties.check(id, TODAY);
+            else if (src === 'task') G.tasks.toggle(id);
+            else if (src === 'event') { const e = G.events.get(id); if (e) { e.done = !e.done; G.events.save(e); } }
+            else if (src === 'crit') { const p = G.promises.get(id); if (p && G.critStatus(p).last !== TODAY) G.promises.logCrit(id, 1); else alert('כבר סומן ביצוע היום. לביטול השתמש בדף ההבטחות.'); }
+            renderDaily(); renderAgenda(); renderPromises(); renderIssues(); renderScore(); renderAlerts();
+        }
+        function addDaily() { const t = $('dText').value.trim(); if (!t) return; const due = $('dDue').value; if (due) { G.tasks.save({ text: t, pid: $('dPid').value, due, time: $('dTime').value }); renderDaily(); renderAgenda(); return; } const l = G.daily.get(TODAY); l.push({ id: G.uid(), text: t, done: false, pid: $('dPid').value }); G.daily.set(TODAY, l); renderDaily(); renderScore(); renderAlerts(); }
         function toggleDaily(id) { const l = G.daily.get(TODAY), x = l.find(i => i.id === id); if (x) { x.done = !x.done; G.daily.set(TODAY, l); } renderDaily(); renderScore(); renderAlerts(); }
         function removeDaily(id) { G.daily.set(TODAY, G.daily.get(TODAY).filter(i => i.id !== id)); renderDaily(); renderScore(); renderAlerts(); }
         function carryOver() {
@@ -142,7 +167,7 @@
             $('promisesBox').innerHTML = `<div class="flex items-center justify-between mb-3"><h2 class="font-bold text-white text-sm">📜 הבטחות ${h(G.monthLabel(MK))}</h2><a href="promises.html" class="text-[11px] text-amber-400 hover:underline">לכל ההבטחות ←</a></div>
                 ${ps.length ? `<div class="space-y-2">${ps.map(p => { const s = G.STATUS[p.status]; return `<div class="bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-2" style="border-right:4px solid ${s.c}">
                     <div class="flex items-center justify-between gap-2"><span class="text-sm text-slate-100 min-w-0">${p.priority === 3 ? '⭐ ' : ''}${pIcon(p.pid)} ${h(p.text)}</span><span class="g-chip shrink-0" style="color:${s.c};border-color:${s.c}55;background:${s.c}1a">${s.l}</span></div>
-                    <div class="flex items-center gap-2 mt-1.5">${bar(p.progress, s.c)}<select ${ro || p.status === 'failed' ? 'disabled' : ''} onchange="setProgress('${h(p.id)}',this.value)" class="g-inp" style="margin:0;width:4.5rem;padding:2px 4px;font-size:11px">${[0, 25, 50, 75, 100].map(v => `<option value="${v}"${v === p.progress ? ' selected' : ''}>${v}%</option>`).join('')}</select></div></div>`; }).join('')}</div>`
+                    <div class="flex items-center gap-3 mt-1.5">${G.gauge(p.progress, { size: 46, color: s.c })}${bar(p.progress, s.c)}<select ${ro || p.status === 'failed' ? 'disabled' : ''} onchange="setProgress('${h(p.id)}',this.value)" class="g-inp" style="margin:0;width:4.5rem;padding:2px 4px;font-size:11px">${[0, 25, 50, 75, 100].map(v => `<option value="${v}"${v === p.progress ? ' selected' : ''}>${v}%</option>`).join('')}</select></div></div>`; }).join('')}</div>`
                 : '<p class="text-xs text-slate-500">עדיין לא הוגדרו הבטחות לחודש הזה. ממשלה בלי הבטחות אי אפשר למדוד.</p><a href="promises.html#promises-add" class="inline-block mt-2 g-btn pri">➕ הוסף הבטחה ראשונה</a>'}`;
         }
         function setProgress(id, v) {
@@ -157,38 +182,30 @@
             const list = G.issues.all().filter(i => i.status !== 'resolved').sort((a, b) => b.severity - a.severity || a.created.localeCompare(b.created));
             const sevI = { 3: '🔴', 2: '🟠', 1: '🟡' };
             $('issuesBox').innerHTML = `<div class="flex items-center justify-between mb-3"><h2 class="font-bold text-white text-sm">🔥 סוגיות על הפרק</h2><a href="issues.html" class="text-[11px] text-amber-400 hover:underline">ניהול סוגיות ←</a></div>
-                <div class="space-y-1.5 mb-3">${list.slice(0, 6).map(i => { const s = G.ISSUE_STATUS[i.status], nT = G.tasks.forIssue(i.id), od = nT.filter(t => !t.done).length;
-                    return `<a href="issues.html#i=${h(i.id)}" class="flex items-center gap-2 bg-slate-900/70 border border-slate-700 hover:border-amber-400 rounded-lg px-2.5 py-1.5 text-xs"><span>${sevI[i.severity]}</span><span class="flex-1 text-slate-200">${pIcon(i.pid)} ${h(i.title)}</span><span class="g-chip" style="color:${s.c};border-color:${s.c}55">${s.l}</span><span class="text-[10px] text-slate-500">${i.promiseIds.length} הבטחות • ${od}/${nT.length} משימות פתוחות</span></a>`; }).join('') || '<p class="text-xs text-slate-500 py-2">אין סוגיות על הפרק.</p>'}</div>
+                <div class="space-y-1.5 mb-3">${list.slice(0, 6).map(i => { const s = G.ISSUE_STATUS[i.status], pg = G.issues.progress(i.id), nT = { length: pg.n }, od = pg.n - pg.done;
+                    return `<a href="issues.html#i=${h(i.id)}" class="flex items-center gap-2 bg-slate-900/70 border border-slate-700 hover:border-amber-400 rounded-lg px-2.5 py-1.5 text-xs"><span>${i.kind === 'distraction' ? '🚫' : sevI[i.severity]}</span><span class="flex-1 text-slate-200">${pIcon(i.pid)} ${h(i.title)}</span><span class="g-chip" style="color:${s.c};border-color:${s.c}55">${s.l}</span><span class="text-[10px] text-slate-500">${i.horizon !== 'month' ? G.HORIZON[i.horizon] + ' • ' : ''}${i.promiseIds.length} הבטחות • ${od}/${nT.length} משימות פתוחות</span></a>`; }).join('') || '<p class="text-xs text-slate-500 py-2">אין סוגיות על הפרק.</p>'}</div>
                 <div class="flex gap-2"><input id="iTitle" class="g-inp flex-1" style="margin:0" maxlength="200" placeholder="סוגיה חדשה… (Enter)" onkeydown="if(event.key==='Enter')addIssue()"><select id="iSev" class="g-inp" style="margin:0;width:auto"><option value="3">חמורה</option><option value="2" selected>רגילה</option><option value="1">קלה</option></select></div>`;
         }
         function addIssue() { const t = $('iTitle').value.trim(); if (!t) return; G.issues.save({ title: t, severity: $('iSev').value }); renderIssues(); }
 
         // ---------- סדר היום: שגרות, משימות לפי תאריך, פגישות ומחויבויות קבועות באמנות ----------
-        function renderAgenda() {
-            const end7 = G.addDays(TODAY, 7), rts = G.routines.forDay(TODAY), trs = G.treaties.dueOn(TODAY);
-            const ts = G.tasks.all().filter(t => !t.done && t.due && t.due <= end7).sort((a, b) => a.due.localeCompare(b.due)), noDue = G.tasks.all().filter(t => !t.done && !t.due).length;
-            const evs = G.events.upcoming(TODAY, end7), row = (inner, extra) => `<div class="flex items-center gap-2 bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1.5 text-xs" ${extra || ''}>${inner}</div>`;
+        function renderAgenda() {   // השבוע הקרוב: מחר ואילך (מה שלהיום נמצא בקופסת "פעולות היום")
+            const from = G.addDays(TODAY, 1), end7 = G.addDays(TODAY, 7), row = (inner) => `<div class="flex items-center gap-2 bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1.5 text-xs">${inner}</div>`;
+            const ts = G.tasks.all().filter(t => !t.done && t.due >= from && t.due <= end7).sort((a, b) => (a.due + (a.time || '99')).localeCompare(b.due + (b.time || '99'))), noDue = G.tasks.all().filter(t => !t.done && !t.due).length, evs = G.events.upcoming(from, end7);
             const head = t => `<div class="text-[11px] font-bold text-slate-400 mt-3 mb-1">${t}</div>`;
-            $('agenda').innerHTML = `<div class="flex items-center justify-between mb-2"><h2 class="font-bold text-white text-sm">📅 סדר היום והשבוע הקרוב</h2><span class="text-[11px] text-slate-500"><a class="text-amber-400" href="schedule.html">לוח זמן</a> • <a class="text-amber-400" href="promises.html">משימות בהבטחות</a></span></div>
-                ${head('🔁 שגרות להיום (' + rts.filter(x => x.done).length + '/' + rts.length + ')')}<div class="space-y-1">${rts.map(x => row(`<input type="checkbox" ${x.done ? 'checked' : ''} onchange="togRoutine('${h(x.r.id)}',this.checked)" class="w-4 h-4 accent-emerald-400"><span class="flex-1 ${x.done ? 'line-through text-slate-500' : ''}">${pIcon(x.r.pid)} ${h(x.r.text)}</span>`)).join('') || '<p class="text-xs text-slate-500">אין שגרות להיום. הגדר שגרות בקופסה שמימין.</p>'}</div>
-                ${trs.length ? head('🤝 מחויבויות קבועות באמנות') + `<div class="space-y-1">${trs.map(t => row(`<input type="checkbox" ${t.checks.includes(TODAY) ? 'checked' : ''} onchange="togTreaty('${h(t.id)}')" class="w-4 h-4 accent-emerald-400"><span class="flex-1">${h(t.party)}: ${h(t.title)}</span>`)).join('')}</div>` : ''}
-                ${head('☑️ משימות עם תאריך (עד שבוע קדימה)')}<div class="space-y-1">${ts.map(t => { const d = Math.round((Date.parse(t.due) - Date.parse(TODAY)) / 864e5), pr = t.promiseId && G.promises.get(t.promiseId), is = t.issueId && G.issues.get(t.issueId), c = d < 0 ? '#f87171' : d === 0 ? '#fbbf24' : '#94a3b8';
-                    return row(`<input type="checkbox" onchange="togTask('${h(t.id)}')" class="w-4 h-4 accent-emerald-400"><span class="flex-1">${h(t.text)}${pr ? ' <span class="text-slate-500">📜 ' + h(pr.text.slice(0, 30)) + '</span>' : ''}${is ? ' <span class="text-slate-500">🔥 ' + h(is.title.slice(0, 30)) + '</span>' : ''}</span><span style="color:${c}" class="shrink-0">${d < 0 ? 'באיחור ' + (-d) + ' ימים' : d === 0 ? 'היום' : h(t.due.slice(5)) + ' (בעוד ' + d + ')'}</span>`, `style="border-right:3px solid ${c}"`); }).join('') || '<p class="text-xs text-slate-500">אין משימות עם תאריך בשבוע הקרוב.</p>'}</div>${noDue ? `<p class="text-[10px] text-slate-500 mt-1">יש עוד ${noDue} משימות פתוחות ללא תאריך.</p>` : ''}
-                ${head('🗓️ פגישות ואירועים')}<div class="space-y-1">${evs.map(e => row(`<span class="shrink-0 text-sky-300 w-24">${e.date === TODAY ? 'היום' : h(e.date.slice(5))} ${h(e.start)}</span><span class="flex-1">${h(e.title)}${e.place ? ' 📍' + h(e.place) : ''}</span>`)).join('') || '<p class="text-xs text-slate-500">אין פגישות בשבוע הקרוב.</p>'}</div>`;
+            $('agenda').innerHTML = `<div class="flex items-center justify-between mb-2"><h2 class="font-bold text-white text-sm">📅 השבוע הקרוב</h2><span class="text-[11px] text-slate-500"><a class="text-amber-400" href="schedule.html">לוח זמן</a> • <a class="text-amber-400" href="tasks.html">משימות</a></span></div>
+                ${head('☑️ משימות עם תאריך')}<div class="space-y-1">${ts.map(t => { const d = Math.round((Date.parse(t.due) - Date.parse(TODAY)) / 864e5); return row(`<span class="flex-1">${t.time ? '<b class="text-sky-300" dir="ltr">' + h(t.time) + '</b> ' : ''}${h(t.text)}</span><span class="text-slate-400 shrink-0">${h(t.due.slice(5))} (בעוד ${d})</span>`); }).join('') || '<p class="text-xs text-slate-500">אין משימות עם תאריך בשבוע הקרוב.</p>'}</div>${noDue ? `<p class="text-[10px] text-slate-500 mt-1">יש עוד ${noDue} משימות פתוחות ללא תאריך.</p>` : ''}
+                ${head('🗓️ פגישות ואירועים')}<div class="space-y-1">${evs.map(e => row(`<span class="shrink-0 text-sky-300 w-24">${h(e.date.slice(5))} ${h(e.start)}</span><span class="flex-1">${h(e.title)}${e.place ? ' 📍' + h(e.place) : ''}</span>`)).join('') || '<p class="text-xs text-slate-500">אין פגישות בשבוע הקרוב.</p>'}</div>`;
         }
-        function refreshDay() { renderAgenda(); renderScore(); renderAlerts(); }
-        function togRoutine(id, on) { G.routines.setDone(TODAY, id, on); refreshDay(); }
-        function togTreaty(id) { G.treaties.check(id, TODAY); renderAgenda(); }
-        function togTask(id) { G.tasks.toggle(id); renderAgenda(); renderPromises(); renderIssues(); renderScore(); }
-
+        
         // ---------- שגרות (משימות בסיס): עוברות בירושה בין ממשלות ----------
         let editR = null;
         function renderRoutines() {
             const rs = G.routines.active(), r = editR && G.routines.get(editR), v = r || { text: '', pid: '', days: [0, 1, 2, 3, 4, 5, 6] };
             $('routinesBox').innerHTML = `<h2 class="font-bold text-white text-sm mb-1">🔁 שגרות הממשלה</h2><p class="text-[10px] text-slate-500 mb-2">משימות בסיס שעוברות בירושה מממשלה לממשלה, עד שתשנה אותן. הן מופיעות אוטומטית בסדר היום ונספרות בעקביות היומית. שינוי ימים יוצר גרסה חדשה מהיום, כדי שההיסטוריה לא תשוכתב.</p>
-                <div class="space-y-1.5 mb-3">${rs.map(x => `<div class="bg-slate-900/70 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs"><div class="flex items-center gap-2"><span class="flex-1">${pIcon(x.pid)} ${h(x.text)}</span><button class="text-sky-300" onclick="editR='${h(x.id)}';renderRoutines()">✏️</button><button class="text-rose-400" onclick="stopRoutine('${h(x.id)}')" title="הפסק שגרה">⏹</button></div><div class="text-[10px] text-slate-500">${h(G.routines.dayLabel(x.days))} • מאז ${h(x.since)}</div></div>`).join('') || '<p class="text-xs text-slate-500">עוד אין שגרות.</p>'}</div>
+                <div class="space-y-1.5 mb-3">${rs.map(x => `<div class="bg-slate-900/70 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs"><div class="flex items-center gap-2"><span class="flex-1">${pIcon(x.pid)} ${h(x.text)}</span><button class="text-sky-300" onclick="editR='${h(x.id)}';renderRoutines()">✏️</button><button class="text-rose-400" onclick="stopRoutine('${h(x.id)}')" title="הפסק שגרה">⏹</button></div><div class="text-[10px] text-slate-500">${h(G.routines.dayLabel(x.days))}${x.time ? ' • ' + h(x.time) : ''}${x.treatyId ? ' • 🤝 מאמנה' : ''} • מאז ${h(x.since)}</div></div>`).join('') || '<p class="text-xs text-slate-500">עוד אין שגרות.</p>'}</div>
                 <div class="rounded-xl border border-dashed border-slate-600 p-2.5 space-y-2"><div class="text-[11px] font-bold text-slate-300">${r ? '✏️ עריכת שגרה' : '➕ שגרה חדשה'}</div><input id="rText" class="g-inp" style="margin:0" maxlength="200" placeholder="למשל: 20 דקות קריאה" value="${h(v.text)}">
-                    <select id="rPid" class="g-inp" style="margin:0">${pOpts(v.pid)}</select>
+                    <div class="grid grid-cols-2 gap-2"><select id="rPid" class="g-inp" style="margin:0">${pOpts(v.pid)}</select><label class="text-[10px] text-slate-400">שעה (אופציונלי)<input id="rTime" type="time" class="g-inp" style="margin:0" value="${h(v.time || '')}"></label></div>
                     <div class="flex flex-wrap gap-1">${G.DOW.map((d, k) => `<label class="text-xs px-2 py-1 rounded-lg border border-slate-600 cursor-pointer"><input type="checkbox" class="rDay accent-amber-400" value="${k}" ${v.days.includes(k) ? 'checked' : ''}> ${d}׳</label>`).join('')}</div>
                     <div class="flex flex-wrap gap-1 text-[10px]"><button type="button" class="g-btn" onclick="setDays([0,1,2,3,4,5,6])">כל יום</button><button type="button" class="g-btn" onclick="setDays([0,1,2,3,4])">א׳-ה׳</button><button type="button" class="g-btn" onclick="setDays([5,6])">סוף שבוע</button></div>
                     <div class="flex gap-2"><button class="g-btn pri" onclick="saveRoutine()">💾 ${r ? 'שמור' : 'הוסף'}</button>${r ? '<button class="g-btn" onclick="editR=null;renderRoutines()">ביטול</button>' : ''}</div></div>`;
@@ -196,9 +213,9 @@
         function setDays(a) { document.querySelectorAll('.rDay').forEach(c => { c.checked = a.includes(Number(c.value)); }); }
         function saveRoutine() {
             const days = [...document.querySelectorAll('.rDay:checked')].map(c => Number(c.value)); if ($('rText').value.trim().length < 2) { alert('נסח את השגרה (לפחות 2 תווים).'); return; } if (!days.length) { alert('בחר לפחות יום אחד.'); return; }
-            G.routines.save({ id: editR, text: $('rText').value.trim(), pid: $('rPid').value, days }); editR = null; renderRoutines(); renderAgenda(); renderScore();
+            G.routines.save({ id: editR, text: $('rText').value.trim(), pid: $('rPid').value, days, time: $('rTime').value }); editR = null; renderRoutines(); renderAgenda(); renderScore();
         }
-        function stopRoutine(id) { const r = prompt('למה להפסיק את השגרה? (לפחות 5 תווים; השגרה נשמרת בהיסטוריה)'); if (r === null) return; if (!G.routines.stop(id, r)) { alert('הנימוק קצר מדי.'); return; } renderRoutines(); renderAgenda(); renderScore(); }
+        function stopRoutine(id) { const r = prompt('למה להפסיק את השגרה? (לפחות 5 תווים; השגרה נשמרת בהיסטוריה)'); if (r === null) return; if (!G.routines.stop(id, r)) { alert('הנימוק קצר מדי.'); return; } renderRoutines(); renderDaily(); renderAgenda(); renderScore(); }
 
         // ---------- ציון ----------
         const ring = (v, g) => { const c = 2 * Math.PI * 54; return `<svg viewBox="0 0 140 140" class="mx-auto" style="width:9rem;height:9rem"><circle cx="70" cy="70" r="54" fill="none" stroke="#0f172a" stroke-width="13"/><circle cx="70" cy="70" r="54" fill="none" stroke="${g.c}" stroke-width="13" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - v / 100)).toFixed(1)}" transform="rotate(-90 70 70)" style="filter:drop-shadow(0 0 6px ${g.c}88)"/><text x="70" y="64" text-anchor="middle" font-size="12" fill="#94a3b8">ציון</text><text x="70" y="94" text-anchor="middle" font-size="40" font-weight="900" fill="${g.c}">${g.l}</text></svg>`; };
@@ -229,29 +246,30 @@
         }
 
         // ---------- ענן ----------
+        function secureMsg() { return !G.lock.isSet() ? 'כדי לשמור מפתחות צריך קודם להגדיר סיסמת כניסה (בהגדרות בתחתית הדף). המפתחות נשמרים מוצפנים בסיסמה.' : (!window.GOV_VAULT || !GOV_VAULT.isOpen() ? 'הכספת נעולה. היכנס מחדש עם הסיסמה.' : ''); }
         function renderCloud() {
             const S = window.GOV_SYNC; if (!S) { $('cloud').innerHTML = ''; return; }
-            const c = S.cfg(), st = { idle: ['⚪', 'לא מסונכרן', '#94a3b8'], ok: ['🟢', 'מסונכרן', '#34d399'], syncing: ['🔵', 'מסנכרן…', '#38bdf8'], error: ['🔴', 'שגיאה', '#f87171'], conflict: ['🟠', 'התנגשות', '#fb923c'], behind: ['🟠', 'הענן מקדים', '#fb923c'] }[c.state] || ['⚪', '', '#94a3b8'];
+            const c = S.cfg(), conn = !!(c.url && c.token), sm = secureMsg(), st = { idle: ['⚪', 'לא מסונכרן', '#94a3b8'], ok: ['🟢', 'מסונכרן', '#34d399'], syncing: ['🔵', 'מסנכרן…', '#38bdf8'], error: ['🔴', 'שגיאה', '#f87171'], conflict: ['🟠', 'התנגשות', '#fb923c'], behind: ['🟠', 'הענן מקדים', '#fb923c'] }[c.state] || ['⚪', '', '#94a3b8'];
+            const btn = 'class="g-btn"';
             $('cloud').innerHTML = `<div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h2 class="font-bold text-white text-sm">☁️ שמירה קבועה בענן (Google Apps Script)</h2><span class="g-chip" style="color:${st[2]};border-color:${st[2]}66;background:${st[2]}1a">${st[0]} ${st[1]}</span></div>
-                <p class="text-[11px] text-slate-400 mb-3 leading-relaxed">הנתונים נשמרים כקובץ JSON בדרייב שלך, ונשארים גם אם הדפדפן מתנקה. הוראות הפריסה ב-README.md. הכתובת והמפתח נשמרים רק בדפדפן הזה ולא נכללים בגיבוי.</p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs"><label class="g-lab">כתובת ה-Web App (מסתיימת ב-/exec)<input id="cUrl" class="g-inp" dir="ltr" value="${h(c.url)}" placeholder="https://script.google.com/macros/s/.../exec"></label>
-                    <label class="g-lab">מפתח (GOV_TOKEN)<input id="cTok" type="password" class="g-inp" dir="ltr" value="${h(c.token)}" autocomplete="off"></label></div>
-                <label class="flex items-center gap-2 text-xs text-slate-300 mt-2"><input type="checkbox" id="cAuto" ${c.auto ? 'checked' : ''} class="accent-sky-400"> סנכרון אוטומטי (דחיפה לענן 5 שניות אחרי כל שינוי)</label>
-                <div class="flex flex-wrap gap-2 mt-3"><button class="g-btn pri" onclick="cloudSave()">💾 שמור ובדוק חיבור</button><button class="g-btn ok" onclick="cloudPush(false)">⬆️ דחוף לענן</button><button class="g-btn" onclick="cloudPull()">⬇️ משוך מהענן</button><button class="g-btn red" onclick="cloudPush(true)" title="דורס את גרסת הענן">דרוס את הענן</button></div>
-                <details class="mt-3 text-xs"><summary class="cursor-pointer text-sky-300 font-bold">📱 חיבור אוטומטי למכשירים נוספים</summary>
-                    <p class="text-[11px] text-slate-400 my-2 leading-relaxed">צור קובץ הגדרות מוצפן בסיסמה (8+ תווים), והעלה אותו לשורש האתר ב-GitHub בשם <b dir="ltr">gov-config.enc.json</b>. בכל מכשיר חדש יידרש רק להזין את הסיסמה: המערכת תתחבר לענן, תמשוך את הנתונים ותקבע את אותה סיסמה לכניסה. <b>הקובץ ציבורי אם האתר ציבורי</b>, ולכן חוזק הסיסמה הוא כל ההגנה על מפתח הענן שבו. השתמש בסיסמה ארוכה וייחודית.</p>
-                    <div class="flex flex-wrap gap-2"><input id="cfgPw" type="password" class="g-inp" style="margin:0;max-width:16rem" placeholder="סיסמת הממשלה" autocomplete="new-password"><button class="g-btn pri" onclick="cfgExport()">⬇️ צור gov-config.enc.json</button></div></details>
+                <p class="text-[11px] text-slate-400 mb-3 leading-relaxed">הנתונים נשמרים כקובץ JSON בדרייב שלך. הכתובת והמפתח נשמרים במכשיר <b>מוצפנים בסיסמה</b> ואינם מוצגים שוב לאחר ההזנה. הוראות פריסה ב-README.md.</p>
+                ${sm ? `<div class="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2.5">🔒 ${sm}</div>` : conn ? `<div class="flex flex-wrap items-center gap-3 text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-2"><span>🔗 מחובר: <b dir="ltr">${h(S.maskUrl(c.url))}</b></span><span class="text-slate-500">מפתח: ••••••••</span><label class="flex items-center gap-2 text-slate-300"><input type="checkbox" id="cAuto" ${c.auto ? 'checked' : ''} onchange="cloudAuto(this.checked)" class="accent-sky-400"> סנכרון אוטומטי (5 שניות אחרי כל שינוי)</label></div>
+                <div class="flex flex-wrap gap-2 mt-3"><button class="g-btn ok" onclick="cloudPush(false)">⬆️ דחוף לענן</button><button ${btn} onclick="cloudPull()">⬇️ משוך מהענן</button><button ${btn} onclick="cloudPing()">🔍 בדוק חיבור</button><button class="g-btn red" onclick="cloudPush(true)">⚠️ דרוס את הענן</button><button class="g-btn red" onclick="cloudDisconnect()">🔌 נתק והסר מפתחות</button></div>
+                <details class="mt-3 text-xs"><summary class="cursor-pointer text-sky-300 font-bold">📱 חיבור מכשיר נוסף (קישור חד-פעמי מוצפן)</summary>
+                    <p class="text-[11px] text-slate-400 my-2 leading-relaxed">הקישור מכיל את הכתובת והמפתח מוצפנים בסיסמה (8+ תווים), בחלק ה-# שלא נשלח לשרת ולא נשמר באתר. פתח אותו במכשיר החדש והזן את הסיסמה: המערכת תתחבר לענן, תמשוך נתונים ותשמור מפתחות מוצפנים. שלח אותו לעצמך (למשל בהודעה) ומחק אחר כך. ללא ריפוזיטורי ציבורי של קבצי הגדרות.</p>
+                    <div class="flex flex-wrap gap-2"><input id="cfgPw" type="password" class="g-inp" style="margin:0;max-width:16rem" placeholder="סיסמת הממשלה" autocomplete="new-password"><button class="g-btn pri" onclick="cfgLink()">🔗 צור קישור</button></div><textarea id="cfgOut" readonly rows="3" dir="ltr" class="g-inp mt-2" style="display:none"></textarea></details>`
+                : `<div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs"><label class="g-lab">כתובת ה-Web App (מסתיימת ב-/exec)<input id="cUrl" type="password" class="g-inp" dir="ltr" autocomplete="off" placeholder="https://script.google.com/macros/s/.../exec"></label>
+                    <label class="g-lab">מפתח (GOV_TOKEN)<input id="cTok" type="password" class="g-inp" dir="ltr" autocomplete="off"></label></div>
+                <div class="flex flex-wrap gap-2 mt-3"><button class="g-btn pri" onclick="cloudSave()">💾 שמור ובדוק חיבור</button></div><p class="text-[10px] text-slate-500 mt-1">לאחר השמירה השדות מתרוקנים והערכים לא יוצגו שוב.</p>`}
                 <div class="text-[11px] mt-2" style="color:${st[2]}">${h(c.msg)}${c.last ? ' • סנכרון אחרון: ' + new Date(c.last).toLocaleString('he-IL') : ''}</div>`;
         }
-        async function cfgExport() {
-            window.GOV_SYNC.setConfig({ url: $('cUrl').value, token: $('cTok').value, auto: $('cAuto').checked });
-            const r = await window.GOV_SYNC.exportConfig($('cfgPw').value); if (!r.ok) { alert(r.error); return; }
-            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([r.json], { type: 'application/json' })); a.download = 'gov-config.enc.json'; a.click();
-            alert('הקובץ ירד. העלה אותו לשורש הריפוזיטורי ב-GitHub (ליד index.html). ודא שזו אותה סיסמה שקבעת לכניסה למערכת.');
-        }
-        async function cloudSave() { window.GOV_SYNC.setConfig({ url: $('cUrl').value, token: $('cTok').value, auto: $('cAuto').checked }); renderCloud(); await window.GOV_SYNC.ping(); renderCloud(); }
-        async function cloudPush(force) { if (force && !confirm('לדרוס את הנתונים שבענן בנתונים של המכשיר הזה? גרסת הענן הקודמת נשמרת כגיבוי בדרייב (עד 5 גרסאות).')) return; window.GOV_SYNC.setConfig({ url: $('cUrl').value, token: $('cTok').value, auto: $('cAuto').checked }); await window.GOV_SYNC.push(force); renderCloud(); }
-        async function cloudPull() { if (!confirm('למשוך מהענן? הנתונים במכשיר הזה יוחלפו בנתוני הענן. מומלץ להוריד קודם גיבוי מקומי.')) return; window.GOV_SYNC.setConfig({ url: $('cUrl').value, token: $('cTok').value, auto: $('cAuto').checked }); const c = await window.GOV_SYNC.pull(); if (c.state === 'ok') render(); else renderCloud(); }
+        async function cloudSave() { const r = await window.GOV_SYNC.setConfig({ url: $('cUrl').value, token: $('cTok').value, auto: true }); if (!r.ok) { alert(r.error); return; } renderCloud(); await window.GOV_SYNC.ping(); renderCloud(); }
+        async function cloudAuto(on) { await window.GOV_SYNC.setConfig({ auto: on }); renderCloud(); }
+        async function cloudPing() { await window.GOV_SYNC.ping(); renderCloud(); }
+        function cloudDisconnect() { if (confirm('לנתק את הענן ולמחוק את הכתובת והמפתח מהמכשיר הזה? הנתונים בענן נשארים.')) { window.GOV_SYNC.clearConfig(); renderCloud(); } }
+        async function cfgLink() { const r = await window.GOV_SYNC.exportLink($('cfgPw').value); if (!r.ok) { alert(r.error); return; } const o = $('cfgOut'); o.style.display = 'block'; o.value = r.link; o.select(); alert('הקישור נוצר. הוא פועל רק עם הסיסמה. ודא שזו אותה סיסמה שקבעת לכניסה למערכת.'); }
+        async function cloudPush(force) { if (force && !confirm('לדרוס את הנתונים שבענן בנתונים של המכשיר הזה? גרסת הענן הקודמת נשמרת כגיבוי בדרייב (עד 5 גרסאות).')) return; await window.GOV_SYNC.push(force); renderCloud(); }
+        async function cloudPull() { if (!confirm('למשוך מהענן? הנתונים במכשיר הזה יוחלפו בנתוני הענן. מומלץ להוריד קודם גיבוי מקומי.')) return; const c = await window.GOV_SYNC.pull(); if (c.state === 'ok') render(); else renderCloud(); }
         window.addEventListener('gov:sync', () => { if (!document.activeElement || !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) renderCloud(); });
 
         function renderScore() {
@@ -297,29 +315,33 @@
         // ---------- מפתח Gemini (הזנה חד-פעמית, נשמר רק בדפדפן הזה) ----------
         function renderAi() {
             const A = window.GOVAI; if (!A) { $('aiCard').innerHTML = ''; return; }
-            const has = A.hasKey(), qb = !has && A.importQbKey();
-            $('aiCard').innerHTML = `<div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h2 class="font-bold text-white text-sm">🤖 חיבור AI (Gemini)</h2><span class="g-chip" style="color:${has ? '#34d399' : '#94a3b8'};border-color:${has ? '#34d39966' : '#47556966'}">${has ? '🟢 מחובר ' + h(A.mask()) : '⚪ לא מחובר'}</span></div>
-                <p class="text-[11px] text-slate-400 mb-3 leading-relaxed">מפתח Gemini אישי, מוזן פעם אחת ומשמש את כל ממשקי ה-AI במערכת. הוא נשמר רק בדפדפן הזה, לא בגיבוי, לא בייצוא ולא בענן. לפני כל שליחה תראה את הטקסט המדויק ותאשר; שמות אנשים מוחלפים בכינויים. מומלץ להגביל את המפתח ב-Google AI Studio לכתובת האתר שלך (HTTP referrer), כי כל מי שיש לו גישה לדפדפן הזה יכול לקרוא אותו.</p>
-                ${has ? `<div class="flex flex-wrap gap-2"><button class="g-btn ok" onclick="aiTest()">🧪 בדוק חיבור</button><button class="g-btn red" onclick="aiClear()">🗑️ הסר מפתח</button></div>` :
+            const has = A.hasKey(), qb = !has && A.importQbKey(), sm = secureMsg();
+            $('aiCard').innerHTML = `<div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h2 class="font-bold text-white text-sm">🤖 חיבור AI (Gemini)</h2><span class="g-chip" style="color:${has ? '#34d399' : '#94a3b8'};border-color:${has ? '#34d39966' : '#47556966'}">${has ? '🟢 מחובר (מפתח מוצפן)' : '⚪ לא מחובר'}</span></div>
+                <p class="text-[11px] text-slate-400 mb-3 leading-relaxed">מפתח Gemini אישי, מוזן פעם אחת ומשמש את כל ממשקי ה-AI. הוא נשמר מוצפן בסיסמה, אינו מוצג שוב, ואינו בגיבוי, בייצוא או בענן. לפני כל שליחה תראה את הטקסט המדויק ותאשר; שמות אנשים מוחלפים בכינויים. מומלץ להגביל את המפתח ב-Google AI Studio לכתובת האתר (HTTP referrer).</p>
+                ${sm ? `<div class="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2.5">🔒 ${sm}</div>` : has ? `<div class="flex flex-wrap gap-2"><button class="g-btn ok" onclick="aiTest()">🧪 בדוק חיבור</button><button class="g-btn red" onclick="aiClear()">🗑️ הסר מפתח</button></div>` :
                 `<div class="flex flex-wrap gap-2 items-end"><label class="g-lab flex-1 min-w-[14rem]">מפתח API<input id="aiKey" type="password" dir="ltr" autocomplete="off" class="g-inp" placeholder="AIza…"></label><button class="g-btn pri" onclick="aiSave()">💾 שמור ובדוק</button>${qb ? '<button class="g-btn" onclick="aiImportQb()">📥 השתמש במפתח של QB Master Class</button>' : ''}</div>`}
                 <div id="aiMsg" class="text-[11px] mt-2 text-slate-400"></div>`;
         }
         async function aiVerify() { $('aiMsg').textContent = 'בודק חיבור…'; const r = await GOVAI.test(); $('aiMsg').style.color = r.ok ? '#34d399' : '#f87171'; $('aiMsg').textContent = r.ok ? 'החיבור תקין (מודל: ' + r.model + ').' : '⚠️ ' + r.error; return r.ok; }
-        async function aiSave() { const r = GOVAI.setKey($('aiKey').value); if (!r.ok) { $('aiMsg').style.color = '#f87171'; $('aiMsg').textContent = r.error; return; } renderAi(); await aiVerify(); }
-        async function aiImportQb() { const r = GOVAI.setKey(GOVAI.importQbKey()); renderAi(); if (r.ok) await aiVerify(); }
+        async function aiSave() { const r = await GOVAI.setKey($('aiKey').value); if (!r.ok) { $('aiMsg').style.color = '#f87171'; $('aiMsg').textContent = r.error; return; } renderAi(); await aiVerify(); }
+        async function aiImportQb() { const r = await GOVAI.setKey(GOVAI.importQbKey()); renderAi(); if (r.ok) await aiVerify(); }
         async function aiTest() { await aiVerify(); }
         function aiClear() { if (confirm('להסיר את מפתח ה-Gemini מהדפדפן הזה?')) { GOVAI.clearKey(); renderAi(); } }
+        window.addEventListener('gov:vault', () => { renderCloud(); renderAi(); renderSettings(); });
 
         // ---------- הגדרות ----------
         function renderSettings() {
             $('sName').value = G.profile.get().name;
-            $('pinBox').innerHTML = !G.lock.supported() ? '<div class="g-lab">הסיסמה אינה זמינה בדפדפן או בהקשר הזה (נדרש https או localhost).</div>'
-                : G.lock.isSet() ? '<div class="g-lab mb-1">סיסמת כניסה פעילה במכשיר הזה</div><button class="g-btn red" onclick="removePin()">הסר סיסמה</button>'
-                : '<label class="g-lab">סיסמת כניסה (לפחות 4 תווים; מומלץ 8+)<input id="sPin" type="password" class="g-inp" autocomplete="new-password"></label><button class="g-btn mt-2" onclick="setPin()">🔒 הפעל</button>';
+            $('pinBox').innerHTML = !G.lock.supported() || !(window.GOV_VAULT && GOV_VAULT.supported()) ? '<div class="g-lab">הסיסמה והכספת אינן זמינות בדפדפן או בהקשר הזה (נדרש https או localhost).</div>'
+                : G.lock.isSet() ? `<div class="g-lab mb-1">סיסמת כניסה פעילה. הכספת מצפינה את מפתחות הענן וה-AI בסיסמה הזו, ונועלת אחרי 15 דקות בלי פעילות.</div>
+                    <details class="text-xs mb-2"><summary class="cursor-pointer text-sky-300 font-bold">🔑 החלפת סיסמה</summary><div class="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2"><input id="sOld" type="password" class="g-inp" style="margin:0" placeholder="סיסמה נוכחית" autocomplete="current-password"><input id="sNew" type="password" class="g-inp" style="margin:0" placeholder="סיסמה חדשה (8+)" autocomplete="new-password"><button class="g-btn pri" onclick="changePin()">החלף</button></div></details>
+                    <button class="g-btn red" onclick="removePin()">הסר סיסמה (ימחק את המפתחות המאוחסנים)</button>`
+                : '<label class="g-lab">סיסמת כניסה (לפחות 8 תווים)<input id="sPin" type="password" class="g-inp" autocomplete="new-password"></label><button class="g-btn mt-2" onclick="setPin()">🔒 הפעל</button>';
         }
         function saveName() { G.profile.set({ name: $('sName').value }); renderHeader(); }
-        async function setPin() { const v = $('sPin').value; if (v.length < 4) { alert('הסיסמה חייבת להכיל לפחות 4 תווים.'); return; } if (await G.lock.set(v)) location.reload(); }
-        function removePin() { if (confirm('להסיר את קוד הגישה?')) { G.lock.remove(); location.reload(); } }
+        async function setPin() { const v = $('sPin').value; if (v.length < 8) { alert('הסיסמה חייבת להכיל לפחות 8 תווים (היא מצפינה את המפתחות).'); return; } if (await G.lock.set(v) && await GOV_VAULT.unlock(v)) { await GOV_VAULT.migrate(); location.reload(); } else alert('לא ניתן להגדיר סיסמה בדפדפן הזה.'); }
+        async function changePin() { const o = $('sOld').value, n = $('sNew').value; if (n.length < 8) { alert('הסיסמה החדשה חייבת להכיל לפחות 8 תווים.'); return; } if (!(await G.lock.check(o))) { alert('הסיסמה הנוכחית שגויה.'); return; } if (!(await GOV_VAULT.rekey(n)) || !(await G.lock.set(n))) { alert('ההחלפה נכשלה.'); return; } alert('הסיסמה הוחלפה. אם יצרת קישורי חיבור למכשירים אחרים, הם עדיין דורשים את הסיסמה הישנה: צור קישור חדש.'); location.reload(); }
+        async function removePin() { if (!confirm('להסיר את הסיסמה? כתובת ומפתח הענן ומפתח ה-AI יימחקו מהמכשיר הזה (הנתונים בענן נשארים). תצטרך להזין אותם מחדש.')) return; await GOV_VAULT.wipe(); G.lock.remove(); location.reload(); }
         function doImport(ev) { const f = ev.target.files[0]; if (!f) return; G.importAll(f, (n, err) => { if (err) alert(err); else { alert('שוחזרו ' + n + ' רשומות.'); render(); } }); ev.target.value = ''; }
 
         function render() { renderHeader(); renderTerm(); renderAlerts(); renderDaily(); renderPromises(); renderIssues(); renderAgenda(); renderRoutines(); renderScore(); renderGov(); renderViz(); renderCloud(); renderAi(); renderSettings(); }

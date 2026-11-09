@@ -6,13 +6,15 @@
     const HEB_MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
     const DATE_RE = /^\d{4}-\d{2}-\d{2}$/, MONTH_RE = /^\d{4}-\d{2}$/;
     const MIN_PROMISES = 3, MIN_DAILY_DAYS = 5;                 // ספי נתונים מינימליים לפני שניתן ציון
-    const W = { promises: 60, daily: 25, self: 15 };
-    const SECRET_KEYS = [PREFIX + 'lock', PREFIX + 'sync', PREFIX + 'ai'];   // לעולם לא מיוצאים, לא מיובאים ולא מסונכרנים (נעילה, הגדרות ענן, מפתח Gemini)            // משקלי הציון החודשי
+    const W = { promises: 60, daily: 25, self: 15, issues: 15 };
+    const SECRET_KEYS = [PREFIX + 'lock', PREFIX + 'sync', PREFIX + 'ai', PREFIX + 'vault'];   // לעולם לא מיוצאים, לא מיובאים ולא מסונכרנים (נעילה, הגדרות ענן, מפתח Gemini)            // משקלי הציון החודשי
 
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const uid = () => 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const pad = n => String(n).padStart(2, '0');
     const str = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
+    // תצוגת טקסט חופשי: שומרת ירידות שורה ורווחים כפולים (בלי להפעיל HTML)
+    const nl = v => esc(v).replace(/\r?\n/g, '<br>').replace(/ {2}/g, ' &nbsp;');
     const clampInt = (v, lo, hi, d) => { const n = Math.round(Number(v)); return isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
 
     // ---------- אחסון ----------
@@ -56,11 +58,31 @@
     const dateOr = (v, d) => DATE_RE.test(v || '') ? v : d;
 
     const portfolios = collection('portfolios', p => { const o = base(p); return { id: str(o.id, 40) || uid(), name: str(o.name, 40) || 'תיק חדש', icon: str(o.icon, 8) || '📁', minister: str(o.minister, 40), style: str(o.style, 60), mission: str(o.mission, 500), builtin: o.builtin === true }; });
+    // קריטריון הצלחה מובנה להבטחה: ספירה מול יעד (10 ספרים), או חזרתיות (כל 21 יום). none = ידני/משימות.
+    const cleanCrit = v => { const o = base(v), type = ['count', 'recurring'].includes(o.type) ? o.type : 'none';
+        return { type, target: clampInt(o.target, 1, 100000, 1), unit: str(o.unit, 20), every: clampInt(o.every, 1, 365, 7),
+            log: (Array.isArray(o.log) ? o.log : []).slice(-400).map(x => { const q = base(x); return { at: dateOr(q.at, localDate()), value: clampInt(q.value, 1, 100000, 1) }; }) }; };
+    // הערכת ביטול: ביטול אינו בהכרח שלילי. סולם 1-5: 1 שגויה ומזיקה ... 3 ניטרלית ... 5 נכונה ומועילה מאוד. by: pm (ראש הממשלה = המשתמש) או ai
+    const DROP_SCALE = { 1: { l: 'שגויה ומזיקה', c: '#f87171' }, 2: { l: 'כנראה שגויה', c: '#fb923c' }, 3: { l: 'ניטרלית / לא ברור', c: '#fbbf24' }, 4: { l: 'נכונה', c: '#a3e635' }, 5: { l: 'נכונה ומועילה מאוד', c: '#34d399' } };
+    const cleanReviews = v => (Array.isArray(v) ? v : []).slice(-20).map(x => { const q = base(x); return { at: dateOr(q.at, localDate()), by: q.by === 'ai' ? 'ai' : 'pm', rating: clampInt(q.rating, 1, 5, 3), note: str(q.note, 1500), model: str(q.model, 60) }; });
+    function addReview(entity, col, o) {
+        if (!entity) return ERR0('הפריט לא נמצא.'); if (entity.status !== 'dropped') return ERR0('אפשר להעריך רק פריט שבוטל.');
+        o = base(o); const by = o.by === 'ai' ? 'ai' : 'pm', rating = clampInt(o.rating, 1, 5, 0), note = str(o.note, 1500);
+        if (!rating) return ERR0('בחר דירוג בסולם 1-5.'); if (by === 'pm' && note.length < 10) return ERR0('הערכה דורשת נימוק (לפחות 10 תווים): למה ההחלטה נכונה או שגויה לאור מה שקרה.');
+        entity.reviews = (entity.reviews || []).concat([{ at: localDate(), by, rating, note, model: by === 'ai' ? str(o.model, 60) : '' }]); return col.save(entity) ? { ok: true } : ERR0('השמירה נכשלה.');
+    }
     const promises = collection('promises', p => {
         const o = base(p), status = STATUS[o.status] ? o.status : 'open';
         return { id: str(o.id, 40) || uid(), month: MONTH_RE.test(o.month || '') ? o.month : monthOf(localDate()), pid: str(o.pid, 40), text: str(o.text, 300), why: str(o.why, 300), measure: str(o.measure, 300),
-            priority: clampInt(o.priority, 1, 3, 2), status, progress: status === 'done' ? 100 : clampInt(o.progress, 0, 100, 0), created: dateOr(o.created, localDate()), doneAt: dateOr(o.doneAt, ''), dropReason: str(o.dropReason, 300), carried: o.carried === true };
+            priority: clampInt(o.priority, 1, 3, 2), status, crit: cleanCrit(o.crit), progress: status === 'done' ? 100 : clampInt(o.progress, 0, 100, 0), created: dateOr(o.created, localDate()), doneAt: dateOr(o.doneAt, ''), dropReason: str(o.dropReason, 300), droppedAt: dateOr(o.droppedAt, ''), reviews: cleanReviews(o.reviews), carried: o.carried === true };
     });
+    function critStatus(p) {
+        const c = p.crit; if (!c || c.type === 'none') return null; const td = localDate();
+        if (c.type === 'count') { const total = c.log.reduce((a, x) => a + x.value, 0); return { type: 'count', total, target: c.target, unit: c.unit, pct: Math.min(100, Math.round(total / c.target * 100)) }; }
+        const inM = c.log.filter(x => x.at.slice(0, 7) === p.month), dates = [...new Set(inM.map(x => x.at))].sort(), expected = Math.ceil(daysInMonth(p.month) / c.every), last = c.log.length ? c.log.map(x => x.at).sort().pop() : '';
+        const next = last ? addDays(last, c.every) : (p.created > p.month + '-01' ? p.created : p.month + '-01');
+        return { type: 'recurring', done: dates.length, expected, every: c.every, last, next, due: td >= next && p.month === monthOf(td), overdue: td > next && p.month === monthOf(td), pct: Math.min(100, Math.round(dates.length / expected * 100)) };
+    }
     // ---------- עזרי חזרתיות וזמן ----------
     const DOW = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];                       // 0 = יום ראשון
     const dowOf = ds => new Date(ds + 'T00:00:00').getDay();
@@ -71,21 +93,37 @@
     const ERR0 = m => ({ ok: false, error: m });
 
     // ---------- סוגיות: עולות על הפרק, מקושרות להבטחות ולמשימות, ונסגרות רק בנימוק ----------
-    const ISSUE_STATUS = { open: { l: 'עומדת על הפרק', c: '#fbbf24' }, handling: { l: 'בטיפול', c: '#38bdf8' }, resolved: { l: 'נסגרה', c: '#34d399' } };
+    const ISSUE_STATUS = { open: { l: 'עומדת על הפרק', c: '#fbbf24' }, handling: { l: 'בטיפול', c: '#38bdf8' }, resolved: { l: 'נסגרה', c: '#34d399' } , dropped: { l: 'בוטלה', c: '#a78bfa' } };
+    const HORIZON = { month: 'חודשית', half: 'חצי שנתית', year: 'שנתית', date: 'עד תאריך יעד' };
     const issuesCol = collection('issues', p => { const o = base(p); return { id: str(o.id, 40) || uid(), title: str(o.title, 200), pid: str(o.pid, 40), severity: clampInt(o.severity, 1, 3, 2), status: ISSUE_STATUS[o.status] ? o.status : 'open',
-        detail: str(o.detail, 600), promiseIds: idList(o.promiseIds, 10), created: dateOr(o.created, localDate()), resolvedAt: dateOr(o.resolvedAt, ''), note: str(o.note, 400) }; });
+        detail: str(o.detail, 1500), promiseIds: idList(o.promiseIds, 10), created: dateOr(o.created, localDate()), resolvedAt: dateOr(o.resolvedAt, ''), note: str(o.note, 800),
+        dropReason: str(o.dropReason, 400), droppedAt: dateOr(o.droppedAt, ''), reviews: cleanReviews(o.reviews), kind: o.kind === 'distraction' ? 'distraction' : 'issue', horizon: HORIZON[o.horizon] ? o.horizon : 'month', target: dateOr(o.target, '') }; });
     const issues = {
         all: issuesCol.all, get: issuesCol.get,
-        save(item) { const ex = item && item.id ? issuesCol.get(item.id) : null; if (ex && ex.status === 'resolved') return null; return issuesCol.save(item); },
+        save(item) {
+            const ex = item && item.id ? issuesCol.get(item.id) : null; if (ex && (ex.status === 'resolved' || ex.status === 'dropped')) return null;
+            const o = Object.assign({}, item), created = (ex && ex.created) || localDate();
+            if (o.horizon === 'half') o.target = addDays(created, 182); else if (o.horizon === 'year') o.target = addDays(created, 365); else if (o.horizon === 'month' || !HORIZON[o.horizon]) { o.horizon = 'month'; o.target = ''; }
+            else if (o.horizon === 'date' && !(DATE_RE.test(o.target || '') && o.target > created)) return null;   // תאריך יעד חייב להיות אחרי יצירת הסוגיה
+            return issuesCol.save(o);
+        },
+        allTasks(id) { const x = issuesCol.get(id); if (!x) return []; const seen = new Set(), out = []; tasksCol.all().forEach(t => { if ((t.issueId === id || x.promiseIds.includes(t.promiseId)) && !seen.has(t.id)) { seen.add(t.id); out.push(t); } }); return out; },
+        progress(id) { const ts = issues.allTasks(id), d = ts.filter(t => t.done).length; return { n: ts.length, done: d, pct: ts.length ? Math.round(d / ts.length * 100) : null }; },
         remove(id) { tasks.all().filter(t => t.issueId === id).forEach(t => { t.issueId = ''; tasksCol.save(t); }); return issuesCol.remove(id); },
-        setStatus(id, st) { const x = issuesCol.get(id); if (!x || x.status === 'resolved' || !['open', 'handling'].includes(st)) return false; x.status = st; return !!issuesCol.save(x); },
-        link(id, promiseId, on) { const x = issuesCol.get(id); if (!x || x.status === 'resolved') return false; x.promiseIds = on ? x.promiseIds.concat([promiseId]) : x.promiseIds.filter(v => v !== promiseId); return !!issuesCol.save(x); },
+        setStatus(id, st) { const x = issuesCol.get(id); if (!x || x.status === 'resolved' || x.status === 'dropped' || !['open', 'handling'].includes(st)) return false; x.status = st; return !!issuesCol.save(x); },
+        link(id, promiseId, on) { const x = issuesCol.get(id); if (!x || x.status === 'resolved' || x.status === 'dropped') return false; x.promiseIds = on ? x.promiseIds.concat([promiseId]) : x.promiseIds.filter(v => v !== promiseId); return !!issuesCol.save(x); },
         resolve(id, note) {
-            const x = issuesCol.get(id); if (!x) return ERR0('הסוגיה לא נמצאה.'); if (x.status === 'resolved') return ERR0('הסוגיה כבר נסגרה.');
+            const x = issuesCol.get(id); if (!x) return ERR0('הסוגיה לא נמצאה.'); if (x.status === 'resolved') return ERR0('הסוגיה כבר נסגרה.'); if (x.status === 'dropped') return ERR0('הסוגיה בוטלה.');
             note = str(note, 400); if (note.length < 10) return ERR0('סגירת סוגיה דורשת תיעוד: מה טופל ואיך (לפחות 10 תווים).');
-            const openT = tasks.all().filter(t => t.issueId === id && !t.done).length; if (openT) return ERR0('יש ' + openT + ' משימות פתוחות שמקושרות לסוגיה. השלם אותן או נתק אותן קודם.');
+            const openT = issues.allTasks(id).filter(t => !t.done).length; if (openT) return ERR0('יש ' + openT + ' משימות פתוחות בסוגיה (כולל משימות של הבטחות מקושרות). השלם אותן או נתק אותן קודם.');
             x.status = 'resolved'; x.resolvedAt = localDate(); x.note = note; return issuesCol.save(x) ? { ok: true } : ERR0('השמירה נכשלה.');
-        }
+        },
+        drop(id, reason) {   // ביטול סוגיה: החלטה מנומקת, לא מחיקה. הסוגיה נשמרת בהיסטוריה. מחיקה (remove) היא הדרך היחידה להעלים סוגיה (נפתחה בטעות)
+            const x = issuesCol.get(id); if (!x) return ERR0('הסוגיה לא נמצאה.'); if (x.status === 'resolved') return ERR0('סוגיה שנסגרה לא מבטלים.'); if (x.status === 'dropped') return ERR0('הסוגיה כבר בוטלה.');
+            reason = str(reason, 400); if (reason.length < 10) return ERR0('ביטול דורש נימוק (לפחות 10 תווים). אם נפתחה בטעות, מחק אותה.');
+            x.status = 'dropped'; x.droppedAt = localDate(); x.dropReason = reason; return issuesCol.save(x) ? { ok: true } : ERR0('השמירה נכשלה.');
+        },
+        review(id, o) { return addReview(issuesCol.get(id), issuesCol, o); }
     };
     const ideas = collection('ideas', p => { const o = base(p); return { id: str(o.id, 40) || uid(), pid: str(o.pid, 40), text: str(o.text, 300), status: ['new', 'adopted', 'rejected'].includes(o.status) ? o.status : 'new', created: dateOr(o.created, localDate()) }; });
 
@@ -134,13 +172,13 @@
     // אינדקס קרבה = 50 + Σ(השפעת אירוע × 4 × דעיכה), דעיכה בחצי-חיים של 180 יום, חסום ל-0..100. מוצג רק מ-3 אירועים (דירוג רק אחרי מספר מקרים).
     // זה יומן חד-צדדי של המשתמש: הוא אינו מודד מה האדם השני מרגיש.
     const REL = { partner: { l: 'בן/בת זוג', i: '💞' }, family: { l: 'משפחה', i: '🏠' }, friend: { l: 'חבר/ה', i: '🤝' }, colleague: { l: 'עבודה', i: '💼' }, mentor: { l: 'מנטור/ית', i: '🎓' }, other: { l: 'אחר', i: '👤' } };
-    const MIN_EVENTS = 3, HALF_LIFE_DAYS = 180, EVENT_K = 4;
+    const MIN_EVENTS = 3, HALF_LIFE_DAYS = 180, EVENT_K = 2.5;   // סולם השפעה 1-5 חיובי/שלילי: 5×2.5 = 12.5 (כמו 3×4 בעבר)
     const cleanNotes = v => (Array.isArray(v) ? v : []).slice(-5).map(x => { const o = base(x); return { at: dateOr(o.at, localDate()), text: str(o.text, 1800), by: str(o.by, 40) }; }).filter(x => x.text);
     const peopleCol = collection('people', p => { const o = base(p), r = Number(o.rhythmDays); return {
         id: str(o.id, 40) || uid(), name: str(o.name, 40), relation: REL[o.relation] ? o.relation : 'other', notes: str(o.notes, 400),
         rhythmDays: (o.rhythmDays != null && o.rhythmDays !== '' && isFinite(r) && r >= 1) ? clampInt(r, 1, 365, null) : null,
         created: dateOr(o.created, localDate()), archived: o.archived === true, aiNotes: cleanNotes(o.aiNotes) }; });
-    const relEvCol = collection('relevents', p => { const o = base(p); return { id: str(o.id, 40) || uid(), personId: str(o.personId, 40), date: dateOr(o.date, localDate()), text: str(o.text, 300), impact: clampInt(o.impact, -3, 3, 0), treatyId: str(o.treatyId, 40), auto: o.auto === true }; });
+    const relEvCol = collection('relevents', p => { const o = base(p); return { id: str(o.id, 40) || uid(), personId: str(o.personId, 40), date: dateOr(o.date, localDate()), text: str(o.text, 300), impact: clampInt(o.impact, -5, 5, 0), treatyId: str(o.treatyId, 40), auto: o.auto === true }; });
     const people = {
         all: peopleCol.all, get: peopleCol.get, save: peopleCol.save,
         remove(id) { wr('relevents', relEvCol.all().filter(e => e.personId !== id)); return peopleCol.remove(id); }   // האמנות נשארות (עם שם הצד), רק האירועים של האדם נמחקים
@@ -198,6 +236,16 @@
             return treatyCol.save(nx);
         },
         remove(id) { const ex = treatyCol.get(id); if (ex && ex.status !== 'active') return false; return treatyCol.remove(id); },
+        addTask(id, o) {   // משימה מתוך אמנה: חד-פעמית (עם תאריך ושעה), או קבועה (ימים בשבוע + שעה)
+            const t = treatyCol.get(id); if (!t || t.status !== 'active') return ERR('אפשר להוסיף משימות רק לאמנה בתוקף.'); o = base(o);
+            const text = str(o.text, 200); if (text.length < 2) return ERR('נסח את המשימה (לפחות 2 תווים).');
+            const days = cleanDays(o.days); let made;
+            if (days.length) made = routines.save({ text, pid: o.pid || t.pid, days, time: o.time, treatyId: id });
+            else { if (!DATE_RE.test(o.due || '')) return ERR('בחר תאריך למשימה, או ימים לשגרה קבועה.'); made = tasks.save({ text, pid: o.pid || t.pid, due: o.due, time: o.time, treatyId: id }); }
+            if (!made) return ERR('השמירה נכשלה.');
+            t.log = t.log.concat([{ kind: 'note', at: localDate(), text: 'נוצרה ' + (days.length ? 'משימה קבועה (' + dayLbl(days) + (timeOr(o.time, '') ? ' ' + o.time : '') + ')' : 'משימה (' + o.due + (timeOr(o.time, '') ? ' ' + o.time : '') + ')') + ': ' + text }]);
+            return treatyCol.save(t) ? { ok: true } : ERR('השמירה נכשלה.');
+        },
         dueOn: ds => treatyCol.all().filter(t => t.status === 'active' && t.recur.includes(dowOf(ds)) && t.created <= ds),
         check(id, ds) {   // סימון ביצוע של מחויבות קבועה: היום או עד 7 ימים אחורה, ורק ביום שבו היא חלה
             const t = treatyCol.get(id); if (!t || t.status !== 'active') return ERR('האמנה לא פעילה.');
@@ -233,10 +281,11 @@
             t.status = status; t.closedAt = localDate(); t.note = note; if (status === 'fulfilled') t.progress = 100;
             t.log = t.log.concat([{ kind: 'closed', at: localDate(), text: note, status, progress: t.progress }]);
             if (!treatyCol.save(t)) return ERR('השמירה נכשלה.');
+            routines.all().filter(r => r.treatyId === id && !r.endedAt).forEach(r => routines.stop(r.id, 'האמנה נסגרה'));
             // אירוע אוטומטי ביומן היחסים של האדם המקושר: הפרה פוגעת בקרבה לפי חומרתה, קיום תורם פחות (קיום הוא ברירת המחדל הצפויה).
             let eventAdded = false;
             if (t.personId && peopleCol.get(t.personId) && (status === 'breached' || status === 'fulfilled')) {
-                eventAdded = !!relEvCol.save({ personId: t.personId, date: localDate(), treatyId: t.id, auto: true, impact: status === 'breached' ? -t.costLevel : Math.ceil(t.costLevel / 2), text: `אמנה "${t.title}" ${status === 'breached' ? 'הופרה' : 'קוימה'}` });
+                eventAdded = !!relEvCol.save({ personId: t.personId, date: localDate(), treatyId: t.id, auto: true, impact: status === 'breached' ? -[0, 2, 3, 5][t.costLevel] : [0, 1, 2, 3][t.costLevel], text: `אמנה "${t.title}" ${status === 'breached' ? 'הופרה' : 'קוימה'}` });
             }
             return { ok: true, eventAdded };
         }
@@ -327,6 +376,16 @@
     // ---------- ציון חודשי ----------
     // 60% ביצוע הבטחות (משוקלל לפי עדיפות) • 25% עקביות יומית • 15% הערכה עצמית.
     // רכיב בלי מספיק נתונים לא נספר (והמשקלים מנורמלים). בלי רכיב אובייקטיבי אחד לפחות אין ציון כלל.
+    // סוגיות ארוכות טווח (חצי שנתית/שנתית/עד תאריך): ציון קצב = אחוז משימות שבוצעו ביחס לחלק הזמן שחלף עד תאריך היעד. נדרשות 3 משימות לפחות.
+    function issuesScore(mk) {
+        const t = localDate(), endM = mk + '-' + pad(daysInMonth(mk)), asOf = t < endM ? t : endM; let sw = 0, sum = 0;
+        issuesCol.all().filter(i => i.kind === 'issue' && i.horizon !== 'month' && i.target && i.created <= asOf && i.status !== 'dropped' && (i.status !== 'resolved' || (i.resolvedAt && i.resolvedAt.slice(0, 7) >= mk))).forEach(i => {
+            let v; if (i.status === 'resolved') v = i.resolvedAt <= i.target ? 100 : 70;
+            else { const p = issues.progress(i.id); if (p.n < 3) return; const span = Math.max(1, dayDiff(i.target, i.created)), exp = Math.min(1, Math.max(0, dayDiff(asOf, i.created) / span));
+                v = asOf >= i.target ? p.pct : exp <= 0.05 ? 100 : Math.min(100, Math.round(p.pct / (exp * 100) * 100)); }
+            sw += i.severity; sum += i.severity * v; });
+        return sw ? Math.round(sum / sw) : null;
+    }
     function score(mk) {
         const all = promises.all().filter(p => p.month === mk), active = all.filter(p => p.status !== 'dropped');
         const PW = { 1: 1, 2: 2, 3: 3 };
@@ -342,7 +401,7 @@
         }
         const dl = days >= MIN_DAILY_DAYS ? ratio / days * 100 : null;
         const rv = review.get(mk), self = rv.selfScore;
-        const parts = [{ id: 'promises', w: W.promises, v: pr }, { id: 'daily', w: W.daily, v: dl }, { id: 'self', w: W.self, v: self }];
+        const parts = [{ id: 'promises', w: W.promises, v: pr }, { id: 'daily', w: W.daily, v: dl }, { id: 'self', w: W.self, v: self }, { id: 'issues', w: W.issues, v: issuesScore(mk) }];
         const have = parts.filter(p => p.v != null), tW = have.reduce((a, p) => a + p.w, 0);
         const total = have.some(p => p.id !== 'self') && tW ? Math.round(have.reduce((a, p) => a + p.w * p.v, 0) / tW) : null;
         return { total, parts, promisesN: active.length, droppedN: all.length - active.length, allN: all.length, doneN: active.filter(p => p.status === 'done').length, dailyDays: days, dailyPlanned: planned, dailyDone: doneN, min: { promises: MIN_PROMISES, daily: MIN_DAILY_DAYS } };
@@ -358,18 +417,33 @@
         async check(pin) { const l = rd('lock', null); if (!l || !l.salt) return true; const ok = (await lock.hash(pin, l.salt)) === l.h; if (ok) ss.set('gov_unlocked', '1'); return ok; },
         unlocked: () => !rd('lock', null) || ss.get('gov_unlocked') === '1',
         remove() { del('lock'); ss.del('gov_unlocked'); },
-        lockNow() { ss.del('gov_unlocked'); location.reload(); }
+        lockNow() { const V = window.GOV_VAULT; (V ? V.lock() : Promise.resolve()).then(() => { ss.del('gov_unlocked'); location.reload(); }); }
     };
 
     // ---------- משימות (מקושרות להבטחה ו/או סוגיה; התקדמות ההבטחה נגזרת מהן) ----------
     const tasksCol = collection('tasks', p => { const o = base(p); return { id: str(o.id, 40) || uid(), text: str(o.text, 200), promiseId: str(o.promiseId, 40), issueId: str(o.issueId, 40), pid: str(o.pid, 40),
-        due: dateOr(o.due, ''), done: o.done === true, doneAt: dateOr(o.doneAt, ''), created: dateOr(o.created, localDate()) }; });
+        due: dateOr(o.due, ''), time: timeOr(o.time, ''), treatyId: str(o.treatyId, 40), done: o.done === true, doneAt: dateOr(o.doneAt, ''), created: dateOr(o.created, localDate()) }; });
     function syncPromise(id) {   // התקדמות = אחוז משימות שבוצעו. לא נוגע בהבטחה שהוכרעה (בוצעה/נכשלה/הוסרה) או בחודש שנסגר.
         const p = id && promises.get(id); if (!p || ['done', 'failed', 'dropped'].includes(p.status) || review.isClosed(p.month)) return;
-        const ts = tasksCol.all().filter(t => t.promiseId === id); if (!ts.length) return;
-        const pr = Math.round(ts.filter(t => t.done).length / ts.length * 100), st = pr > 0 ? 'progress' : 'open';
+        const ts = tasksCol.all().filter(t => t.promiseId === id), cs = critStatus(p); if (!ts.length && !cs) return;
+        const pr = ts.length ? Math.round(ts.filter(t => t.done).length / ts.length * 100) : cs.pct, st = pr > 0 ? 'progress' : 'open';   // משימות קודמות לקריטריון
         if (p.progress !== pr || p.status !== st) { p.progress = pr; p.status = st; promises.save(p); }
     }
+    promises.logCrit = function (id, value, date) {
+        const p = promises.get(id), td = localDate(); date = date || td; if (!p) return ERR0('ההבטחה לא נמצאה.'); if (review.isClosed(p.month)) return ERR0('החודש נסגר.');
+        if (['done', 'failed', 'dropped'].includes(p.status)) return ERR0('ההבטחה כבר הוכרעה.'); if (p.crit.type === 'none') return ERR0('להבטחה אין קריטריון הצלחה.');
+        if (!DATE_RE.test(date) || date > td || date.slice(0, 7) !== p.month) return ERR0('תאריך לא חוקי.');
+        const v = p.crit.type === 'recurring' ? 1 : clampInt(value, 1, 100000, 0); if (!v) return ERR0('הזן כמות חיובית.');
+        if (p.crit.type === 'recurring' && p.crit.log.some(x => x.at === date)) return ERR0('כבר סומן ביצוע בתאריך הזה.');
+        p.crit.log = p.crit.log.concat([{ at: date, value: v }]); promises.save(p); syncPromise(id); return { ok: true };
+    };
+    promises.drop = function (id, reason) {   // הסרה בנימוק (לא מחיקה): נשמרת בהיסטוריה ומקבלת הערכה בדיעבד
+        const p = promises.get(id); if (!p) return ERR0('ההבטחה לא נמצאה.'); if (p.status === 'dropped') return ERR0('ההבטחה כבר הוסרה.'); if (review.isClosed(p.month)) return ERR0('החודש נסגר.');
+        reason = str(reason, 300); if (reason.length < 10) return ERR0('הסרה דורשת נימוק (לפחות 10 תווים).');
+        p.status = 'dropped'; p.dropReason = reason; p.droppedAt = localDate(); return promises.save(p) ? { ok: true } : ERR0('השמירה נכשלה.');
+    };
+    promises.review = function (id, o) { return addReview(promises.get(id), promises, o); };   // מותר גם בחודש סגור: זו הערכה בדיעבד, לא שינוי בהבטחה
+    promises.undoCrit = function (id) { const p = promises.get(id); if (!p || review.isClosed(p.month) || ['done', 'failed', 'dropped'].includes(p.status) || !p.crit.log.length) return false; p.crit.log = p.crit.log.slice(0, -1); promises.save(p); syncPromise(id); return true; };
     const tasks = {
         all: tasksCol.all, get: tasksCol.get,
         save(item) { const c = tasksCol.save(item); if (c) syncPromise(c.promiseId); return c; },
@@ -381,7 +455,7 @@
 
     // ---------- שגרות (משימות בסיס): עוברות בירושה מממשלה לממשלה; שינוי בימים יוצר גרסה חדשה מהיום ----------
     const cleanRlog = v => (Array.isArray(v) ? v : []).slice(-60).map(x => { const o = base(x); return { at: dateOr(o.at, localDate()), text: str(o.text, 200) }; }).filter(x => x.text);
-    const routinesCol = collection('routines', p => { const o = base(p); return { id: str(o.id, 40) || uid(), text: str(o.text, 200), pid: str(o.pid, 40), days: cleanDays(o.days),
+    const routinesCol = collection('routines', p => { const o = base(p); return { id: str(o.id, 40) || uid(), text: str(o.text, 200), pid: str(o.pid, 40), days: cleanDays(o.days), time: timeOr(o.time, ''), treatyId: str(o.treatyId, 40),
         since: dateOr(o.since, localDate()), endedAt: dateOr(o.endedAt, ''), log: cleanRlog(o.log) }; });
     const dayLbl = d => d.length === 7 ? 'כל יום' : d.length ? 'ימים ' + d.map(x => DOW[x]).join('׳, ') + '׳' : 'ללא ימים';
     const routines = {
@@ -390,14 +464,14 @@
         save(item) {
             const c = base(item), ex = c.id ? routinesCol.get(c.id) : null, days = cleanDays(c.days), text = str(c.text, 200);
             if (text.length < 2 || !days.length) return null;
-            if (!ex) return routinesCol.save({ text, pid: c.pid, days, since: localDate(), log: [{ at: localDate(), text: 'נקבעה שגרה: ' + dayLbl(days) }] });
+            if (!ex) return routinesCol.save({ text, pid: c.pid, days, time: c.time, treatyId: c.treatyId, since: localDate(), log: [{ at: localDate(), text: 'נקבעה שגרה: ' + dayLbl(days) + (timeOr(c.time, '') ? ' בשעה ' + c.time : '') }] });
             if (ex.endedAt) return null;
             if (String(ex.days) !== String(days) && ex.since < localDate()) {   // היסטוריה לא משוכתבת: הגרסה הישנה מסתיימת אתמול, וגרסה חדשה מתחילה היום
                 ex.endedAt = addDays(localDate(), -1); ex.log = ex.log.concat([{ at: localDate(), text: 'הוחלפה בגרסה חדשה: ' + dayLbl(days) }]); routinesCol.save(ex);
-                return routinesCol.save({ text, pid: c.pid, days, since: localDate(), log: [{ at: localDate(), text: 'המשך השגרה "' + ex.text + '" בימים: ' + dayLbl(days) }] });
+                return routinesCol.save({ text, pid: c.pid, days, time: c.time, treatyId: ex.treatyId, since: localDate(), log: [{ at: localDate(), text: 'המשך השגרה "' + ex.text + '" בימים: ' + dayLbl(days) }] });
             }
-            const ch = []; if (ex.text !== text) ch.push('הנוסח'); if (ex.pid !== str(c.pid, 40)) ch.push('התיק'); if (String(ex.days) !== String(days)) ch.push('הימים');
-            return routinesCol.save(Object.assign({}, ex, { text, pid: c.pid, days, log: ch.length ? ex.log.concat([{ at: localDate(), text: 'עודכנו: ' + ch.join(', ') }]) : ex.log }));
+            const ch = []; if (ex.text !== text) ch.push('הנוסח'); if (ex.pid !== str(c.pid, 40)) ch.push('התיק'); if (String(ex.days) !== String(days)) ch.push('הימים'); if (ex.time !== timeOr(c.time, '')) ch.push('השעה');
+            return routinesCol.save(Object.assign({}, ex, { text, pid: c.pid, days, time: c.time, log: ch.length ? ex.log.concat([{ at: localDate(), text: 'עודכנו: ' + ch.join(', ') }]) : ex.log }));
         },
         stop(id, reason) { const r = routinesCol.get(id); reason = str(reason, 200); if (!r || r.endedAt || reason.length < 5) return false; r.endedAt = localDate(); r.log = r.log.concat([{ at: localDate(), text: 'הופסקה: ' + reason }]); return !!routinesCol.save(r); },
         dueOn: ds => routinesCol.all().filter(r => r.since <= ds && (!r.endedAt || ds <= r.endedAt) && r.days.includes(dowOf(ds))),
@@ -416,7 +490,7 @@
 
     // ---------- יומן ניצול זמן ----------
     const timeCol = collection('timelog', p => { const o = base(p), st = timeOr(o.start, '00:00'), en = timeOr(o.end, '00:00'); return { id: str(o.id, 40) || uid(), date: dateOr(o.date, localDate()), start: st, end: en, mins: Math.max(0, toMin(en) - toMin(st)),
-        text: str(o.text, 140), pid: str(o.pid, 40), promiseId: str(o.promiseId, 40), taskId: str(o.taskId, 40) }; });
+        text: str(o.text, 140), pid: str(o.pid, 40), promiseId: str(o.promiseId, 40), taskId: str(o.taskId, 40), issueId: str(o.issueId, 40) }; });
     const timelog = {
         all: timeCol.all, get: timeCol.get, remove: timeCol.remove,
         on: ds => timeCol.all().filter(x => x.date === ds).sort((a, b) => a.start.localeCompare(b.start)),
@@ -425,9 +499,14 @@
             if (!DATE_RE.test(o.date || '') || o.date > localDate()) return ERR0('תאריך לא חוקי (לא בעתיד).');
             if (!TIME_RE.test(st || '') || !TIME_RE.test(en || '') || toMin(en) <= toMin(st)) return ERR0('שעת סיום חייבת להיות אחרי שעת ההתחלה.');
             if (str(o.text, 140).length < 2) return ERR0('תאר מה עשית (לפחות 2 תווים).');
+            if (o.issueId) { const di = issuesCol.get(o.issueId); if (!di || di.kind !== 'distraction') return ERR0('הסחה חייבת להיות מקושרת לסוגיה מסוג הסחה/פעולה פסולה.'); }
             const clash = timelog.on(o.date).find(x => toMin(st) < toMin(x.end) && toMin(en) > toMin(x.start)); if (clash) return ERR0('חפיפה עם "' + clash.text + '" (' + clash.start + '-' + clash.end + ').');
             const c = timeCol.save(o); return c ? { ok: true, item: c } : ERR0('השמירה נכשלה.');
         },
+        distractions(from, to) {   // דקות לכל הסחה בטווח
+            const m = {}; timeCol.all().filter(x => x.issueId && x.date >= from && x.date <= to).forEach(x => { const r = m[x.issueId] = m[x.issueId] || { mins: 0, n: 0, last: '' }; r.mins += x.mins; r.n++; if (x.date > r.last) r.last = x.date; }); return m;
+        },
+        lastDistraction: id => timeCol.all().filter(x => x.issueId === id).reduce((a, x) => x.date > a ? x.date : a, ''),
         byPortfolio(from, to) { const m = {}; timeCol.all().filter(x => x.date >= from && x.date <= to).forEach(x => { m[x.pid || ''] = (m[x.pid || ''] || 0) + x.mins; }); return m; }
     };
 
@@ -444,7 +523,7 @@
 
     // ---------- שרים: כהונות, פעילות, אישיות (בדיונית) וקושי משרד ----------
     const TRAITS = [['drive', 'נחישות'], ['creative', 'יצירתיות'], ['integrity', 'יושרה'], ['resilience', 'חוסן'], ['team', 'שיתוף פעולה']];
-    function traitsOf(seed) { let a = (Number(seed) || 1) >>> 0; const r = () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; const o = {}; TRAITS.forEach(([k]) => { o[k] = 1 + Math.floor(r() * 9); }); return o; }
+    function traitsOf(seed) { let a = (Number(seed) || 1) >>> 0; const r = () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; const o = {}; TRAITS.forEach(([k]) => { o[k] = 1 + Math.floor(r() * 99); }); return o; }
     const minCol = collection('ministers', p => { const o = base(p); return { id: str(o.id, 40) || uid(), pid: str(o.pid, 40), name: str(o.name, 40), style: str(o.style, 60), from: dateOr(o.from, localDate()), to: dateOr(o.to, ''), seed: clampInt(o.seed, 1, 2147483646, 1 + Math.floor(Math.random() * 2147483000)) }; });
     const inRange = (d, m) => d && d >= m.from && d <= (m.to || '9999-12-31');
     const ministers = {
@@ -455,7 +534,7 @@
             ps.forEach(p => { if (p.minister && !minCol.all().some(m => m.pid === p.id && !m.to)) minCol.save({ pid: p.id, name: p.minister, style: p.style, from: td }); });
         },
         stats(m) {
-            const end = m.to || localDate(), T = tasksCol.all(), proms = promises.all(), mine = t => t.pid === m.pid || (t.promiseId && (proms.find(p => p.id === t.promiseId) || {}).pid === m.pid);
+            const end = m.to || localDate(), T = tasksCol.all(), proms = promises.all(), mine = t => t.pid ? t.pid === m.pid : !!(t.promiseId && (proms.find(p => p.id === t.promiseId) || {}).pid === m.pid);
             const td = T.filter(t => t.done && mine(t) && inRange(t.doneAt, m)).length, pd = proms.filter(p => p.pid === m.pid && p.status === 'done' && inRange(p.doneAt, m)).length;
             const ids = ideas.all().filter(i => i.pid === m.pid && inRange(i.created, m)), ia = ids.filter(i => i.status === 'adopted').length;
             const ds = decisions.all().filter(d => d.pid === m.pid && (inRange(d.created, m) || inRange(d.decidedAt, m))), rv = ds.filter(d => d.reviewedAt);
@@ -469,10 +548,30 @@
     };
     function difficulty(pid) {   // היוריסטיקה שקופה של "עומס ואתגר" בתיק (לא מדד מדעי)
         const is = issues.all().filter(i => i.pid === pid), proms = promises.all().filter(p => p.pid === pid && p.status !== 'dropped'), td = localDate();
-        const openI = is.filter(i => i.status !== 'resolved').reduce((a, i) => a + i.severity, 0), failed = proms.filter(p => p.status === 'failed').length, activeP = proms.filter(p => !['done', 'failed'].includes(p.status)).length;
-        const overdue = tasksCol.all().filter(t => !t.done && t.due && t.due < td && (t.pid === pid || (t.promiseId && (promises.get(t.promiseId) || {}).pid === pid))).length;
+        const openI = is.filter(i => i.status !== 'resolved' && i.status !== 'dropped').reduce((a, i) => a + i.severity, 0), failed = proms.filter(p => p.status === 'failed').length, activeP = proms.filter(p => !['done', 'failed'].includes(p.status)).length;
+        const overdue = tasksCol.all().filter(t => !t.done && t.due && t.due < td && (t.pid ? t.pid === pid : !!(t.promiseId && (promises.get(t.promiseId) || {}).pid === pid))).length;
         const items = is.length + proms.length, load = openI + failed * 2 + activeP + overdue * 1.5;
         return { items, load: Math.round(load * 10) / 10, score: items >= 5 ? Math.max(1, Math.min(10, Math.round(1 + load * 9 / (load + 8)))) : null, openI, failed, activeP, overdue, doneRate: proms.length >= 3 ? Math.round(proms.filter(p => p.status === 'done').length / proms.length * 100) : null };
+    }
+    const lastPm = x => { const r = (x.reviews || []).filter(v => v.by === 'pm').pop(); return r ? r.rating : null; };
+    function dropStats() {   // כמה ביטולים, כמה הוערכו, ומה הציון הממוצע של ראש הממשלה. ביטול טוב אינו כישלון
+        const all = issuesCol.all().filter(i => i.status === 'dropped').map(i => ({ kind: 'issue', x: i })).concat(promises.all().filter(p => p.status === 'dropped').map(p => ({ kind: 'promise', x: p })));
+        const rated = all.map(a => lastPm(a.x)).filter(v => v != null);
+        return { n: all.length, rated: rated.length, avg: rated.length >= 2 ? Math.round(rated.reduce((a, v) => a + v, 0) / rated.length * 10) / 10 : null, good: rated.filter(v => v >= 4).length, bad: rated.filter(v => v <= 2).length };
+    }
+    function historyItems() {   // כל מה שהושלם/הוכרע: לא נעלם, עובר להיסטוריה
+        const out = [], eom = m => m + '-' + pad(daysInMonth(m));
+        tasksCol.all().filter(t => t.done).forEach(t => out.push({ kind: 'task', id: t.id, text: t.text, at: t.doneAt || t.created, pid: t.pid || ((promises.get(t.promiseId) || {}).pid) || '', ref: t.promiseId || t.issueId || t.treatyId || '' }));
+        promises.all().filter(p => ['done', 'failed', 'dropped'].includes(p.status)).forEach(p => out.push({ kind: 'promise', id: p.id, text: p.text, at: p.doneAt || eom(p.month), pid: p.pid, status: p.status, note: p.dropReason, rating: p.status === 'dropped' ? lastPm(p) : null }));
+        issuesCol.all().filter(i => i.status === 'resolved' || i.status === 'dropped').forEach(i => out.push({ kind: i.kind === 'distraction' ? 'distraction' : 'issue', id: i.id, text: i.title, status: i.status, rating: lastPm(i), at: (i.status === 'dropped' ? i.droppedAt : i.resolvedAt) || i.created, pid: i.pid, note: i.status === 'dropped' ? i.dropReason : i.note }));
+        treatyCol.all().filter(t => t.status !== 'active').forEach(t => out.push({ kind: 'treaty', id: t.id, text: t.party + ': ' + t.title, at: t.closedAt || t.created, status: t.status, note: t.note }));
+        return out.sort((a, b) => b.at.localeCompare(a.at));
+    }
+    const hashSeed = n => { let h = 2166136261; String(n).split('').forEach(c => { h = Math.imul(h ^ c.charCodeAt(0), 16777619); }); return (h >>> 0) % 2147483000 + 1; };
+    function pmProfile(name) {   // פרופיל ראש ממשלה לפי שם: כהונות, ציונים, הבטחות, ואישיות דמיונית יציבה
+        const hs = history().filter(x => x.pm === name), sc = hs.filter(x => x.closed && x.score != null).map(x => x.score);
+        return { name, terms: hs.length, first: hs.length ? hs[hs.length - 1].mk : '', last: hs.length ? hs[0].mk : '', avg: sc.length ? Math.round(sc.reduce((a, v) => a + v, 0) / sc.length) : null, best: sc.length ? Math.max(...sc) : null, worst: sc.length ? Math.min(...sc) : null,
+            done: hs.reduce((a, x) => a + x.done, 0), total: hs.reduce((a, x) => a + x.total, 0), traits: traitsOf(hashSeed(name)), history: hs };
     }
     function history() {   // כל הממשלות שהיו: ראש ממשלה, תאריכים, דרך בחירה, ציון, הישגים ושרים
         return keysWith('term_').map(k => k.slice(5)).filter(m => MONTH_RE.test(m)).sort().reverse().map(mk => {
@@ -519,5 +618,17 @@
 
     try { ministers.ensure(); } catch (e) {}
 
-    window.GOV = { esc, uid, pad, localDate, monthOf, addDays, addMonths, monthLabel, daysInMonth, HEB_MONTHS, DATE_RE, MONTH_RE, STATUS, PRIORITY, gradeFor, portfolios: Object.assign({}, portfolios, { save(p) { const r = portfolios.save(p); ministers.ensure(); return r; }, remove(id) { const r = portfolios.remove(id); ministers.ensure(); return r; } }), promises, ideas, daily, term, review, profile, score, lock, exportAll, importAll, rd, wr, TREATY_STATUS, PARTY_KIND, LEVEL, DECISION_STATUS, treaties, decisions, impactItem, optionImpact, tasks, routines, dayItems, issues: issues, ISSUE_STATUS, events, timelog, ministers, difficulty, history, METHODS, DOW, dowOf, cleanDays, people, relEvents, REL, closeness, contactStatus, relationAlerts, treatyTimeline, SECRET_KEYS };
+
+    /* מד אחוזים גרפי (טבעת SVG מונפשת). pct 0-100; opts: size (px), color, label (טקסט קטן מתחת למספר), w (עובי) */
+    function gauge(pct, o) {
+        o = o || {}; const p = Math.max(0, Math.min(100, Math.round(Number(pct) || 0))), size = o.size || 64, w = o.w || Math.max(5, Math.round(size / 8)), r = (size - w) / 2, C = 2 * Math.PI * r, off = C * (1 - p / 100);
+        const col = o.color || (p >= 80 ? '#34d399' : p >= 50 ? '#fbbf24' : p >= 25 ? '#fb923c' : '#f87171'), id = 'gg' + Math.random().toString(36).slice(2, 8), fs = Math.round(size * (o.label ? 0.26 : 0.3));
+        if (typeof document !== 'undefined' && !document.getElementById('gov-gauge-css')) { const st = document.createElement('style'); st.id = 'gov-gauge-css'; st.textContent = '@keyframes govg{from{stroke-dashoffset:var(--c)}}.govg-arc{animation:govg .9s cubic-bezier(.2,.8,.2,1)}@media (prefers-reduced-motion:reduce){.govg-arc{animation:none}}'; document.head.appendChild(st); }
+        return `<svg role="img" aria-label="${p}%" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex:none;display:inline-block"><defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".65"/><stop offset="1" stop-color="${col}"/></linearGradient></defs>`
+            + `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#334155" stroke-width="${w}" opacity=".6"/>`
+            + (p > 0 ? `<circle class="govg-arc" cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="url(#${id})" stroke-width="${w}" stroke-linecap="round" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}" transform="rotate(-90 ${size / 2} ${size / 2})" style="--c:${C.toFixed(2)}"/>` : '')
+            + `<text x="50%" y="${o.label ? '47%' : '50%'}" text-anchor="middle" dominant-baseline="central" fill="#f8fafc" font-weight="800" font-size="${fs}" font-family="Rubik,sans-serif">${p}<tspan font-size="${Math.round(fs * 0.6)}">%</tspan></text>`
+            + (o.label ? `<text x="50%" y="70%" text-anchor="middle" dominant-baseline="central" fill="#94a3b8" font-size="${Math.round(size * 0.13)}" font-family="Rubik,sans-serif">${esc(o.label)}</text>` : '') + `</svg>`;
+    }
+    window.GOV = { esc, uid, pad, localDate, monthOf, addDays, addMonths, monthLabel, daysInMonth, HEB_MONTHS, DATE_RE, MONTH_RE, STATUS, PRIORITY, gradeFor, portfolios: Object.assign({}, portfolios, { save(p) { const r = portfolios.save(p); ministers.ensure(); return r; }, remove(id) { const r = portfolios.remove(id); ministers.ensure(); return r; } }), promises, ideas, daily, term, review, profile, score, lock, exportAll, importAll, rd, wr, TREATY_STATUS, PARTY_KIND, LEVEL, DECISION_STATUS, treaties, decisions, impactItem, optionImpact, nl, gauge, critStatus, DROP_SCALE, dropStats, HORIZON, historyItems, pmProfile, tasks, routines, dayItems, issues: issues, ISSUE_STATUS, events, timelog, ministers, difficulty, history, METHODS, DOW, dowOf, cleanDays, people, relEvents, REL, closeness, contactStatus, relationAlerts, treatyTimeline, SECRET_KEYS };
 })();

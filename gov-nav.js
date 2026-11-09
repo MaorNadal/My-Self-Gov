@@ -5,6 +5,7 @@
     const PAGES = [
         { file: 'index.html', icon: '🏠', title: 'לוח בקרה', desc: 'היום, החודש והסוגיות שעל הפרק במקום אחד.' },
         { file: 'schedule.html', icon: '🗓️', title: 'לוח זמן', desc: 'יומן זמן ממשלתי, ניצול זמן ופגישות.', sections: [['sch-today', 'היום'], ['sch-pie', 'חלוקת זמן'], ['sch-events', 'פגישות']] },
+        { file: 'tasks.html', icon: '☑️', title: 'משימות', desc: 'כל המשימות, משימות עצמאיות והיסטוריית מה שהושלם.', sections: [['tk-add', 'משימה חדשה'], ['tk-list', 'הרשימה']] },
         { file: 'promises.html', icon: '📜', title: 'הבטחות', desc: 'הבטחות הממשלה לחודש, עדיפויות והתקדמות.', sections: [['promises-add', 'הבטחה חדשה'], ['promises-list', 'רשימת ההבטחות']] },
         { file: 'portfolios.html', icon: '🗂️', title: 'תיקי ממשלה', desc: 'תחומי החיים, השרים, הסוגיות והרעיונות.', sections: [['portfolios-grid', 'התיקים'], ['portfolio-detail', 'פירוט תיק']] },
         { file: 'issues.html', icon: '🔥', title: 'סוגיות', desc: 'סוגיות על הפרק, חומרה וקישור להבטחות ולמשימות.', sections: [['iss-list', 'הסוגיות'], ['iss-detail', 'פירוט']] },
@@ -42,39 +43,49 @@
 @media print{nav,.no-print,button{display:none!important}body{background:#fff!important;color:#000!important}}`;
     document.head.appendChild(st);
     document.currentScript.insertAdjacentHTML('beforebegin', html);
+    document.write('<script src="gov-vault.js"><\/script>');   // כספת המפתחות (נטענת לפני הסנכרון וה-AI)
     document.write('<script src="gov-sync.js"><\/script>');
-    document.write('<script src="gov-ai.js"><\/script>');    // שכבת AI משותפת (מפתח Gemini של המשתמש)    // סנכרון לענן: נטען סינכרונית בכל דף, כדי שכל שמירה תופעל אוטומטית
+    document.write('<script src="gov-ai.js"><\/script>');
+    document.write('<script src="gov-review.js"><\/script>');    // הערכת ביטול (סוגיות והבטחות)    // שכבת AI משותפת (מפתח Gemini של המשתמש)    // סנכרון לענן: נטען סינכרונית בכל דף, כדי שכל שמירה תופעל אוטומטית
 
 
-    // מכשיר חדש: אם קיים gov-config.enc.json ואין עדיין הגדרות, מבקשים סיסמה, מפענחים, מתחברים לענן ונועלים באותה סיסמה.
+    // מכשיר חדש: קישור חיבור (#setup=...) או gov-config.enc.json. מזינים סיסמה: מפענחים, קובעים אותה כסיסמת כניסה, שומרים את הכתובת והמפתח בכספת ומושכים נתונים.
     (async function newDeviceSetup() {
         try {
-            if (G.lock.isSet() || !window.crypto || !crypto.subtle) return;
-            try { if (JSON.parse(localStorage.getItem('gov_sync') || '{}').url) return; } catch (e) {}
-            const r = await fetch('gov-config.enc.json', { cache: 'no-store' }); if (!r.ok) return; const obj = await r.json(); if (!obj || !obj.ct) return;
-            document.body.insertAdjacentHTML('afterbegin', `<div id="govSetup" style="position:fixed;inset:0;z-index:1001;background:#020617;display:flex;align-items:center;justify-content:center;padding:16px"><form id="govSetupForm" style="width:100%;max-width:340px;text-align:center"><div style="font-size:48px">🏛️</div><div style="font-weight:900;font-size:20px;color:#fbbf24;margin-bottom:6px">חיבור מכשיר חדש</div><div style="font-size:12px;color:#94a3b8;margin-bottom:12px">הזן את סיסמת הממשלה. המערכת תתחבר לענן ותמשוך את הנתונים באופן אוטומטי.</div><input id="govSetupPw" type="password" autocomplete="current-password" placeholder="סיסמה" class="g-inp" style="text-align:center;font-size:16px"><button class="g-btn pri" style="width:100%;margin-top:10px;padding:9px">התחבר</button><button type="button" id="govSetupSkip" class="g-btn" style="width:100%;margin-top:6px">דלג (התחל בלי ענן)</button><div id="govSetupMsg" style="color:#f87171;font-size:12px;margin-top:8px;min-height:1rem"></div></form></div>`);
+            if (document.readyState === 'loading') await new Promise(r => window.addEventListener('DOMContentLoaded', r));
+            const V = window.GOV_VAULT, S = window.GOV_SYNC;
+            if (!V || !S || !V.supported() || G.lock.isSet() || V.exists()) return;
+            let obj = S.parseLink(location.hash);
+            if (!obj) { try { const r = await fetch('gov-config.enc.json', { cache: 'no-store' }); if (r.ok) obj = await r.json(); } catch (e) {} }
+            if (!obj || !obj.ct) return;
+            document.body.insertAdjacentHTML('afterbegin', `<div id="govSetup" style="position:fixed;inset:0;z-index:1001;background:#020617;display:flex;align-items:center;justify-content:center;padding:16px"><form id="govSetupForm" style="width:100%;max-width:340px;text-align:center"><div style="font-size:48px">🏛️</div><div style="font-weight:900;font-size:20px;color:#fbbf24;margin-bottom:6px">חיבור מכשיר חדש</div><div style="font-size:12px;color:#94a3b8;margin-bottom:12px">הזן את סיסמת הממשלה. המערכת תתחבר לענן, תמשוך את הנתונים ותשמור את המפתחות מוצפנים במכשיר הזה.</div><input id="govSetupPw" type="password" autocomplete="current-password" placeholder="סיסמה" class="g-inp" style="text-align:center;font-size:16px"><button class="g-btn pri" style="width:100%;margin-top:10px;padding:9px">התחבר</button><button type="button" id="govSetupSkip" class="g-btn" style="width:100%;margin-top:6px">דלג (התחל בלי ענן)</button><div id="govSetupMsg" style="color:#f87171;font-size:12px;margin-top:8px;min-height:1rem"></div></form></div>`);
             const msg = t => { document.getElementById('govSetupMsg').textContent = t; };
-            document.getElementById('govSetupSkip').onclick = () => document.getElementById('govSetup').remove();
+            document.getElementById('govSetupSkip').onclick = () => { document.getElementById('govSetup').remove(); history.replaceState(null, '', location.pathname); };
             document.getElementById('govSetupForm').addEventListener('submit', async ev => {
                 ev.preventDefault(); const pw = document.getElementById('govSetupPw').value; msg('מתחבר…');
-                const S = window.GOV_SYNC; if (!S) { msg('מודול הסנכרון לא נטען.'); return; }
-                const ok = await S.importConfig(pw, obj); if (!ok.ok) { msg(ok.error); return; }
-                const pl = await S.pull(); if (pl.state !== 'ok' && pl.state !== 'idle') { msg('החיבור נשמר, אך המשיכה נכשלה: ' + (pl.msg || '')); }
-                await G.lock.set(pw); location.reload();
+                const d = await S.importConfig(pw, obj); if (!d.ok) { msg(d.error); return; }
+                if (!(await G.lock.set(pw)) || !(await V.unlock(pw))) { msg('לא ניתן היה להגדיר סיסמה בדפדפן הזה.'); return; }
+                const sv = await S.setConfig({ url: d.url, token: d.token, auto: true }); if (!sv.ok) { msg(sv.error); return; }
+                const pl = await S.pull(); if (pl.state === 'error') msg('החיבור נשמר, אך המשיכה נכשלה: ' + (pl.msg || ''));
+                history.replaceState(null, '', location.pathname); location.reload();
             });
         } catch (e) {}
     })();
 
+    // סשן "פתוח" בלי כספת פתוחה (למשל אחרי נעילה אוטומטית): חוזרים למסך הסיסמה
+    window.addEventListener('gov:vault', () => { const V = window.GOV_VAULT; if (V && V.supported() && G.lock.isSet() && G.lock.unlocked() && !V.isOpen() && !document.getElementById('govSetup')) { try { sessionStorage.removeItem('gov_unlocked'); } catch (e) {} location.reload(); } });
+
     if (!G.lock.unlocked()) {
         document.body.insertAdjacentHTML('afterbegin', `<div id="govGate" style="position:fixed;inset:0;z-index:1000;background:#020617;display:flex;align-items:center;justify-content:center;padding:16px">
             <form id="govGateForm" style="width:100%;max-width:320px;text-align:center"><div style="font-size:48px">🏛️</div><div style="font-weight:900;font-size:22px;color:#fbbf24;margin-bottom:14px">ממשל אישי</div>
-            <input id="govPin" type="password" autocomplete="current-password" placeholder="קוד גישה" class="g-inp" style="text-align:center;font-size:16px">
+            <input id="govPin" type="password" autocomplete="current-password" placeholder="סיסמה" class="g-inp" style="text-align:center;font-size:16px">
             <button class="g-btn pri" style="width:100%;margin-top:10px;padding:9px">כניסה</button><div id="govGateMsg" style="color:#f87171;font-size:12px;margin-top:8px;min-height:1rem"></div></form></div>`);
         const f = document.getElementById('govGateForm'); document.getElementById('govPin').focus();
         f.addEventListener('submit', async ev => {
             ev.preventDefault();
-            if (await G.lock.check(document.getElementById('govPin').value)) document.getElementById('govGate').remove();
-            else { document.getElementById('govGateMsg').textContent = 'קוד שגוי.'; document.getElementById('govPin').value = ''; }
+            const pw = document.getElementById('govPin').value;
+            if (await G.lock.check(pw)) { if (window.GOV_VAULT) { await GOV_VAULT.unlock(pw); await GOV_VAULT.migrate(); } document.getElementById('govGate').remove(); }
+            else { document.getElementById('govGateMsg').textContent = 'סיסמה שגויה.'; document.getElementById('govPin').value = ''; }
         });
     }
 })();

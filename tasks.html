@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>משימות והיסטוריה - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+    <script src="gov-core.js"></script>
+    <script src="gov-nav.js"></script>
+    <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
+        <h1 class="text-3xl font-black text-white">☑️ משימות והיסטוריה</h1>
+        <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">כל המשימות במקום אחד: עם הבטחה, עם סוגיה, מאמנה, או עצמאיות. כל מה שהושלם לא נעלם, אלא עובר לטאב ההיסטוריה.</p>
+    </header>
+    <main class="max-w-6xl mx-auto px-4 space-y-4 mt-4">
+        <section id="tk-add" class="g-card"></section>
+        <div class="flex gap-2"><button id="tabOpen" class="g-btn" onclick="tab='open';render()">📌 פתוחות</button><button id="tabHist" class="g-btn" onclick="tab='hist';render()">🗄️ היסטוריה</button></div>
+        <section id="tk-list" class="space-y-2"></section>
+    </main>
+    <script>
+        const G = window.GOV, h = G.esc, $ = id => document.getElementById(id), TODAY = G.localDate(), MK = G.monthOf(TODAY);
+        let tab = 'open', kind = 'all', q = '';
+        const pOpts = s => '<option value="">ללא תיק</option>' + G.portfolios.all().map(p => `<option value="${h(p.id)}"${p.id === s ? ' selected' : ''}>${p.icon} ${h(p.name)}</option>`).join('');
+        const pf = id => G.portfolios.get(id);
+        function renderAdd() {
+            const ps = G.promises.all().filter(p => p.month >= G.addMonths(MK, -1) && !['done', 'failed', 'dropped'].includes(p.status)), is = G.issues.all().filter(i => i.status !== 'resolved');
+            $('tk-add').innerHTML = `<h2 class="font-bold text-white text-sm mb-2">➕ משימה חדשה (גם בלי הבטחה)</h2>
+                <div class="grid grid-cols-2 md:grid-cols-6 gap-2 items-end">
+                    <label class="g-lab col-span-2 md:col-span-3">המשימה<input id="aT" class="g-inp" maxlength="200" onkeydown="if(event.key==='Enter')add()"></label>
+                    <label class="g-lab">תאריך<input id="aD" type="date" class="g-inp"></label><label class="g-lab">שעה<input id="aH" type="time" class="g-inp"></label>
+                    <button class="g-btn pri" onclick="add()">הוסף</button>
+                    <label class="g-lab col-span-2 md:col-span-2">הבטחה (אופציונלי)<select id="aP" class="g-inp" onchange="syncPid()"><option value="">ללא הבטחה</option>${ps.map(p => `<option value="${h(p.id)}">${h(p.text.slice(0, 50))}</option>`).join('')}</select></label>
+                    <label class="g-lab col-span-2 md:col-span-2">סוגיה (אופציונלי)<select id="aI" class="g-inp"><option value="">ללא סוגיה</option>${is.map(i => `<option value="${h(i.id)}">${h(i.title.slice(0, 50))}</option>`).join('')}</select></label>
+                    <label class="g-lab col-span-2">תיק (ברירת מחדל: של ההבטחה)<select id="aPid" class="g-inp">${pOpts('')}</select></label></div>`;
+        }
+        function syncPid() { const p = G.promises.get($('aP').value); if (p) $('aPid').value = p.pid || ''; }
+        function add() {
+            const t = $('aT').value.trim(); if (t.length < 2) { alert('נסח את המשימה (לפחות 2 תווים).'); return; }
+            G.tasks.save({ text: t, due: $('aD').value, time: $('aH').value, promiseId: $('aP').value, issueId: $('aI').value, pid: $('aPid').value }); $('aT').value = ''; render();
+        }
+        function ctx(t) {
+            const p = t.promiseId && G.promises.get(t.promiseId), i = t.issueId && G.issues.get(t.issueId), tr = t.treatyId && G.treaties.get(t.treatyId), pid = t.pid || (p && p.pid), po = pid && pf(pid);
+            return [po ? po.icon + ' ' + h(po.name) : '', p ? '📜 ' + h(p.text.slice(0, 30)) : '', i ? '🔥 ' + h(i.title.slice(0, 30)) : '', tr ? '🤝 ' + h(tr.party) : ''].filter(Boolean).join(' • ');
+        }
+        function renderOpen() {
+            const ts = G.tasks.all().filter(t => !t.done).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (a.time || '99').localeCompare(b.time || '99'));
+            const g = [['⚠️ באיחור', ts.filter(t => t.due && t.due < TODAY), '#f87171'], ['📅 להיום', ts.filter(t => t.due === TODAY), '#fbbf24'], ['🗓️ בהמשך', ts.filter(t => t.due > TODAY), '#38bdf8'], ['📭 ללא תאריך', ts.filter(t => !t.due), '#94a3b8']];
+            $('tk-list').innerHTML = g.map(([l, a, c]) => a.length ? `<div class="g-card" style="border-right:4px solid ${c};padding:12px"><div class="font-bold text-sm mb-2" style="color:${c}">${l} (${a.length})</div><div class="space-y-1">${a.map(t => `<div class="flex items-center gap-2 text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-2.5 py-1.5"><input type="checkbox" onchange="tog('${h(t.id)}')" class="w-4 h-4 accent-emerald-400"><span class="flex-1">${t.time ? '<b class="text-sky-300" dir="ltr">' + h(t.time) + '</b> ' : ''}${h(t.text)}<div class="text-[10px] text-slate-500">${ctx(t)}</div></span>${t.due ? `<span class="text-slate-400">${h(t.due)}</span>` : ''}<button class="text-rose-400" onclick="del('${h(t.id)}')">✕</button></div>`).join('')}</div></div>` : '').join('') || '<div class="g-card text-center text-sm text-slate-400">אין משימות פתוחות.</div>';
+        }
+        const KIND = { task: ['☑️', 'משימה'], promise: ['📜', 'הבטחה'], issue: ['🔥', 'סוגיה'], distraction: ['🚫', 'הסחה'], treaty: ['🤝', 'אמנה'] };
+        function renderHist() {
+            let all = G.historyItems(); const cnt = k => all.filter(x => x.kind === k).length;
+            if (kind !== 'all') all = all.filter(x => x.kind === kind); if (q) all = all.filter(x => (x.text + ' ' + (x.note || '')).toLowerCase().includes(q.toLowerCase()));
+            const stL = { done: 'בוצעה', failed: 'נכשלה', dropped: 'בוטלה', resolved: 'נסגרה', fulfilled: 'קוימה', breached: 'הופרה', ended: 'הסתיימה' };
+            $('tk-list').innerHTML = `<div class="g-card"><div class="flex flex-wrap gap-2 items-center"><button class="g-btn ${kind === 'all' ? 'pri' : ''}" onclick="kind='all';render()">הכול</button>${Object.entries(KIND).map(([k, v]) => `<button class="g-btn ${kind === k ? 'pri' : ''}" onclick="kind='${k}';render()">${v[0]} ${v[1]} (${cnt(k)})</button>`).join('')}<input class="g-inp flex-1 min-w-[10rem]" style="margin:0" placeholder="חיפוש…" value="${h(q)}" oninput="q=this.value;renderHist2()"></div></div><div id="histRows"></div>`;
+            renderHist2();
+            function renderHist2() {}
+            window.renderHist2 = () => { let a = G.historyItems(); if (kind !== 'all') a = a.filter(x => x.kind === kind); if (q) a = a.filter(x => (x.text + ' ' + (x.note || '')).toLowerCase().includes(q.toLowerCase()));
+                $('histRows').innerHTML = `<div class="space-y-1">${a.slice(0, 300).map(x => `<div class="flex items-start gap-2 text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1.5"><span>${KIND[x.kind][0]}</span><span class="text-slate-500 w-20 shrink-0">${h(x.at)}</span><span class="flex-1"><b class="text-slate-200">${h(x.text)}</b>${x.status ? ' <span class="text-slate-400">(' + (stL[x.status] || x.status) + ')</span>' : ''}${x.rating ? ' <span title="הערכת ראש הממשלה לביטול">' + GOV_REV.meter(x.rating, G.DROP_SCALE[x.rating].c) + ' <span style="color:' + G.DROP_SCALE[x.rating].c + '">' + G.DROP_SCALE[x.rating].l + '</span></span>' : ''}${x.note ? `<div class="text-slate-400">${G.nl(x.note)}</div>` : ''}</span></div>`).join('') || '<p class="text-xs text-slate-500 text-center py-4">אין פריטים בהיסטוריה לפי הסינון.</p>'}</div>${a.length > 300 ? '<p class="text-[10px] text-slate-500">מוצגים 300 האחרונים.</p>' : ''}`; };
+            window.renderHist2();
+        }
+        function tog(id) { G.tasks.toggle(id); render(); }
+        function del(id) { if (confirm('למחוק את המשימה לצמיתות?')) { G.tasks.remove(id); render(); } }
+        function render() { $('tabOpen').className = 'g-btn ' + (tab === 'open' ? 'pri' : ''); $('tabHist').className = 'g-btn ' + (tab === 'hist' ? 'pri' : ''); renderAdd(); tab === 'open' ? renderOpen() : renderHist(); }
+        window.addEventListener('DOMContentLoaded', render); window.addEventListener('storage', render);
+    </script>
+</body>
+</html>

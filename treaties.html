@@ -108,7 +108,7 @@
                 <div class="flex flex-wrap items-start justify-between gap-2"><div class="min-w-0"><div class="font-bold text-white">${h(t.title)}</div>
                     <div class="text-[11px] text-slate-400 mt-0.5">${person ? '👤 <a class="text-sky-300 underline" href="people.html#p=' + h(person.id) + '">' + h(person.name) + '</a> • ' : ''}${port ? port.icon + ' ' + h(port.name) + ' • ' : ''}${dueTxt}${t.closedAt ? ' • נסגרה ב-' + h(t.closedAt) : ''}</div></div>
                     <div class="flex items-center gap-1.5"><span class="g-chip" style="color:${lvlColor[t.costLevel]};border-color:${lvlColor[t.costLevel]}66;background:${lvlColor[t.costLevel]}1a">חומרת הפרה: ${G.LEVEL[t.costLevel]}</span><span class="g-chip" style="color:${s.c};border-color:${s.c}55;background:${s.c}1a">${s.l}</span></div></div>
-                ${t.terms ? `<div class="text-[11px] text-slate-300 mt-2">📄 ${h(t.terms)}</div>` : ''}${t.cost ? `<div class="text-[11px] text-amber-200/80 mt-1">⚠️ מחיר הפרה: ${h(t.cost)}</div>` : ''}${t.note ? `<div class="text-[11px] text-violet-300 mt-1">📝 ${h(t.note)}</div>` : ''}
+                ${t.terms ? `<div class="text-[11px] text-slate-300 mt-2">📄 ${G.nl(t.terms)}</div>` : ''}${t.cost ? `<div class="text-[11px] text-amber-200/80 mt-1">⚠️ מחיר הפרה: ${G.nl(t.cost)}</div>` : ''}${t.note ? `<div class="text-[11px] text-violet-300 mt-1">📝 ${G.nl(t.note)}</div>` : ''}
                 ${recurHtml(t)}
                 <div class="mt-2"><div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>התקדמות</span><b class="text-slate-200">${t.progress}%</b></div><div class="g-bar"><i style="width:${t.progress}%;background:${s.c}"></i></div></div>
                 <button class="text-[11px] text-sky-300 mt-2 underline" onclick="toggleOpen('${h(t.id)}')">${isOpen ? '▲ הסתר תיעוד' : '▼ תיעוד ויומן (' + tl.length + ' רשומות' + (nUp ? ', ' + nUp + ' עדכוני התקדמות' : '') + ')'}</button>
@@ -128,7 +128,15 @@
                 <div class="flex flex-wrap gap-2 mt-3 items-end">
                     ${act ? `<input id="up_${h(t.id)}" class="g-inp flex-1 min-w-[10rem]" style="margin:0" maxlength="300" placeholder="עדכון התקדמות: מה קרה?"><label class="text-[10px] text-slate-400">%<input id="upp_${h(t.id)}" type="number" min="0" max="100" value="${t.progress}" class="g-inp" style="margin:0;width:4.5rem"></label><button class="g-btn ok" onclick="addUp('${h(t.id)}')">📈 עדכן</button>` : ''}
                     <input id="nt_${h(t.id)}" class="g-inp flex-1 min-w-[10rem]" style="margin:0" maxlength="300" placeholder="${act ? 'הערה (בלי שינוי אחוז)' : 'הערה לאחר הסגירה (למשל: היחסים התאוששו)'}"><button class="g-btn" onclick="addNote('${h(t.id)}')">📝 הערה</button></div>
+                ${act ? `<div class="mt-3 rounded-xl border border-dashed border-slate-600 p-2.5"><div class="text-[11px] font-bold text-slate-300 mb-2">☑️ משימה מתוך האמנה</div>
+                    <div class="grid grid-cols-2 md:grid-cols-6 gap-2 items-end"><label class="g-lab col-span-2 md:col-span-3">המשימה<input id="tkT_${h(t.id)}" class="g-inp" maxlength="200" placeholder="למשל: להתקשר ולשאול מה שלומו"></label><label class="g-lab">תאריך (חד-פעמית)<input id="tkD_${h(t.id)}" type="date" class="g-inp"></label><label class="g-lab">שעה<input id="tkH_${h(t.id)}" type="time" class="g-inp"></label><button class="g-btn pri" onclick="addTreatyTask('${h(t.id)}')">הוסף</button></div>
+                    <div class="mt-2 flex flex-wrap items-center gap-1.5"><span class="text-[10px] text-slate-400">או משימה קבועה בימים:</span>${G.DOW.map((d, k) => `<label class="text-xs px-2 py-1 rounded-lg border border-slate-600 cursor-pointer"><input type="checkbox" class="tkDay_${h(t.id)} accent-amber-400" value="${k}"> ${d}׳</label>`).join('')}</div>
+                    <p class="text-[10px] text-slate-500 mt-1">עם ימים נבחרים: נוצרת שגרה קבועה (בשעה שבחרת) שמופיעה ב"פעולות היום", ונעצרת אוטומטית כשהאמנה נסגרת. בלי ימים: משימה חד-פעמית עם תאריך.</p></div>` : ''}
                 <p class="text-[10px] text-slate-500 mt-1">היומן הוא תוספת בלבד: רשומות לא נמחקות ולא נערכות${act ? '' : '. אמנה סגורה ממשיכה לקבל הערות'}.</p></div>`;
+        }
+        function addTreatyTask(id) {
+            const r = G.treaties.addTask(id, { text: $('tkT_' + id).value, due: $('tkD_' + id).value, time: $('tkH_' + id).value, days: [...document.querySelectorAll('.tkDay_' + id + ':checked')].map(c => Number(c.value)) });
+            if (!r.ok) { alert(r.error); return; } render();
         }
         function toggleOpen(id) { openIds.has(id) ? openIds.delete(id) : openIds.add(id); render(); }
         function addUp(id) { const r = G.treaties.addUpdate(id, $('up_' + id).value, $('upp_' + id).value); if (!r.ok) { alert(r.error); return; } render(); }

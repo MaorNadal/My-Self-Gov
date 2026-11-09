@@ -18,16 +18,19 @@
         '(6) שמות כמו PERSON_A הם כינויים מאונונמים. השתמש בהם כפי שהם.'
     ].join('\n');
 
-    function cfg() { try { const o = JSON.parse(localStorage.getItem(KEY) || 'null'); return o && typeof o.key === 'string' ? o : null; } catch (e) { return null; } }
-    function hasKey() { return !!(cfg() && cfg().key); }
-    function setKey(k) {
+    const V = () => window.GOV_VAULT;
+    function meta() { try { const o = JSON.parse(localStorage.getItem(KEY) || 'null'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
+    function cfg() { const k = V() && V().get('ai'); return k && typeof k.key === 'string' && k.key ? Object.assign({}, meta(), { key: k.key }) : null; }   // המפתח רק מהכספת
+    function hasKey() { return !!cfg(); }
+    async function setKey(k) {
         k = String(k || '').trim();
         if (!/^[A-Za-z0-9_\-]{20,80}$/.test(k)) return { ok: false, error: 'המפתח נראה לא תקין (אמור להכיל 20-80 תווים לטיניים, ספרות, מקף או קו תחתון).' };
-        localStorage.setItem(KEY, JSON.stringify({ key: k, model: '', savedAt: new Date().toISOString() })); return { ok: true };
+        const r = await V().set('ai', { key: k }); if (!r.ok) return { ok: false, error: 'הכספת נעולה. הגדר סיסמה והיכנס אליה כדי לשמור מפתח.' };
+        localStorage.setItem(KEY, JSON.stringify({ model: '', savedAt: new Date().toISOString() })); return { ok: true };
     }
-    function clearKey() { localStorage.removeItem(KEY); }
+    function clearKey() { V() && V().remove('ai'); localStorage.removeItem(KEY); }
     function importQbKey() { try { return localStorage.getItem('qbmc_gemini_key') || ''; } catch (e) { return ''; } }
-    function setModel(m) { const c = cfg(); if (c) { c.model = m; localStorage.setItem(KEY, JSON.stringify(c)); } }
+    function setModel(m) { try { const o = meta(); o.model = m; localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) {} }
     function mask() { const c = cfg(); return c ? c.key.slice(0, 4) + '…' + c.key.slice(-3) : ''; }
 
     function err(code, message, extra) { return Object.assign({ ok: false, code, error: message }, extra || {}); }

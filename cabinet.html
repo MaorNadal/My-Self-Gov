@@ -79,7 +79,7 @@
                     <div class="text-[11px] text-slate-300 mt-1.5 flex items-center gap-2"><span class="w-14 text-slate-400">מקדמת</span>${unit(s.supports, '#34d399')}<span class="text-slate-500">(${s.supports})</span></div>
                     <div class="text-[11px] text-slate-300 mt-1 flex items-center gap-2"><span class="w-14 text-slate-400">פוגעת</span>${unit(s.harms, '#f87171')}<span class="text-slate-500">(${s.harms})</span></div>
                     ${s.treatyCost ? `<div class="text-[11px] text-amber-300 mt-1.5">⚠️ מחיר הפרת אמנות: ${s.treatyCost} (חומרה 1-3 לכל אמנה שנפגעת)</div>` : ''}
-                    ${harmed.map(x => `<div class="text-[11px] text-rose-200/90 mt-0.5">🔻 ${x.kind === 'treaty' ? '🤝' : '📜'} ${h(x.label)}${x.cost ? ' — מחיר: ' + h(x.cost) : ''}</div>`).join('')}</div>`; }).join('')}</div>
+                    ${harmed.map(x => `<div class="text-[11px] text-rose-200/90 mt-0.5">🔻 ${x.kind === 'treaty' ? '🤝' : '📜'} ${h(x.label)}${x.cost ? ' — מחיר: ' + G.nl(x.cost) : ''}</div>`).join('')}</div>`; }).join('')}</div>
                 <p class="text-[10px] text-slate-500 mt-2 leading-relaxed">זו אינדיקציה, לא המלצה: היא סופרת רק מה שקישרת, ורק הבטחות שטרם הושלמו ואמנות שבתוקף. אפשרות עם פחות נזק אינה בהכרח הנכונה, ואפשרות שפוגעת באמנה יכולה להיות מוצדקת. הערך האמיתי הוא שההפרה תהיה מודעת ומתועדת.</p>`;
         }
 
@@ -163,12 +163,12 @@
                         <button class="g-btn pri" onclick="decide()">🔨 הכרע</button></div>` : '<p class="text-[11px] text-slate-500">כשיהיו לפחות שתי אפשרויות תופיע כאן ההכרעה.</p>'}
                     <div class="flex gap-2 no-print"><button class="g-btn pri" onclick="mut(function(){})">💾 שמור טיוטה</button><button class="g-btn red" onclick="deleteDecision()">🗑️ מחק דיון</button></div>`;
             } else {
-                html += `<div><h2 class="text-xl font-black text-white">${pIcon(d.pid)} ${h(d.title)}</h2>${d.context ? `<p class="text-sm text-slate-300 mt-1 leading-relaxed">${h(d.context)}</p>` : ''}</div>
+                html += `<div><h2 class="text-xl font-black text-white">${pIcon(d.pid)} ${h(d.title)}</h2>${d.context ? `<p class="text-sm text-slate-300 mt-1 leading-relaxed">${G.nl(d.context)}</p>` : ''}</div>
                     ${d.status === 'revoked' ? `<div class="text-sm text-violet-200 bg-violet-500/10 border border-violet-500/30 rounded-xl p-3">ההחלטה בוטלה. נימוק: ${h(d.revokeReason)}</div>` : ''}
                     <div><h3 class="font-bold text-white text-sm mb-2">⚖️ האפשרויות וההשפעה ${d.impactSnapshot.length ? '(צילום מצב מרגע ההכרעה)' : '(החלטה ישנה ללא צילום: מחושב לפי המצב הנוכחי)'}</h3>${compareHtml(d)}</div>
-                    ${ch ? `<div class="rounded-xl border border-slate-700 bg-slate-900/60 p-3 text-sm space-y-2"><div><b class="text-emerald-300">הוחלט:</b> ${h(ch.text)}</div><div><b class="text-slate-300">נימוק:</b> ${h(d.rationale)}</div>${d.doubts ? `<div><b class="text-slate-300">ספקות והתנגדויות שנרשמו מראש:</b> ${h(d.doubts)}</div>` : ''}</div>` : ''}`;
+                    ${ch ? `<div class="rounded-xl border border-slate-700 bg-slate-900/60 p-3 text-sm space-y-2"><div><b class="text-emerald-300">הוחלט:</b> ${h(ch.text)}</div><div><b class="text-slate-300">נימוק:</b> ${G.nl(d.rationale)}</div>${d.doubts ? `<div><b class="text-slate-300">ספקות והתנגדויות שנרשמו מראש:</b> ${G.nl(d.doubts)}</div>` : ''}</div>` : ''}`;
                 if (d.status === 'decided') {
-                    if (d.reviewedAt) html += `<div class="rounded-xl border border-sky-500/40 bg-sky-500/5 p-3 text-sm space-y-1"><h3 class="font-bold text-sky-300">🔍 בדיקה בדיעבד (${h(d.reviewedAt)})</h3><div>${h(d.outcome)}</div><div class="text-[12px] text-slate-300">איכות התהליך: <b>${d.processRating}/5</b> • איך זה יצא: <b>${d.outcomeRating}/5</b></div></div>`;
+                    if (d.reviewedAt) html += `<div class="rounded-xl border border-sky-500/40 bg-sky-500/5 p-3 text-sm space-y-1"><h3 class="font-bold text-sky-300">🔍 בדיקה בדיעבד (${h(d.reviewedAt)})</h3><div>${G.nl(d.outcome)}</div><div class="text-[12px] text-slate-300">איכות התהליך: <b>${d.processRating}/5</b> • איך זה יצא: <b>${d.outcomeRating}/5</b></div></div>`;
                     else if (d.reviewAt > NOW) html += `<div class="text-[12px] text-slate-400 bg-slate-900/60 border border-slate-700 rounded-xl p-3">הבדיקה בדיעבד תיפתח ב-${h(d.reviewAt)}. עד אז ההחלטה נעולה: זה מה שמונע לשכתב אותה מתוך ידיעה מה קרה.</div>`;
                     else html += `<div class="rounded-xl border border-orange-500/40 bg-orange-500/5 p-3 space-y-2"><h3 class="font-bold text-orange-300 text-sm">⏰ הגיע מועד הבדיקה בדיעבד</h3>
                         <label class="g-lab">מה קרה בפועל?<textarea id="rOut" rows="2" maxlength="800" class="g-inp"></textarea></label>
