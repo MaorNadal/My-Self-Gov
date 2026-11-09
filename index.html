@@ -12,8 +12,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js"></script>
-    <script src="gov-nav.js"></script>
+    <script src="gov-core.js?v=0.6.1"></script>
+    <script src="gov-nav.js?v=0.6.1"></script>
 
     <header class="max-w-6xl mx-auto px-4 pt-8 pb-4">
         <div class="text-[11px] font-bold text-amber-400 tracking-wider">☀️ לוח הבקרה של הממשלה</div>
@@ -246,6 +246,7 @@
         }
 
         // ---------- ענן ----------
+        function pinInline() { return !G.lock.isSet() && G.lock.supported() ? '<div class="flex flex-wrap gap-2 mt-2"><input id="sPin2" type="password" class="g-inp" style="margin:0;max-width:15rem" placeholder="בחר סיסמה (8+ תווים)" autocomplete="new-password"><button class="g-btn pri" onclick="setPin(\'sPin2\')">🔒 קבע סיסמה</button></div>' : ''; }
         function secureMsg() { return !G.lock.isSet() ? 'כדי לשמור מפתחות צריך קודם להגדיר סיסמת כניסה (בהגדרות בתחתית הדף). המפתחות נשמרים מוצפנים בסיסמה.' : (!window.GOV_VAULT || !GOV_VAULT.isOpen() ? 'הכספת נעולה. היכנס מחדש עם הסיסמה.' : ''); }
         function renderCloud() {
             const S = window.GOV_SYNC; if (!S) { $('cloud').innerHTML = ''; return; }
@@ -253,7 +254,7 @@
             const btn = 'class="g-btn"';
             $('cloud').innerHTML = `<div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h2 class="font-bold text-white text-sm">☁️ שמירה קבועה בענן (Google Apps Script)</h2><span class="g-chip" style="color:${st[2]};border-color:${st[2]}66;background:${st[2]}1a">${st[0]} ${st[1]}</span></div>
                 <p class="text-[11px] text-slate-400 mb-3 leading-relaxed">הנתונים נשמרים כקובץ JSON בדרייב שלך. הכתובת והמפתח נשמרים במכשיר <b>מוצפנים בסיסמה</b> ואינם מוצגים שוב לאחר ההזנה. הוראות פריסה ב-README.md.</p>
-                ${sm ? `<div class="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2.5">🔒 ${sm}</div>` : conn ? `<div class="flex flex-wrap items-center gap-3 text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-2"><span>🔗 מחובר: <b dir="ltr">${h(S.maskUrl(c.url))}</b></span><span class="text-slate-500">מפתח: ••••••••</span><label class="flex items-center gap-2 text-slate-300"><input type="checkbox" id="cAuto" ${c.auto ? 'checked' : ''} onchange="cloudAuto(this.checked)" class="accent-sky-400"> סנכרון אוטומטי (5 שניות אחרי כל שינוי)</label></div>
+                ${sm ? `<div class="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2.5">🔒 ${sm}${pinInline()}</div>` : conn ? `<div class="flex flex-wrap items-center gap-3 text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-2"><span>🔗 מחובר: <b dir="ltr">${h(S.maskUrl(c.url))}</b></span><span class="text-slate-500">מפתח: ••••••••</span><label class="flex items-center gap-2 text-slate-300"><input type="checkbox" id="cAuto" ${c.auto ? 'checked' : ''} onchange="cloudAuto(this.checked)" class="accent-sky-400"> סנכרון אוטומטי (5 שניות אחרי כל שינוי)</label></div>
                 <div class="flex flex-wrap gap-2 mt-3"><button class="g-btn ok" onclick="cloudPush(false)">⬆️ דחוף לענן</button><button ${btn} onclick="cloudPull()">⬇️ משוך מהענן</button><button ${btn} onclick="cloudPing()">🔍 בדוק חיבור</button><button class="g-btn red" onclick="cloudPush(true)">⚠️ דרוס את הענן</button><button class="g-btn red" onclick="cloudDisconnect()">🔌 נתק והסר מפתחות</button></div>
                 <details class="mt-3 text-xs"><summary class="cursor-pointer text-sky-300 font-bold">📱 חיבור מכשיר נוסף (קישור חד-פעמי מוצפן)</summary>
                     <p class="text-[11px] text-slate-400 my-2 leading-relaxed">הקישור מכיל את הכתובת והמפתח מוצפנים בסיסמה (8+ תווים), בחלק ה-# שלא נשלח לשרת ולא נשמר באתר. פתח אותו במכשיר החדש והזן את הסיסמה: המערכת תתחבר לענן, תמשוך נתונים ותשמור מפתחות מוצפנים. שלח אותו לעצמך (למשל בהודעה) ומחק אחר כך. ללא ריפוזיטורי ציבורי של קבצי הגדרות.</p>
@@ -318,7 +319,7 @@
             const has = A.hasKey(), qb = !has && A.importQbKey(), sm = secureMsg();
             $('aiCard').innerHTML = `<div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h2 class="font-bold text-white text-sm">🤖 חיבור AI (Gemini)</h2><span class="g-chip" style="color:${has ? '#34d399' : '#94a3b8'};border-color:${has ? '#34d39966' : '#47556966'}">${has ? '🟢 מחובר (מפתח מוצפן)' : '⚪ לא מחובר'}</span></div>
                 <p class="text-[11px] text-slate-400 mb-3 leading-relaxed">מפתח Gemini אישי, מוזן פעם אחת ומשמש את כל ממשקי ה-AI. הוא נשמר מוצפן בסיסמה, אינו מוצג שוב, ואינו בגיבוי, בייצוא או בענן. לפני כל שליחה תראה את הטקסט המדויק ותאשר; שמות אנשים מוחלפים בכינויים. מומלץ להגביל את המפתח ב-Google AI Studio לכתובת האתר (HTTP referrer).</p>
-                ${sm ? `<div class="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2.5">🔒 ${sm}</div>` : has ? `<div class="flex flex-wrap gap-2"><button class="g-btn ok" onclick="aiTest()">🧪 בדוק חיבור</button><button class="g-btn red" onclick="aiClear()">🗑️ הסר מפתח</button></div>` :
+                ${sm ? `<div class="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2.5">🔒 ${sm}${pinInline()}</div>` : has ? `<div class="flex flex-wrap gap-2"><button class="g-btn ok" onclick="aiTest()">🧪 בדוק חיבור</button><button class="g-btn red" onclick="aiClear()">🗑️ הסר מפתח</button></div>` :
                 `<div class="flex flex-wrap gap-2 items-end"><label class="g-lab flex-1 min-w-[14rem]">מפתח API<input id="aiKey" type="password" dir="ltr" autocomplete="off" class="g-inp" placeholder="AIza…"></label><button class="g-btn pri" onclick="aiSave()">💾 שמור ובדוק</button>${qb ? '<button class="g-btn" onclick="aiImportQb()">📥 השתמש במפתח של QB Master Class</button>' : ''}</div>`}
                 <div id="aiMsg" class="text-[11px] mt-2 text-slate-400"></div>`;
         }
@@ -339,12 +340,14 @@
                 : '<label class="g-lab">סיסמת כניסה (לפחות 8 תווים)<input id="sPin" type="password" class="g-inp" autocomplete="new-password"></label><button class="g-btn mt-2" onclick="setPin()">🔒 הפעל</button>';
         }
         function saveName() { G.profile.set({ name: $('sName').value }); renderHeader(); }
-        async function setPin() { const v = $('sPin').value; if (v.length < 8) { alert('הסיסמה חייבת להכיל לפחות 8 תווים (היא מצפינה את המפתחות).'); return; } if (await G.lock.set(v) && await GOV_VAULT.unlock(v)) { await GOV_VAULT.migrate(); location.reload(); } else alert('לא ניתן להגדיר סיסמה בדפדפן הזה.'); }
+        async function setPin(src) { const v = $(src || 'sPin').value; if (v.length < 8) { alert('הסיסמה חייבת להכיל לפחות 8 תווים (היא מצפינה את המפתחות).'); return; } if (await G.lock.set(v) && await GOV_VAULT.unlock(v)) { await GOV_VAULT.migrate(); location.reload(); } else alert('לא ניתן להגדיר סיסמה בדפדפן הזה.'); }
         async function changePin() { const o = $('sOld').value, n = $('sNew').value; if (n.length < 8) { alert('הסיסמה החדשה חייבת להכיל לפחות 8 תווים.'); return; } if (!(await G.lock.check(o))) { alert('הסיסמה הנוכחית שגויה.'); return; } if (!(await GOV_VAULT.rekey(n)) || !(await G.lock.set(n))) { alert('ההחלפה נכשלה.'); return; } alert('הסיסמה הוחלפה. אם יצרת קישורי חיבור למכשירים אחרים, הם עדיין דורשים את הסיסמה הישנה: צור קישור חדש.'); location.reload(); }
         async function removePin() { if (!confirm('להסיר את הסיסמה? כתובת ומפתח הענן ומפתח ה-AI יימחקו מהמכשיר הזה (הנתונים בענן נשארים). תצטרך להזין אותם מחדש.')) return; await GOV_VAULT.wipe(); G.lock.remove(); location.reload(); }
         function doImport(ev) { const f = ev.target.files[0]; if (!f) return; G.importAll(f, (n, err) => { if (err) alert(err); else { alert('שוחזרו ' + n + ' רשומות.'); render(); } }); ev.target.value = ''; }
 
-        function render() { renderHeader(); renderTerm(); renderAlerts(); renderDaily(); renderPromises(); renderIssues(); renderAgenda(); renderRoutines(); renderScore(); renderGov(); renderViz(); renderCloud(); renderAi(); renderSettings(); }
+        // כל אזור מוצג בנפרד: תקלה באחד לא מורידה את השאר, והשגיאה מוצגת בבירור (כדי שאפשר יהיה לצלם ולדווח)
+        const SECTIONS = [['greet', renderHeader], ['term', renderTerm], ['alerts', renderAlerts], ['today', renderDaily], ['promisesBox', renderPromises], ['issuesBox', renderIssues], ['agenda', renderAgenda], ['routinesBox', renderRoutines], ['scoreBox', renderScore], ['govBox', renderGov], ['viz', renderViz], ['cloud', renderCloud], ['aiCard', renderAi], ['settings', renderSettings]];
+        function render() { SECTIONS.forEach(([id, fn]) => { try { fn(); } catch (e) { console.error(id, e); const el = $(id); if (el && id !== 'greet') el.innerHTML = '<div class="text-xs text-rose-300">⚠️ שגיאה באזור זה: ' + h(String(e && e.message || e)) + '. נסה רענון מלא (או ודא שכל הקבצים הועלו, ראה README).</div>'; } }); }
         window.addEventListener('DOMContentLoaded', render);
         window.addEventListener('storage', render);
         document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
