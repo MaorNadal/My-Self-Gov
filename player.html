@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>כרטיס אישי וקורות חיים - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .pl-dom { text-align: right; transition: .15s; cursor: pointer; }
+        .pl-dom:hover { transform: translateY(-2px); border-color: #fbbf24; }
+        .pl-dom.on { border-color: #fbbf24; box-shadow: 0 0 0 1px #fbbf24 inset; }
+        .rd-dot { cursor: pointer; transition: r .15s; } .rd-dot:hover { r: 8; }
+        .rd-lab { cursor: pointer; font-size: 11px; fill: #cbd5e1; } .rd-lab:hover { fill: #fbbf24; }
+        .tl-line { position: absolute; right: 11px; top: 0; bottom: 0; width: 2px; background: linear-gradient(#475569, #1e293b); }
+        .tl-item { position: relative; padding-right: 34px; cursor: pointer; }
+        .tl-dot { position: absolute; right: 4px; top: 12px; width: 16px; height: 16px; border-radius: 50%; border: 3px solid #0f172a; }
+        #tip { position: fixed; z-index: 999; pointer-events: none; background: #020617; border: 1px solid #fbbf24; border-radius: 10px; padding: 6px 10px; font-size: 12px; display: none; max-width: 260px; }
+        input[type=range] { accent-color: #fbbf24; width: 100%; }
+        @keyframes plring { from { stroke-dashoffset: var(--len); } }
+        .pl-ring { animation: plring 1.1s ease-out; }
+        @media print {
+            body { background: #fff !important; color: #111 !important; }
+            .g-card { background: #fff !important; border: 1px solid #bbb !important; color: #111 !important; break-inside: avoid; }
+            .no-print, #pl-domains .pl-add, #tip { display: none !important; }
+            .rd-lab { fill: #222; } .text-white, .text-slate-300, .text-slate-400 { color: #222 !important; }
+        }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+    <script src="gov-core.js?v=0.10.0"></script>
+    <script src="gov-nav.js?v=0.10.0"></script>
+    <div id="tip"></div>
+    <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
+        <h1 class="text-3xl font-black text-white">🪪 כרטיס אישי וקורות חיים</h1>
+        <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">כרטיס בסגנון שחקן: דירוג כולל, דירוג לכל תחום ופרופיל אישיות, לצד קורות חיים מתפתחים בציר זמן. הדירוג נגזר מהרשומות שהזנת (ברירת מחדל), אפשר לדרוס אותו ידנית או לקבל הערכת AI. זה מדד הצהרתי שמתבסס על מה שדיווחת, לא מבחן.</p>
+    </header>
+    <main class="max-w-6xl mx-auto px-4 mt-4 space-y-4">
+        <div id="pl-remind"></div>
+        <section id="pl-hero" class="g-card"></section>
+        <section id="pl-domains" class="space-y-3"></section>
+        <section id="pl-traits" class="g-card"></section>
+        <section id="pl-cv" class="g-card"></section>
+    </main>
+    <script>
+        const G = window.GOV, C = G.caps, h = G.esc, $ = id => document.getElementById(id), NOW = G.localDate(), DK = Object.keys(C.DOMAINS);
+        const LV = { 1: 'מתחיל', 2: 'בסיסי', 3: 'מוכשר', 4: 'מומחה', 5: 'עילית' };
+        let sel = 'skills', editId = null, filt = new Set(DK), withGov = true, openTl = new Set(), msg = '';
+        const srcChip = s => s === 'manual' ? '<span class="g-chip" style="color:#fbbf24;border-color:#fbbf2455">ידני</span>' : s === 'ai' ? '<span class="g-chip" style="color:#a78bfa;border-color:#a78bfa55">AI</span>' : s === 'auto' ? '<span class="g-chip" style="color:#38bdf8;border-color:#38bdf855">אוטומטי</span>' : '';
+        const mon = d => d ? d.slice(0, 7).split('-').reverse().join('/') : '';
+        const rng = e => e.start ? mon(e.start) + ' – ' + (e.current ? 'היום' : e.end ? mon(e.end) : '') : '';
+        const bars = n => '▮'.repeat(n) + '<span style="opacity:.25">' + '▮'.repeat(5 - n) + '</span>';
+
+        // ---------- מכ"ם ----------
+        function radar(rows, size) {
+            const R = size / 2 - 52, cx = size / 2, cy = size / 2, n = rows.length, ang = i => -Math.PI / 2 + i * 2 * Math.PI / n, pt = (i, r) => [cx + Math.cos(ang(i)) * r, cy + Math.sin(ang(i)) * r];
+            const poly = r => rows.map((_, i) => pt(i, r).map(x => x.toFixed(1)).join(',')).join(' ');
+            const val = rows.map((x, i) => pt(i, R * (x.v || 0) / 100).map(q => q.toFixed(1)).join(',')).join(' ');
+            return `<svg viewBox="0 0 ${size} ${size}" style="width:100%;max-width:420px;display:block;margin:0 auto" role="img" aria-label="מכ״ם יכולות">
+                ${[25, 50, 75, 100].map(g => `<polygon points="${poly(R * g / 100)}" fill="none" stroke="#334155" stroke-width="1"/>`).join('')}
+                ${rows.map((_, i) => `<line x1="${cx}" y1="${cy}" x2="${pt(i, R)[0].toFixed(1)}" y2="${pt(i, R)[1].toFixed(1)}" stroke="#334155"/>`).join('')}
+                <polygon points="${val}" fill="#fbbf2433" stroke="#fbbf24" stroke-width="2.5" stroke-linejoin="round"/>
+                ${rows.map((x, i) => { const [px, py] = pt(i, R * (x.v || 0) / 100), [lx, ly] = pt(i, R + 26), c = Math.cos(ang(i)); return `<circle class="rd-dot" data-k="${x.k}" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="5.5" fill="${x.v == null ? '#475569' : x.c}" stroke="#0f172a" stroke-width="2"/>
+                    <text class="rd-lab" data-k="${x.k}" x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="${Math.abs(c) < 0.25 ? 'middle' : c > 0 ? 'start' : 'end'}">${x.ic} ${x.v == null ? '–' : x.v}</text>`; }).join('')}</svg>`;
+        }
+        function ring(v, c, sub) {
+            const r = 62, L = 2 * Math.PI * r, d = v == null ? 0 : L * v / 100;
+            return `<svg viewBox="0 0 160 160" style="width:176px;height:176px;display:block;margin:0 auto"><circle cx="80" cy="80" r="${r}" fill="none" stroke="#1e293b" stroke-width="13"/><circle class="pl-ring" style="--len:${L}" cx="80" cy="80" r="${r}" fill="none" stroke="${c}" stroke-width="13" stroke-linecap="round" stroke-dasharray="${d} ${L}" transform="rotate(-90 80 80)"/>
+                <text x="80" y="82" text-anchor="middle" font-size="44" font-weight="900" fill="#fff">${v == null ? '–' : v}</text><text x="80" y="104" text-anchor="middle" font-size="12" fill="${c}" font-weight="700">${h(sub)}</text></svg>`;
+        }
+        function spark(vals, c) {
+            if (vals.length < 2) return ''; const w = 90, hh = 26, mn = Math.min(...vals), mx = Math.max(...vals), sp = mx - mn || 1;
+            const pts = vals.map((v, i) => [(i / (vals.length - 1) * (w - 6) + 3).toFixed(1), (hh - 4 - (v - mn) / sp * (hh - 8)).toFixed(1)]);
+            return `<svg viewBox="0 0 ${w} ${hh}" style="width:90px;height:26px"><polyline points="${pts.map(p => p.join(',')).join(' ')}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round"/><circle cx="${pts[pts.length - 1][0]}" cy="${pts[pts.length - 1][1]}" r="3" fill="${c}"/></svg>`;
+        }
+
+        // ---------- כרטיס ראשי ----------
+        function renderHero() {
+            const rows = DK.map(k => { const e = C.effective(k); return { k, l: C.DOMAINS[k].l, ic: C.DOMAINS[k].ic, c: C.DOMAINS[k].c, v: e.v, src: e.src }; }), ov = C.overall(), tier = ov == null ? { l: 'עוד אין מספיק נתונים', c: '#94a3b8' } : C.tier(ov), st = C.stats(), nm = G.profile.get().name;
+            const have = rows.filter(r => r.v != null).sort((a, b) => b.v - a.v), empty = rows.filter(r => r.v == null), cfg = C.cfg();
+            const chip = (ic, v, l) => `<div class="bg-slate-900/70 border border-slate-700 rounded-xl px-3 py-2 text-center"><div class="text-lg font-black text-white leading-none">${ic} ${v}</div><div class="text-[10px] text-slate-400 mt-1">${l}</div></div>`;
+            $('pl-hero').innerHTML = `<div class="grid grid-cols-1 lg:grid-cols-5 gap-4 items-center">
+                <div class="lg:col-span-2 text-center"><div class="text-xs text-slate-400">הכרטיס האישי של</div><div class="text-2xl font-black text-white">${h(nm || 'אני')}</div>${ring(ov, tier.c, tier.l)}
+                    <div class="text-[11px] text-slate-400">דירוג כולל${ov == null ? ': נדרשים לפחות 3 תחומים עם רשומות' : ' (ממוצע משוקלל של התחומים)'}</div>
+                    <div class="grid grid-cols-4 gap-2 mt-3">${chip('🗣️', st.langs, 'שפות')}${chip('📚', st.courseHours, 'שעות לימוד')}${chip('💼', st.expYears, 'שנות ניסיון')}${chip('📜', st.certsActive, 'הסמכות בתוקף')}</div></div>
+                <div class="lg:col-span-3">${radar(rows, 380)}<div class="text-[10px] text-slate-500 text-center">לחץ על נקודה כדי לפתוח את התחום</div></div></div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4 text-xs">
+                    <div class="bg-emerald-500/5 border border-emerald-500/30 rounded-xl p-3"><b class="text-emerald-300">💪 חוזקות</b><div class="mt-1 text-slate-300">${have.slice(0, 2).map(r => r.ic + ' ' + r.l + ' (' + r.v + ')').join('<br>') || 'עוד אין נתונים'}</div></div>
+                    <div class="bg-amber-500/5 border border-amber-500/30 rounded-xl p-3"><b class="text-amber-300">📈 הכי פחות מפותח</b><div class="mt-1 text-slate-300">${have.length > 2 ? have.slice(-2).reverse().map(r => r.ic + ' ' + r.l + ' (' + r.v + ')').join('<br>') : 'נדרשים לפחות 3 תחומים'}</div></div>
+                    <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3"><b class="text-slate-200">⬜ תחומים בלי נתונים (${empty.length})</b><div class="mt-1 text-slate-400">${empty.map(r => r.ic + ' ' + r.l).join(' • ') || 'כל התחומים מולאו'}</div></div></div>
+                <div class="no-print mt-3 flex flex-wrap gap-2 items-center"><button class="g-btn pri" onclick="aiRate()">🤖 דרג עם AI (אנונימי, באישור)</button><button class="g-btn" onclick="window.print()">🖨️ ייצוא ל-PDF (הדפסה → שמירה כ-PDF)</button><span id="aiMsg" class="text-[11px] text-slate-400">${h(msg)}</span></div>
+                ${cfg.summary.text ? `<div class="mt-3 text-xs text-slate-200 bg-slate-900/60 border border-violet-500/30 rounded-xl p-3 leading-relaxed"><b class="text-violet-300">🤖 סיכום AI (${h(cfg.summary.at)}):</b><br>${G.nl(cfg.summary.text)}</div>` : ''}`;
+            document.querySelectorAll('.rd-dot,.rd-lab').forEach(el => { const r = rows.find(x => x.k === el.dataset.k);
+                el.addEventListener('mousemove', ev => { const t = $('tip'); t.style.display = 'block'; t.style.left = Math.min(ev.clientX + 12, innerWidth - 270) + 'px'; t.style.top = (ev.clientY + 12) + 'px'; t.innerHTML = `<b>${r.ic} ${h(r.l)}</b><br>${r.v == null ? 'אין נתונים' : r.v + ' / 100'} ${srcChip(r.src)}`; });
+                el.addEventListener('mouseleave', () => { $('tip').style.display = 'none'; }); el.addEventListener('click', () => pick(r.k)); });
+        }
+
+        // ---------- תחומים ----------
+        function pick(k) { sel = k; editId = null; renderDomains(); const el = $('pl-panel'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+        function renderDomains() {
+            const cards = DK.map(k => { const d = C.DOMAINS[k], e = C.effective(k), n = C.all().filter(x => x.domain === k).length;
+                return `<button type="button" class="g-card pl-dom ${sel === k ? 'on' : ''}" style="padding:12px" onclick="pick('${k}')"><div class="flex items-center justify-between"><span class="text-xl">${d.ic}</span>${srcChip(e.src)}</div><div class="text-xs font-bold text-white mt-1">${d.l}</div>
+                    <div class="flex items-end justify-between mt-1"><span class="text-2xl font-black" style="color:${e.v == null ? '#64748b' : d.c}">${e.v == null ? '–' : e.v}</span><span class="text-[10px] text-slate-500">${n} רשומות</span></div><div class="g-bar mt-1"><i style="width:${e.v || 0}%;background:${d.c}"></i></div></button>`; }).join('');
+            $('pl-domains').innerHTML = `<div class="grid grid-cols-2 md:grid-cols-5 gap-2">${cards}</div><div id="pl-panel" class="g-card">${panel()}</div>`;
+        }
+        function panel() {
+            const d = C.DOMAINS[sel], e = C.effective(sel), cfg = C.cfg(), list = C.all().filter(x => x.domain === sel).sort((a, b) => (b.start || '').localeCompare(a.start || '')), x = editId ? C.get(editId) : null;
+            const modeBtn = (m, l) => `<button class="g-btn ${e.mode === m ? 'pri' : ''}" onclick="setMode('${m}')">${l}</button>`;
+            const phys = sel === 'physical', names = phys ? [...new Set(list.map(i => i.title))] : [];
+            const ctrl = `<div class="rounded-xl border border-slate-700 bg-slate-900/50 p-3 space-y-2"><div class="text-xs font-bold text-slate-300">דירוג התחום: <span class="text-white text-base">${e.v == null ? 'אין נתונים' : e.v}</span> ${srcChip(e.src)}</div>
+                <div class="flex flex-wrap gap-1.5">${modeBtn('auto', 'אוטומטי' + (e.auto == null ? '' : ' (' + e.auto + ')'))}${modeBtn('manual', 'ידני')}${modeBtn('ai', 'AI' + (cfg.ai[sel] ? ' (' + cfg.ai[sel].v + ')' : ''))}</div>
+                ${e.mode === 'manual' ? `<div class="flex items-center gap-3"><input type="range" min="0" max="100" value="${cfg.manual[sel] != null ? cfg.manual[sel] : (e.auto || 50)}" oninput="this.nextElementSibling.textContent=this.value" onchange="G.caps.setManual('${sel}',this.value);renderAll()"><b class="w-8 text-white">${cfg.manual[sel] != null ? cfg.manual[sel] : (e.auto || 50)}</b></div>` : ''}
+                ${e.mode === 'ai' && !cfg.ai[sel] ? '<p class="text-[11px] text-slate-400">עוד אין הערכת AI לתחום הזה. לחץ "דרג עם AI" בכרטיס הראשי (נדרש מפתח Gemini).</p>' : ''}${e.src === 'ai' && e.why ? `<p class="text-[11px] text-violet-200">${G.nl(e.why)} <span class="text-slate-500">(${h(e.at)})</span></p>` : ''}
+                <p class="text-[10px] text-slate-500">אוטומטי = עומק (ממוצע 3 הרשומות החזקות) × רוחב (מגיע למלא בשלוש רשומות פעילות ומעלה). הסמכה שפג תוקפה לא נספרת; משהו שהסתיים לפני יותר מ-5 שנים נספר ב-70%.</p></div>`;
+            const row = i => { const dt = phys ? mon(i.start) : rng(i), hist = phys ? C.history(i.title) : [];
+                return `<div class="flex items-start gap-2 bg-slate-900/60 border border-slate-700 rounded-xl p-2.5 text-xs"><div class="flex-1 min-w-0"><div class="font-bold text-white">${h(i.title)}${i.org ? ' <span class="text-slate-400 font-normal">• ' + h(i.org) + '</span>' : ''}</div>
+                    <div class="text-[10px] text-slate-400 mt-0.5">${[dt, phys ? '' : '', i.hours ? i.hours + ' שעות' : '', i.expires ? (i.expires < NOW ? '<span class="text-rose-400">פג תוקף ' + h(i.expires) + '</span>' : 'תוקף עד ' + h(i.expires)) : ''].filter(Boolean).join(' • ')}</div>${i.detail ? `<div class="text-[11px] text-slate-300 mt-1">${G.nl(i.detail)}</div>` : ''}</div>
+                    ${phys ? `<div class="text-center"><div class="text-base font-black text-white">${i.value} <span class="text-[10px] text-slate-400">${h(i.unit)}</span></div>${spark(hist.map(q => q.value), d.c)}</div>` : ''}
+                    <div class="text-center"><div class="tracking-tighter text-[11px]" style="color:${d.c}">${bars(i.level)}</div><div class="text-[10px] text-slate-500">${LV[i.level]}</div></div>
+                    <div class="flex flex-col gap-1 no-print"><button class="g-btn" onclick="editE('${h(i.id)}')">✏️</button><button class="g-btn red" onclick="delE('${h(i.id)}')">🗑️</button></div></div>`; };
+            const f = `<div class="pl-add rounded-xl border border-slate-700 bg-slate-900/40 p-3"><h3 class="font-bold text-slate-200 text-sm mb-2">${x ? '✏️ עריכת רשומה' : '➕ רשומה חדשה ב' + d.l}</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2"><label class="g-lab md:col-span-2">${phys ? 'שם המדד (למשל: ריצת 5 ק״מ, דופק מנוחה, משקל)' : 'כותרת'}<input id="fT" class="g-inp" maxlength="160" list="fNames" value="${h(x ? x.title : '')}"><datalist id="fNames">${names.map(n => `<option value="${h(n)}">`).join('')}</datalist></label>
+                    ${phys ? `<label class="g-lab">ערך<input id="fV" type="number" step="any" class="g-inp" value="${x && x.value != null ? x.value : ''}"></label><label class="g-lab">יחידה<input id="fU" class="g-inp" maxlength="20" placeholder="דקות / ק״ג / פעימות" value="${h(x ? x.unit : '')}"></label><label class="g-lab">תאריך מדידה<input id="fS" type="date" class="g-inp" value="${h(x ? x.start : NOW)}"></label>`
+                        : `<label class="g-lab">${sel === 'education' ? 'מוסד' : sel === 'experience' ? 'מעסיק / ארגון' : 'ארגון / מקור'}<input id="fO" class="g-inp" maxlength="120" value="${h(x ? x.org : '')}"></label><label class="g-lab">התחלה (חודש)<input id="fS" type="month" class="g-inp" value="${h(x ? x.start.slice(0, 7) : '')}"></label>
+                        <label class="g-lab">סיום (חודש)<input id="fE" type="month" class="g-inp" value="${h(x ? x.end.slice(0, 7) : '')}"></label><label class="g-lab flex items-center gap-2 mt-4"><input id="fC" type="checkbox" ${x && x.current ? 'checked' : ''} class="accent-amber-400"> נמשך עד היום</label>`}
+                    <label class="g-lab">רמה (1-5)<select id="fL" class="g-inp">${[1, 2, 3, 4, 5].map(n => `<option value="${n}"${(x ? x.level : 3) === n ? ' selected' : ''}>${n} - ${LV[n]}</option>`).join('')}</select></label>
+                    ${sel === 'courses' ? `<label class="g-lab">שעות<input id="fH" type="number" min="0" class="g-inp" value="${x ? x.hours : ''}"></label>` : ''}${sel === 'certs' ? `<label class="g-lab">תוקף עד (אופציונלי)<input id="fX" type="date" class="g-inp" value="${h(x ? x.expires : '')}"></label>` : ''}
+                    ${phys ? '' : `<label class="g-lab md:col-span-2">פירוט<textarea id="fD" rows="2" maxlength="600" class="g-inp">${h(x ? x.detail : '')}</textarea></label>`}</div>
+                <p class="text-[10px] text-slate-500 mt-1">${h(d.hint)}</p><div class="flex gap-2 mt-2"><button class="g-btn pri" onclick="saveE()">${x ? '💾 שמור' : 'הוסף'}</button>${x ? '<button class="g-btn" onclick="editE(null)">ביטול</button>' : ''}</div></div>`;
+            return `<h2 class="font-bold text-white text-base mb-3">${d.ic} ${d.l}</h2><div class="space-y-3">${ctrl}<div class="space-y-1.5">${list.map(row).join('') || '<p class="text-xs text-slate-500">עוד אין רשומות בתחום הזה.</p>'}</div>${f}</div>`;
+        }
+        function setMode(m) { G.caps.setMode(sel, m); renderAll(); }
+        function editE(id) { editId = id; renderDomains(); }
+        function delE(id) { if (confirm('למחוק את הרשומה?')) { G.caps.remove(id); editId = null; renderAll(); } }
+        const m2d = v => v ? v + '-01' : '';
+        function saveE() {
+            const phys = sel === 'physical', o = { id: editId || undefined, domain: sel, title: $('fT').value.trim(), level: $('fL').value };
+            if (o.title.length < 2) { alert('נסח כותרת (לפחות 2 תווים).'); return; }
+            if (phys) { if ($('fV').value === '') { alert('הזן ערך מספרי.'); return; } o.value = $('fV').value; o.unit = $('fU').value; o.start = $('fS').value; if (!o.start) { alert('בחר תאריך מדידה.'); return; } }
+            else { o.org = $('fO').value; o.start = m2d($('fS').value); o.end = $('fC').checked ? '' : m2d($('fE').value); o.current = $('fC').checked; o.detail = $('fD').value; if (o.start && o.end && o.end < o.start) { alert('תאריך הסיום קודם להתחלה.'); return; }
+                if (sel === 'courses') o.hours = $('fH').value; if (sel === 'certs') o.expires = $('fX').value; }
+            if (!G.caps.save(o)) { alert('לא ניתן לשמור. בדוק את השדות.'); return; } editId = null; renderAll();
+        }
+
+        // ---------- אישיות ----------
+        function renderTraits() {
+            const tr = C.traits();
+            $('pl-traits').innerHTML = `<div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h2 class="font-bold text-white text-sm">🧭 פרופיל אישיות</h2><span class="text-[10px] text-slate-500">חמשת הגורמים הנפוצים. הזנה ידנית היא הערכה עצמית; "מההתנהגות" נגזר מביצוע הבטחות ועקביות במערכת (רק למצפוניות)</span></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">${tr.map(t => `<div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3"><div class="flex items-center justify-between text-xs"><b class="text-white">${h(t.l)}</b><span>${t.v == null ? '<span class="text-slate-500">לא הוזן</span>' : '<b class="text-lg text-white">' + t.v + '</b>'} ${srcChip(t.src)}</span></div>
+                    <div class="relative g-bar mt-2" style="height:10px"><i style="width:${t.v || 0}%;background:linear-gradient(90deg,#38bdf8,#fbbf24)"></i>${t.auto != null ? `<span title="מההתנהגות במערכת: ${t.auto}" style="position:absolute;top:-3px;bottom:-3px;width:3px;background:#34d399;right:${t.auto}%"></span>` : ''}${t.ai ? `<span title="הערכת AI: ${t.ai.v}" style="position:absolute;top:-3px;bottom:-3px;width:3px;background:#a78bfa;right:${t.ai.v}%"></span>` : ''}</div>
+                    <input type="range" min="0" max="100" class="mt-2" value="${t.manual != null ? t.manual : (t.v != null ? t.v : 50)}" onchange="G.caps.setTrait('${t.k}',this.value);renderAll()"><div class="flex justify-between items-center text-[10px] text-slate-500"><span>${t.auto != null ? '<span style="color:#34d399">▌</span> מההתנהגות: ' + t.auto + ' ' : ''}${t.ai ? '<span style="color:#a78bfa">▌</span> AI: ' + t.ai.v : ''}</span>${t.manual != null ? `<button class="text-rose-400 no-print" onclick="G.caps.setTrait('${t.k}','');renderAll()">נקה ידני</button>` : ''}</div>
+                    ${t.ai && t.ai.why ? `<div class="text-[10px] text-violet-200 mt-1">${G.nl(t.ai.why)}</div>` : ''}</div>`).join('')}</div>`;
+        }
+
+        // ---------- קורות חיים ----------
+        function growth() {
+            const s = C.series().filter(p => p.v != null); if (s.length < 2) return '<p class="text-xs text-slate-500">גרף צמיחה יוצג כשיהיו רשומות עם תאריכים בלפחות שתי שנים ובשלושה תחומים לפחות.</p>';
+            const W = 560, H = 150, px = i => 30 + i / (s.length - 1) * (W - 60), py = v => H - 24 - v / 100 * (H - 44);
+            return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:720px"><line x1="30" x2="${W - 30}" y1="${py(0)}" y2="${py(0)}" stroke="#334155"/>${[50, 100].map(g => `<line x1="30" x2="${W - 30}" y1="${py(g)}" y2="${py(g)}" stroke="#1e293b" stroke-dasharray="3 4"/><text x="4" y="${py(g) + 4}" font-size="9" fill="#64748b">${g}</text>`).join('')}
+                <polyline points="${s.map((p, i) => px(i).toFixed(1) + ',' + py(p.v).toFixed(1)).join(' ')}" fill="none" stroke="#fbbf24" stroke-width="3" stroke-linejoin="round"/>
+                ${s.map((p, i) => `<g><circle cx="${px(i).toFixed(1)}" cy="${py(p.v).toFixed(1)}" r="5" fill="#fbbf24" stroke="#0f172a" stroke-width="2"><title>${p.label}: ${p.v}</title></circle><text x="${px(i).toFixed(1)}" y="${H - 6}" font-size="10" fill="#94a3b8" text-anchor="middle">${p.label}</text><text x="${px(i).toFixed(1)}" y="${(py(p.v) - 10).toFixed(1)}" font-size="10" fill="#fff" text-anchor="middle" font-weight="700">${p.v}</text></g>`).join('')}</svg>`;
+        }
+        function renderCV() {
+            const all = C.timeline(withGov), items = all.filter(i => filt.has(i.domain)), yr = i => i.start ? i.start.slice(0, 4) : 'ללא תאריך', groups = {};
+            items.forEach(i => { (groups[yr(i)] = groups[yr(i)] || []).push(i); }); const ys = Object.keys(groups).sort((a, b) => a === 'ללא תאריך' ? 1 : b === 'ללא תאריך' ? -1 : b.localeCompare(a));
+            const dom = k => C.DOMAINS[k];
+            $('pl-cv').innerHTML = `<div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h2 class="font-bold text-white text-sm">📄 קורות חיים מתפתחים</h2><label class="text-[11px] text-slate-300 flex items-center gap-1.5 no-print"><input type="checkbox" class="accent-amber-400" ${withGov ? 'checked' : ''} onchange="withGov=this.checked;renderCV()"> כלול מבצעים שהושלמו בממשל</label></div>
+                <div class="mb-3"><div class="text-[11px] text-slate-400 mb-1">צמיחת הדירוג הכולל לאורך השנים (לפי נוסחת ברירת המחדל)</div>${growth()}</div>
+                <div class="flex flex-wrap gap-1.5 mb-3 no-print">${DK.filter(k => k !== 'physical').map(k => `<button type="button" onclick="toggleF('${k}')" class="text-[11px] px-2.5 py-1 rounded-full border" style="${filt.has(k) ? 'background:' + dom(k).c + '22;border-color:' + dom(k).c + ';color:#fff' : 'border-color:#334155;color:#64748b'}">${dom(k).ic} ${dom(k).l}</button>`).join('')}</div>
+                <div class="relative"><div class="tl-line"></div>${ys.map(y => `<div class="mb-2"><div class="tl-item"><span class="tl-dot" style="background:#fbbf24"></span><div class="text-lg font-black text-amber-300">${y}</div></div>${groups[y].map(i => { const d = dom(i.domain), o = openTl.has(i.id);
+                    return `<div class="tl-item mb-1.5" onclick="tl('${h(i.id)}')"><span class="tl-dot" style="background:${d.c}"></span><div class="bg-slate-900/60 border border-slate-700 hover:border-amber-400 rounded-xl p-2.5 text-xs transition" style="border-right:3px solid ${d.c}"><div class="flex items-center justify-between gap-2"><b class="text-white">${d.ic} ${h(i.title)}${i.org ? ' <span class="font-normal text-slate-400">• ' + h(i.org) + '</span>' : ''}</b><span class="text-[10px] text-slate-400 whitespace-nowrap">${rng(i) || (i.start ? mon(i.start) : '')}</span></div>
+                        ${o ? `<div class="mt-1.5 text-slate-300">${i.detail ? G.nl(i.detail) + '<br>' : ''}<span class="text-[10px] text-slate-500">${d.l} • רמה ${i.level} (${LV[i.level] || ''})${i.hours ? ' • ' + i.hours + ' שעות' : ''}${i.expires ? ' • תוקף עד ' + h(i.expires) : ''}</span>${i.gov ? '' : `<div class="mt-1 no-print"><button class="g-btn" onclick="event.stopPropagation();sel='${i.domain}';editId='${h(i.id)}';renderDomains();$('pl-panel').scrollIntoView({behavior:'smooth'})">✏️ ערוך</button></div>`}</div>` : ''}</div></div>`; }).join('')}</div>`).join('') || '<p class="text-xs text-slate-500">עוד אין רשומות. הוסף רשומות בתחומים למעלה והן יופיעו כאן אוטומטית.</p>'}</div>`;
+        }
+        function toggleF(k) { filt.has(k) ? filt.delete(k) : filt.add(k); renderCV(); }
+        function tl(id) { openTl.has(id) ? openTl.delete(id) : openTl.add(id); renderCV(); }
+
+        // ---------- AI ----------
+        function parseJ(t) { try { return JSON.parse(String(t).replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch (e) { const m = String(t).match(/\{[\s\S]*\}/); try { return m ? JSON.parse(m[0]) : null; } catch (e2) { return null; } } }
+        async function aiRate() {
+            if (!C.all().length) { alert('הוסף קודם רשומות בתחומים.'); return; }
+            const m = $('aiMsg'); m.textContent = 'ממתין לאישור…';
+            const names = G.people.all().map(p => p.name).concat(G.treaties.all().map(t => t.party), [G.profile.get().name || '']).filter(Boolean);
+            const r = await window.GOVAI.ask({ title: 'דירוג יכולות ואישיות', names, json: true, data: C.aiData() + '\n\nהתנהגות במערכת הניהול האישי:\n' + (window.GOV_REV ? GOV_REV.systemContext('') : ''),
+                task: 'אתה יועץ קריירה ישר ולא חנפן. הערך בסולם 0-100 כל תחום שיש בו רשומות, לפי העומק, הרוחב והעדכניות שבנתונים, ורק לפי הנתונים. מפתחות התחומים: ' + DK.join(', ') + '. בנוסף, אם יש בסיס בנתונים (ההתנהגות או הרשומות), הערך את חמשת מאפייני האישיות (o פתיחות, c מצפוניות, e מוחצנות, a נעימות, s יציבות רגשית); אם אין בסיס, השמט את המאפיין ואל תנחש. ציין שזו הערכה מתוך נתונים חלקיים. החזר JSON בלבד: {"domains":{"<מפתח>":{"rating":0-100,"why":"משפט קצר"}},"traits":{"<o|c|e|a|s>":{"rating":0-100,"why":"משפט קצר"}},"summary":"3 משפטים: חוזקות, פער בולט והמלצה אחת"}' });
+            if (!r.ok) { msg = r.cancelled ? 'בוטל.' : '⚠️ ' + r.error; renderHero(); return; }
+            const j = parseJ(r.text), a = j && G.caps.applyAi(j); if (!a || !a.ok) { msg = '⚠️ ה-AI לא החזיר דירוג תקין. נסה שוב.'; renderHero(); return; }
+            msg = 'נקלטו ' + a.n + ' הערכות. בכל תחום אפשר לבחור אוטומטי, ידני או AI.'; renderAll();
+        }
+        function renderRemind() {   // תזכורת פנימית (אין תזמון חיצוני): נשארת עד שהמשתמש מסמן שבדק
+            let done = false; try { done = localStorage.getItem('gov_remind_autorating') === '1'; } catch (e) { }
+            $('pl-remind').innerHTML = done ? '' : '<div class="rounded-xl border border-amber-500/50 bg-amber-500/10 p-3 text-xs flex flex-wrap items-center justify-between gap-2"><span>🔔 <b>תזכורת:</b> לבדוק שהדירוג האוטומטי של התחומים נראה לך סביר. אם לא, ספר מה לשנות (נוסחה, משקלים, תחומים).</span><button class="g-btn ok" onclick="try{localStorage.setItem(\'gov_remind_autorating\',\'1\')}catch(e){};renderRemind()">בדקתי, הסר תזכורת</button></div>';
+        }
+        function renderAll() { renderRemind(); renderHero(); renderDomains(); renderTraits(); renderCV(); }
+        window.addEventListener('DOMContentLoaded', renderAll); window.addEventListener('storage', renderAll);
+    </script>
+</body>
+</html>

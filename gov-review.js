@@ -92,5 +92,5 @@
         const note = [j.verdict, j.reasoning, j.counter ? 'הטיעון החזק נגד הביטול: ' + j.counter : '', j.missing ? 'מה חסר: ' + j.missing : ''].filter(Boolean).join('\n');
         const s = col(kind).review(id, { by: 'ai', rating: j.rating, note, model: r.model }); if (!s.ok) { msg.textContent = '⚠️ ' + s.error; return; } rerender();
     }
-    window.GOV_REV = { html, pm, ai, meter, dropForm, drop, restore, restoresLog };
+    window.GOV_REV = { html, pm, ai, meter, dropForm, drop, restore, restoresLog, systemContext };
 })();

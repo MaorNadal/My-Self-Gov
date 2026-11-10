@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>סימולטור קריירה ולימודים - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        input[type=range] { accent-color: #fbbf24; width: 100%; }
+        .cr-row { transition: .15s; } .cr-row:hover { border-color: #fbbf24; }
+        .cr-step { position: relative; padding-right: 30px; } .cr-step:before { content: ''; position: absolute; right: 9px; top: 0; bottom: -8px; width: 2px; background: #334155; }
+        .cr-step:last-child:before { bottom: 50%; } .cr-dot { position: absolute; right: 2px; top: 12px; width: 16px; height: 16px; border-radius: 50%; border: 3px solid #0f172a; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+    <script src="gov-core.js?v=0.10.0"></script>
+    <script src="gov-nav.js?v=0.10.0"></script>
+    <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
+        <h1 class="text-3xl font-black text-white">🧭 סימולטור קריירה ולימודים</h1>
+        <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">הצהר לאן אתה רוצה להגיע ומה זה דורש (תחום, שם, רמה נדרשת). הסימולטור משווה לכרטיס האישי שלך, מחשב מוכנות ופערים, בונה מסלול לפי השעות הפנויות שלך, ואומר אם היעד ריאלי. הערכות הזמן הן כלל אצבע (שעות לכל רמה לפי תחום), לא תחזית.</p>
+    </header>
+    <main class="max-w-6xl mx-auto px-4 mt-4 grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <section class="lg:col-span-2 space-y-3">
+            <div class="g-card"><h2 class="font-bold text-white text-sm mb-2">➕ מטרה חדשה</h2>
+                <input id="nT" class="g-inp" maxlength="160" placeholder="מה המטרה? (למשל: מפתח בכיר, תואר שני במנהל עסקים)">
+                <div class="grid grid-cols-2 gap-2 mt-2"><select id="nK" class="g-inp" style="margin:0"></select><input id="nD" type="date" class="g-inp" style="margin:0" title="יעד (אופציונלי)"></div>
+                <input id="nW" class="g-inp mt-2" maxlength="400" placeholder="למה? (אופציונלי)"><button class="g-btn pri mt-2" onclick="addC()">הוסף מטרה</button></div>
+            <div id="list" class="space-y-1.5"></div>
+        </section>
+        <section id="detail" class="lg:col-span-3"></section>
+    </main>
+    <script>
+        const G = window.GOV, C = G.careers, h = G.esc, $ = id => document.getElementById(id), NOW = G.localDate(), DK = Object.keys(G.caps.DOMAINS), LV = { 1: 'מתחיל', 2: 'בסיסי', 3: 'מוכשר', 4: 'מומחה', 5: 'עילית' };
+        let sel = (location.hash.match(/^#c=(.+)$/) || [])[1] || null, hpw = 5, order = 'important', msg = '';
+        const ring = (v, c) => { const r = 44, L = 2 * Math.PI * r; return `<svg viewBox="0 0 110 110" style="width:104px;height:104px;flex:none"><circle cx="55" cy="55" r="${r}" fill="none" stroke="#1e293b" stroke-width="10"/><circle cx="55" cy="55" r="${r}" fill="none" stroke="${c}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${(v == null ? 0 : L * v / 100)} ${L}" transform="rotate(-90 55 55)"/><text x="55" y="61" text-anchor="middle" font-size="24" font-weight="900" fill="#fff">${v == null ? '–' : v + '%'}</text></svg>`; };
+        const fmt = d => d.split('-').reverse().join('/');
+        function renderList() {
+            $('nK').innerHTML = Object.entries(C.KINDS).map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
+            const all = C.all().sort((a, b) => b.created.localeCompare(a.created));
+            $('list').innerHTML = all.map(c => { const s = C.sim(c.id, hpw, order), col = s.ready == null ? '#64748b' : s.ready >= 80 ? '#34d399' : s.ready >= 50 ? '#fbbf24' : '#f87171';
+                return `<button type="button" onclick="openC('${h(c.id)}')" class="w-full text-right g-card cr-row ${sel === c.id ? 'border-amber-400' : ''}" style="padding:10px"><div class="flex items-center gap-3"><div class="text-2xl font-black" style="color:${col};min-width:3.2rem">${s.ready == null ? '–' : s.ready + '%'}</div><div class="flex-1 min-w-0"><div class="text-sm font-bold text-white truncate">${h(c.title)}</div><div class="text-[10px] text-slate-500">${C.KINDS[c.kind]} • ${c.reqs.length} דרישות${c.target ? ' • יעד ' + fmt(c.target) : ''}${c.opId && G.ops.get(c.opId) ? ' • 🚀 במבצע' : ''}</div></div></div></button>`; }).join('') || '<p class="text-xs text-slate-500 text-center">עוד אין מטרות.</p>';
+        }
+        function addC() {
+            if ($('nT').value.trim().length < 3) { alert('נסח את המטרה (לפחות 3 תווים).'); return; }
+            const c = C.save({ title: $('nT').value.trim(), kind: $('nK').value, target: $('nD').value, why: $('nW').value }); if (!c) { alert('לא ניתן לשמור. אם הזנת יעד, הוא חייב להיות אחרי היום.'); return; }
+            ['nT', 'nD', 'nW'].forEach(i => { $(i).value = ''; }); openC(c.id);
+        }
+        function openC(id) { sel = id; history.replaceState(null, '', '#c=' + id); msg = ''; render(); if (innerWidth < 1024) $('detail').scrollIntoView({ behavior: 'smooth' }); }
+        function renderDetail() {
+            const c = sel && C.get(sel), box = $('detail');
+            if (!c) { box.innerHTML = '<div class="g-card text-center text-sm text-slate-400">בחר מטרה או הוסף אחת. אחר כך הגדר מה היא דורשת, והסימולטור יחשב את הפער מול הכרטיס האישי שלך.</div>'; return; }
+            box.innerHTML = `<div class="g-card space-y-4"><div class="flex items-start justify-between gap-2"><div><div class="text-[10px] text-slate-400">${C.KINDS[c.kind]}${c.target ? ' • יעד ' + fmt(c.target) : ''}</div><h2 class="text-lg font-black text-white">${h(c.title)}</h2>${c.why ? `<div class="text-xs text-slate-300 mt-0.5">${G.nl(c.why)}</div>` : ''}</div><button class="g-btn red" onclick="delC()">🗑️</button></div>
+                <div id="simBox"></div>
+                <div class="rounded-xl border border-slate-700 bg-slate-900/40 p-3"><h3 class="font-bold text-slate-200 text-sm mb-2">📋 מה המטרה דורשת</h3><div id="reqBox" class="space-y-1.5"></div>
+                    <div class="grid grid-cols-2 md:grid-cols-6 gap-2 mt-3 items-end"><label class="g-lab col-span-2">תחום<select id="qD" class="g-inp">${DK.filter(k => k !== 'physical').map(k => `<option value="${k}">${G.caps.DOMAINS[k].ic} ${G.caps.DOMAINS[k].l}</option>`).join('')}</select></label><label class="g-lab col-span-2">מה נדרש (שם)<input id="qT" class="g-inp" maxlength="120" placeholder="למשל: תכנות, אנגלית" onkeydown="if(event.key==='Enter')addR()"></label>
+                        <label class="g-lab">רמה נדרשת<select id="qN" class="g-inp">${[1, 2, 3, 4, 5].map(n => `<option value="${n}"${n === 3 ? ' selected' : ''}>${n} - ${LV[n]}</option>`).join('')}</select></label><label class="g-lab">חשיבות<select id="qW" class="g-inp"><option value="3">גבוהה</option><option value="2" selected>רגילה</option><option value="1">נמוכה</option></select></label></div>
+                    <div class="flex flex-wrap gap-2 mt-2"><button class="g-btn pri" onclick="addR()">הוסף דרישה</button><button class="g-btn" onclick="aiReqs()">🤖 הצע דרישות עם AI (אנונימי, באישור)</button><span id="aiMsg" class="text-[11px] text-slate-400">${h(msg)}</span></div>
+                    ${c.ai ? `<div class="mt-2 text-xs text-slate-200 bg-slate-900/60 border border-violet-500/30 rounded-xl p-3 leading-relaxed"><b class="text-violet-300">🤖 הערת AI:</b> ${G.nl(c.ai)}</div>` : ''}
+                    <p class="text-[10px] text-slate-500 mt-2">ההתאמה לכרטיס האישי נעשית לפי שם הרשומה באותו תחום (הכלה, בלי רגישות לאותיות). אם הרשומה שלך נקראת אחרת, ההתאמה לא תימצא: תן לה שם דומה בכרטיס.</p></div></div>`;
+            renderReqs(); renderSim();
+        }
+        function renderReqs() {
+            const c = C.get(sel), s = C.sim(sel, hpw, order); if (!c) return;
+            $('reqBox').innerHTML = s.rows.map(x => { const d = G.caps.DOMAINS[x.req.domain], pct = x.req.need ? x.cur / x.req.need * 100 : 0;
+                return `<div class="bg-slate-900/60 border border-slate-700 rounded-xl p-2 cr-row text-xs"><div class="flex items-center gap-2"><span>${d.ic}</span><b class="flex-1 text-white">${h(x.req.title)}</b><span class="text-[10px] text-slate-400">נדרש ${x.req.need} • חשיבות ${['', 'נמוכה', 'רגילה', 'גבוהה'][x.req.weight]}</span><button class="text-rose-400" onclick="delR('${h(x.req.id)}')" title="הסר">✕</button></div>
+                    <div class="flex items-center gap-2 mt-1.5"><div class="flex-1 g-bar" style="height:10px;position:relative"><i style="width:${Math.min(100, pct)}%;background:${x.met ? '#34d399' : d.c}"></i></div><span class="text-[10px] w-44 text-slate-400">${x.match ? 'יש: ' + h(x.match.title) + ' (' + x.cur + ')' : '<span class="text-amber-300">אין רשומה תואמת בכרטיס</span>'}</span></div></div>`; }).join('') || '<p class="text-xs text-slate-500">עוד לא הוגדרו דרישות.</p>';
+        }
+        function renderSim() {
+            const s = C.sim(sel, hpw, order), c = s.career, col = s.ready == null ? '#64748b' : s.ready >= 80 ? '#34d399' : s.ready >= 50 ? '#fbbf24' : '#f87171';
+            if (!s.rows.length) { $('simBox').innerHTML = '<p class="text-xs text-slate-500">הוסף דרישות כדי להריץ סימולציה.</p>'; return; }
+            const verdict = s.steps.length === 0 ? '<div class="text-emerald-300 font-bold">🎉 כל הדרישות מתמלאות לפי הכרטיס שלך.</div>'
+                : s.feasible === null ? `<div class="text-slate-200">בקצב ${s.hpw} שעות בשבוע תגיע לכל הדרישות בערך ב-<b>${fmt(s.eta)}</b> (${s.weeks} שבועות, ${s.totalHours} שעות). לא הוגדר יעד.</div>`
+                : s.feasible ? `<div class="text-emerald-300">✅ ריאלי: בקצב ${s.hpw} שעות בשבוע תסיים ב-${fmt(s.eta)}, לפני היעד (${fmt(c.target)}).</div>`
+                : `<div class="text-rose-300">⚠️ לא ריאלי בקצב הנוכחי: תסיים ב-${fmt(s.eta)}, אחרי היעד (${fmt(c.target)}). כדי לעמוד ביעד נדרשות כ-<b>${s.neededHpw}</b> שעות בשבוע, או להוריד דרישה, או לדחות את היעד.</div>`;
+            $('simBox').innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-3"><div class="rounded-xl border border-slate-700 bg-slate-900/50 p-3 flex items-center gap-3">${ring(s.ready, col)}<div class="text-xs"><div class="font-bold text-white">מוכנות נוכחית</div><div class="text-slate-400 mt-1">ממוצע משוקלל של כמה מכל דרישה כבר יש לך.</div>${s.strongest.length ? '<div class="mt-1 text-slate-300">נקודות פתיחה: ' + s.strongest.map(x => h(x.req.title)).join(', ') + '</div>' : '<div class="mt-1 text-amber-300">עוד אין רשומות תואמות בכרטיס.</div>'}</div></div>
+                <div class="rounded-xl border border-slate-700 bg-slate-900/50 p-3 space-y-2"><div class="text-xs font-bold text-slate-300">⏱️ שעות פנויות בשבוע: <span class="text-white text-base">${hpw}</span></div><input type="range" min="1" max="40" value="${hpw}" oninput="hpw=Number(this.value);renderReqs();renderSim()">
+                    <div class="flex gap-1.5 text-[11px]"><button class="g-btn ${order === 'important' ? 'pri' : ''}" onclick="order='important';renderSim()">קודם החשוב</button><button class="g-btn ${order === 'easy' ? 'pri' : ''}" onclick="order='easy';renderSim()">קודם הקל</button></div></div></div>
+                <div class="mt-3 text-xs rounded-xl border border-slate-700 bg-slate-900/40 p-3">${verdict}</div>
+                ${s.steps.length ? `<div class="mt-3"><div class="text-xs font-bold text-slate-300 mb-2">🛣️ המסלול (${s.steps.length} שלבים, ${s.totalHours} שעות)</div>${s.steps.map((x, i) => { const d = G.caps.DOMAINS[x.req.domain]; return `<div class="cr-step mb-2"><span class="cr-dot" style="background:${d.c}"></span><div class="bg-slate-900/60 border border-slate-700 rounded-xl p-2.5 text-xs"><div class="flex justify-between gap-2"><b class="text-white">${i + 1}. ${d.ic} ${h(x.req.title)}</b><span class="text-amber-300 whitespace-nowrap">עד ${fmt(x.eta)}</span></div><div class="text-[10px] text-slate-400 mt-0.5">מרמה ${x.cur} ל-${x.req.need} • כ-${x.hours} שעות (${Math.round(x.hours / s.hpw * 10) / 10} שבועות) • מצטבר ${x.cumHours} שעות</div></div></div>`; }).join('')}
+                    <div class="flex flex-wrap gap-2 items-center mt-2">${c.opId && G.ops.get(c.opId) && G.ops.get(c.opId).status === 'active' ? `<a class="g-btn ok" href="operations.html#o=${h(c.opId)}">🚀 המבצע הפעיל</a>` : '<button class="g-btn pri" onclick="toOp()">🚀 הפוך את המסלול למבצע (עם שלבים ותאריכים)</button>'}<span class="text-[10px] text-slate-500">המבצע ייכנס לציון הממשלה לפי כללי המבצעים.</span></div></div>` : ''}
+                <p class="text-[10px] text-slate-500 mt-2">שעות לרמה (כלל אצבע): ${Object.entries(C.HRS).filter(([k]) => k !== 'physical').map(([k, v]) => G.caps.DOMAINS[k].l + ' ' + v).join(' • ')}. ההערכה לא מביאה בחשבון כישרון, ניסיון קודם בתחום קרוב או איכות הלמידה.</p>`;
+        }
+        function addR() {
+            const t = $('qT').value.trim(), c = C.get(sel); if (t.length < 2) { alert('הזן שם לדרישה (לפחות 2 תווים).'); return; }
+            c.reqs = c.reqs.concat([{ domain: $('qD').value, title: t, need: $('qN').value, weight: $('qW').value }]); C.save(c); $('qT').value = ''; render();
+        }
+        function delR(id) { const c = C.get(sel); c.reqs = c.reqs.filter(r => r.id !== id); C.save(c); render(); }
+        function delC() { if (confirm('למחוק את המטרה? (מבצע שנוצר ממנה לא יימחק)')) { C.remove(sel); sel = null; history.replaceState(null, '', location.pathname); render(); } }
+        function toOp() { const r = C.toOperation(sel, hpw, order); if (!r.ok) { alert(r.error); return; } location.href = 'operations.html#o=' + r.opId; }
+        function parseJ(t) { try { return JSON.parse(String(t).replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch (e) { const m = String(t).match(/\{[\s\S]*\}/); try { return m ? JSON.parse(m[0]) : null; } catch (e2) { return null; } } }
+        async function aiReqs() {
+            const c = C.get(sel), m = $('aiMsg'); m.textContent = 'ממתין לאישור…';
+            const names = G.people.all().map(p => p.name).concat(G.treaties.all().map(t => t.party), [G.profile.get().name || '']).filter(Boolean);
+            const r = await window.GOVAI.ask({ title: 'הצעת דרישות למטרה', names, json: true, data: `המטרה: ${c.title}\nסוג: ${C.KINDS[c.kind]}\nלמה: ${c.why || '(לא נכתב)'}\nדרישות קיימות: ${c.reqs.map(x => x.title).join(', ') || 'אין'}\n\n${G.caps.aiData()}`,
+                task: 'אתה יועץ קריירה ישר ולא חנפן. הצע 4-8 דרישות ריאליות להשגת המטרה, שלא חופפות לקיימות. לכל דרישה: תחום (' + DK.filter(k => k !== 'physical').join(', ') + '), שם קצר וספציפי (בשפה שבה המשתמש משתמש), רמה נדרשת 1-5 (1 מתחיל, 3 מוכשר, 5 עילית) וחשיבות 1-3. התאם את הרמות למטרה ולא לפרופיל. אם המטרה עמומה, הצע מה לדייק. החזר JSON בלבד: {"reqs":[{"domain":"","title":"","need":3,"weight":2}],"note":"2-3 משפטים: מה בולט בפער מול הפרופיל ומה הצעד הראשון"}. אל תמציא עובדות על המשתמש.' });
+            if (!r.ok) { msg = r.cancelled ? 'בוטל.' : '⚠️ ' + r.error; render(); return; }
+            const j = parseJ(r.text), a = j && C.applyAiReqs(sel, j); if (!a || !a.ok) { msg = '⚠️ ה-AI לא החזיר דרישות חדשות תקינות. נסה שוב.'; render(); return; } msg = 'נוספו ' + a.n + ' דרישות. בדוק והתאם: אלה הצעות, לא עובדות.'; render();
+        }
+        function render() { renderList(); renderDetail(); }
+        window.addEventListener('hashchange', () => { sel = (location.hash.match(/^#c=(.+)$/) || [])[1] || null; render(); });
+        window.addEventListener('DOMContentLoaded', render); window.addEventListener('storage', render);
+    </script>
+</body>
+</html>

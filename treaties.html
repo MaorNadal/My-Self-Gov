@@ -11,8 +11,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.8.0"></script>
-    <script src="gov-nav.js?v=0.8.0"></script>
+    <script src="gov-core.js?v=0.10.0"></script>
+    <script src="gov-nav.js?v=0.10.0"></script>
 
     <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
         <h1 class="text-3xl font-black text-white">🤝 יחסי חוץ ואמנות</h1>
@@ -68,7 +68,7 @@
         }
 
         function renderForm() {
-            const t = editId ? G.treaties.get(editId) : null, v = t || { party: '', kind: 'person', title: '', terms: '', cost: '', costLevel: 2, due: '', pid: '', personId: '', recur: [] };
+            const t = editId ? G.treaties.get(editId) : null, v = t || { party: '', kind: 'person', title: '', terms: '', cost: '', costLevel: 2, due: '', pid: '', personId: '', recur: [], rec: { kind: 'weekdays', n: 2, unit: 'week', dom: 1, anchor: NOW } };
             if (editId && !t) editId = null;
             $('treaties-form').innerHTML = `<h2 class="font-bold text-white text-sm mb-3">${t ? '✏️ עריכת אמנה' : '➕ אמנה חדשה'}</h2>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -79,9 +79,7 @@
                     <label class="g-lab md:col-span-2">כותרת האמנה<input id="tTitle" class="g-inp" maxlength="140" placeholder="למשל: ערב קבוע של זוגיות בכל שבוע" value="${h(v.title)}"></label>
                     <label class="g-lab">מועד (אם יש)<input id="tDue" type="date" class="g-inp" value="${h(v.due)}"></label>
                     <label class="g-lab">חומרת הפרה<select id="tLevel" class="g-inp">${[1, 2, 3].map(n => `<option value="${n}"${v.costLevel === n ? ' selected' : ''}>${G.LEVEL[n]}</option>`).join('')}</select></label>
-                    <div class="md:col-span-4"><div class="g-lab">מחויבות קבועה (אופציונלי): באילו ימים האמנה מחייבת פעולה?</div><div class="flex flex-wrap items-center gap-1.5 mt-1">${G.DOW.map((d, k) => `<label class="text-xs px-2 py-1 rounded-lg border border-slate-600 cursor-pointer"><input type="checkbox" class="tDay accent-amber-400" value="${k}" ${v.recur.includes(k) ? 'checked' : ''}> ${d}׳</label>`).join('')}
-                        <button type="button" class="g-btn" onclick="setDays([0,1,2,3,4,5,6])">כל יום</button><button type="button" class="g-btn" onclick="setDays([0,2,4])">א׳ ג׳ ה׳</button><button type="button" class="g-btn" onclick="setDays([5])">פעם בשבוע (ו׳)</button><button type="button" class="g-btn" onclick="setDays([])">ללא</button></div>
-                        <p class="text-[10px] text-slate-500 mt-1">אמנה עם ימים קבועים מופיעה בלוח הבקרה בכל יום רלוונטי, ואפשר לסמן בה ביצוע. שינוי הימים מתועד ביומן האמנה ומשפיע על חישוב העמידה בה.</p></div>
+                    <div class="md:col-span-4"><div class="g-lab">מחויבות קבועה (אופציונלי): באיזו תדירות האמנה מחייבת פעולה?</div>${GOV_REC.form('tR', { rec: v.rec, days: v.recur }, true)}<p class="text-[10px] text-slate-500 mt-1">אמנה עם מחויבות קבועה מופיעה בלוח הבקרה בכל יום רלוונטי, ואפשר לסמן בה ביצוע. שינוי התדירות מתועד ביומן האמנה ומשפיע על חישוב העמידה בה.</p></div>
                     <label class="g-lab md:col-span-2">התנאים: מה בדיוק התחייבת ומה הצד השני התחייב?<textarea id="tTerms" rows="2" maxlength="600" class="g-inp">${h(v.terms)}</textarea></label>
                     <label class="g-lab md:col-span-2">מה המחיר אם תפר? (אמון, כסף, יחסים, מוניטין…)<textarea id="tCost" rows="2" maxlength="300" class="g-inp">${h(v.cost)}</textarea></label>
                 </div>
@@ -95,7 +93,8 @@
             if (party.length < 2) { alert('הזן מול מי האמנה (לפחות 2 תווים).'); return; }
             if (title.length < 3) { alert('הזן כותרת לאמנה (לפחות 3 תווים).'); return; }
             const base = editId ? G.treaties.get(editId) : {};
-            const item = Object.assign({}, base, { recur: [...document.querySelectorAll('.tDay:checked')].map(c => Number(c.value)), party, personId: $('tPerson').value, title, kind: $('tKind').value, pid: $('tPid').value, due: $('tDue').value, costLevel: $('tLevel').value, terms: $('tTerms').value, cost: $('tCost').value, status: 'active' });
+            const rr = GOV_REC.read('tR'); if (rr.error) { alert(rr.error); return; }
+            const item = Object.assign({}, base, { recur: rr.days, rec: rr.rec, party, personId: $('tPerson').value, title, kind: $('tKind').value, pid: $('tPid').value, due: $('tDue').value, costLevel: $('tLevel').value, terms: $('tTerms').value, cost: $('tCost').value, status: 'active' });
             if (!G.treaties.save(item)) { alert('לא ניתן לשמור: ייתכן שהאמנה כבר נסגרה.'); return; }
             editId = null; render();
         }
@@ -116,10 +115,10 @@
                 ${act ? `<div class="flex flex-wrap gap-2 mt-3"><button class="g-btn ok" onclick="closeT('${h(t.id)}','fulfilled')">✓ קוימה</button><button class="g-btn red" onclick="closeT('${h(t.id)}','breached')">✗ הופרה</button><button class="g-btn" onclick="closeT('${h(t.id)}','ended')">⏹ הסתיימה</button><button class="g-btn" onclick="editId='${h(t.id)}';render();scrollToForm()">✏️ ערוך</button><button class="g-btn" onclick="delT('${h(t.id)}')">🗑️</button></div>` : ''}</div>`;
         }
         function recurHtml(t) {
-            if (!t.recur.length) return '';
+            if (!G.treaties.hasRec(t)) return '';
             const c = G.treaties.compliance(t), days = []; for (let k = 6; k >= 0; k--) days.push(G.addDays(NOW, -k));
-            return `<div class="mt-2 bg-slate-900/60 border border-slate-700 rounded-lg p-2"><div class="flex flex-wrap justify-between gap-2 text-[11px] text-slate-300"><span>🔁 מחויבות קבועה: <b>${h(G.routines.dayLabel(t.recur))}</b></span><span>${c.pct == null ? 'אחוז עמידה יוצג אחרי 3 ימים מתוזמנים (' + c.scheduled + ')' : 'עמידה: <b style="color:' + (c.pct >= 80 ? '#34d399' : c.pct >= 50 ? '#fbbf24' : '#f87171') + '">' + c.pct + '%</b> (' + c.done + ' מתוך ' + c.scheduled + ')'}</span></div>
-                <div class="flex gap-1 mt-1.5">${days.map(d => { const on = G.dowOf(d), sch = t.recur.includes(on), done = t.checks.includes(d), can = sch && t.status === 'active'; return `<button type="button" ${can ? '' : 'disabled'} onclick="chk('${h(t.id)}','${d}')" title="${h(d)}" class="text-[10px] w-9 py-1 rounded-md border" style="${!sch ? 'opacity:.25;border-color:#334155' : done ? 'background:#047857;border-color:#34d399;color:#fff' : d === NOW ? 'border-color:#fbbf24' : 'border-color:#64748b'}">${G.DOW[on]}׳${done ? ' ✓' : ''}</button>`; }).join('')}</div></div>`;
+            return `<div class="mt-2 bg-slate-900/60 border border-slate-700 rounded-lg p-2"><div class="flex flex-wrap justify-between gap-2 text-[11px] text-slate-300"><span>🔁 מחויבות קבועה: <b>${h(G.treaties.recLabel(t))}</b></span><span>${c.pct == null ? 'אחוז עמידה יוצג אחרי 3 ימים מתוזמנים (' + c.scheduled + ')' : 'עמידה: <b style="color:' + (c.pct >= 80 ? '#34d399' : c.pct >= 50 ? '#fbbf24' : '#f87171') + '">' + c.pct + '%</b> (' + c.done + ' מתוך ' + c.scheduled + ')'}</span></div>
+                <div class="flex gap-1 mt-1.5">${days.map(d => { const on = G.dowOf(d), sch = G.treaties.recOn(t, d), done = t.checks.includes(d), can = sch && t.status === 'active'; return `<button type="button" ${can ? '' : 'disabled'} onclick="chk('${h(t.id)}','${d}')" title="${h(d)}" class="text-[10px] w-9 py-1 rounded-md border" style="${!sch ? 'opacity:.25;border-color:#334155' : done ? 'background:#047857;border-color:#34d399;color:#fff' : d === NOW ? 'border-color:#fbbf24' : 'border-color:#64748b'}">${G.DOW[on]}׳${done ? ' ✓' : ''}</button>`; }).join('')}</div></div>`;
         }
         function chk(id, d) { const r = G.treaties.check(id, d); if (!r.ok) alert(r.error); render(); }
         function timeline(t, tl) {
@@ -130,12 +129,13 @@
                     <input id="nt_${h(t.id)}" class="g-inp flex-1 min-w-[10rem]" style="margin:0" maxlength="300" placeholder="${act ? 'הערה (בלי שינוי אחוז)' : 'הערה לאחר הסגירה (למשל: היחסים התאוששו)'}"><button class="g-btn" onclick="addNote('${h(t.id)}')">📝 הערה</button></div>
                 ${act ? `<div class="mt-3 rounded-xl border border-dashed border-slate-600 p-2.5"><div class="text-[11px] font-bold text-slate-300 mb-2">☑️ משימה מתוך האמנה</div>
                     <div class="grid grid-cols-2 md:grid-cols-6 gap-2 items-end"><label class="g-lab col-span-2 md:col-span-3">המשימה<input id="tkT_${h(t.id)}" class="g-inp" maxlength="200" placeholder="למשל: להתקשר ולשאול מה שלומו"></label><label class="g-lab">תאריך (חד-פעמית)<input id="tkD_${h(t.id)}" type="date" class="g-inp"></label><label class="g-lab">שעה<input id="tkH_${h(t.id)}" type="time" class="g-inp"></label><button class="g-btn pri" onclick="addTreatyTask('${h(t.id)}')">הוסף</button></div>
-                    <div class="mt-2 flex flex-wrap items-center gap-1.5"><span class="text-[10px] text-slate-400">או משימה קבועה בימים:</span>${G.DOW.map((d, k) => `<label class="text-xs px-2 py-1 rounded-lg border border-slate-600 cursor-pointer"><input type="checkbox" class="tkDay_${h(t.id)} accent-amber-400" value="${k}"> ${d}׳</label>`).join('')}</div>
+                    <div class="mt-2 flex flex-wrap items-center gap-1.5"><div class="w-full text-[10px] text-slate-400">או משימה קבועה (תדירות):</div><div class="w-full">${GOV_REC.form('tk_' + t.id.replace(/\W/g, ''), { rec: { kind: 'weekdays', n: 2, unit: 'week', dom: 1, anchor: NOW }, days: [] }, true)}</div></div>
                     <p class="text-[10px] text-slate-500 mt-1">עם ימים נבחרים: נוצרת שגרה קבועה (בשעה שבחרת) שמופיעה ב"פעולות היום", ונעצרת אוטומטית כשהאמנה נסגרת. בלי ימים: משימה חד-פעמית עם תאריך.</p></div>` : ''}
                 <p class="text-[10px] text-slate-500 mt-1">היומן הוא תוספת בלבד: רשומות לא נמחקות ולא נערכות${act ? '' : '. אמנה סגורה ממשיכה לקבל הערות'}.</p></div>`;
         }
         function addTreatyTask(id) {
-            const r = G.treaties.addTask(id, { text: $('tkT_' + id).value, due: $('tkD_' + id).value, time: $('tkH_' + id).value, days: [...document.querySelectorAll('.tkDay_' + id + ':checked')].map(c => Number(c.value)) });
+            const tk = GOV_REC.read('tk_' + id.replace(/\W/g, '')); if (tk.error) { alert(tk.error); return; }
+            const r = G.treaties.addTask(id, { text: $('tkT_' + id).value, due: $('tkD_' + id).value, time: $('tkH_' + id).value, days: tk.days, rec: tk.rec });
             if (!r.ok) { alert(r.error); return; } render();
         }
         function toggleOpen(id) { openIds.has(id) ? openIds.delete(id) : openIds.add(id); render(); }

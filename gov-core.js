@@ -234,8 +234,12 @@
         id: str(o.id, 40) || uid(), party: str(o.party, 60), personId: str(o.personId, 40), kind: PARTY_KIND[o.kind] ? o.kind : 'person', title: str(o.title, 140), terms: str(o.terms, 600),
         cost: str(o.cost, 300), costLevel: clampInt(o.costLevel, 1, 3, 2), status: TREATY_STATUS[o.status] ? o.status : 'active', due: dateOr(o.due, ''), pid: str(o.pid, 40),
         progress: clampInt(o.progress, 0, 100, 0), created: dateOr(o.created, localDate()), closedAt: dateOr(o.closedAt, ''), note: str(o.note, 400), log: cleanLog(o.log),
-        recur: cleanDays(o.recur), checks: [...new Set((Array.isArray(o.checks) ? o.checks : []).filter(d => DATE_RE.test(d || '')))].sort().slice(-400) }; };
+        recur: cleanDays(o.recur), rec: cleanRec(o.rec, dateOr(o.created, localDate())), checks: [...new Set((Array.isArray(o.checks) ? o.checks : []).filter(d => DATE_RE.test(d || '')))].sort().slice(-400) }; };
     const treatyCol = collection('treaties', cleanTreaty);
+    // מחויבות קבועה של אמנה: ימים בשבוע (recur) או חזרתיות כללית (rec: כל N ימים/שבועות/חודשים); אותו מנגנון כמו בשגרות
+    const tHas = t => t.rec.kind !== 'weekdays' || t.recur.length > 0;
+    const tOn = (t, ds) => t.rec.kind === 'weekdays' ? t.recur.includes(dowOf(ds)) : routines.recOn({ rec: t.rec, days: [] }, ds);
+    const tLabel = t => t.rec.kind === 'weekdays' ? dayLbl(t.recur) : routines.recLabel({ rec: t.rec, days: [] });
     const EDIT_LABELS = { party: 'הצד', personId: 'הקישור לאדם', kind: 'סוג הצד', title: 'הכותרת', terms: 'התנאים', cost: 'מחיר ההפרה', costLevel: 'חומרת ההפרה', due: 'המועד', pid: 'התיק', recur: 'התדירות' };
     const ERR = m => ({ ok: false, error: m });
     function treatyTimeline(t) {
@@ -253,7 +257,8 @@
             if (!ex) nx.log = [{ kind: 'created', at: localDate(), text: 'נוצרה אמנה מול ' + c.party + (c.due ? ' (מועד ' + c.due + ')' : ''), progress: c.progress }];
             else {
                 nx.log = ex.log.slice(); nx.progress = ex.progress; nx.checks = ex.checks;          // התקדמות משתנה רק דרך addUpdate, כדי שכל שינוי יתועד
-                const ch = Object.keys(EDIT_LABELS).filter(f => String(ex[f]) !== String(c[f]));
+                const sig = (o, f) => f === 'recur' ? JSON.stringify([o.recur, o.rec ? [o.rec.kind, o.rec.n, o.rec.unit, o.rec.dom, o.rec.anchor] : null]) : String(o[f]);
+                const ch = Object.keys(EDIT_LABELS).filter(f => sig(ex, f) !== sig(c, f));
                 if (ch.length) nx.log.push({ kind: 'edited', at: localDate(), text: 'עודכנו: ' + ch.map(f => EDIT_LABELS[f]).join(', ') + (ch.includes('due') ? ` (מועד: ${ex.due || 'ללא'} ← ${c.due || 'ללא'})` : '') + (ch.includes('costLevel') ? ` (חומרת הפרה: ${LEVEL[ex.costLevel]} ← ${LEVEL[c.costLevel]})` : '') });
             }
             return treatyCol.save(nx);
@@ -262,23 +267,25 @@
         addTask(id, o) {   // משימה מתוך אמנה: חד-פעמית (עם תאריך ושעה), או קבועה (ימים בשבוע + שעה)
             const t = treatyCol.get(id); if (!t || t.status !== 'active') return ERR('אפשר להוסיף משימות רק לאמנה בתוקף.'); o = base(o);
             const text = str(o.text, 200); if (text.length < 2) return ERR('נסח את המשימה (לפחות 2 תווים).');
-            const days = cleanDays(o.days); let made;
-            if (days.length) made = routines.save({ text, pid: o.pid || t.pid, days, time: o.time, treatyId: id });
+            const days = cleanDays(o.days), rec = o.rec && o.rec.kind && o.rec.kind !== 'weekdays' ? cleanRec(o.rec, localDate()) : null; let made;
+            if (rec) made = routines.save({ text, pid: o.pid || t.pid, rec, time: o.time, treatyId: id });
+            else if (days.length) made = routines.save({ text, pid: o.pid || t.pid, days, time: o.time, treatyId: id });
             else { if (!DATE_RE.test(o.due || '')) return ERR('בחר תאריך למשימה, או ימים לשגרה קבועה.'); made = tasks.save({ text, pid: o.pid || t.pid, due: o.due, time: o.time, treatyId: id }); }
             if (!made) return ERR('השמירה נכשלה.');
-            t.log = t.log.concat([{ kind: 'note', at: localDate(), text: 'נוצרה ' + (days.length ? 'משימה קבועה (' + dayLbl(days) + (timeOr(o.time, '') ? ' ' + o.time : '') + ')' : 'משימה (' + o.due + (timeOr(o.time, '') ? ' ' + o.time : '') + ')') + ': ' + text }]);
+            t.log = t.log.concat([{ kind: 'note', at: localDate(), text: 'נוצרה ' + ((rec || days.length) ? 'משימה קבועה (' + (rec ? routines.recLabel({ rec, days: [] }) : dayLbl(days)) + (timeOr(o.time, '') ? ' ' + o.time : '') + ')' : 'משימה (' + o.due + (timeOr(o.time, '') ? ' ' + o.time : '') + ')') + ': ' + text }]);
             return treatyCol.save(t) ? { ok: true } : ERR('השמירה נכשלה.');
         },
-        dueOn: ds => treatyCol.all().filter(t => t.status === 'active' && t.recur.includes(dowOf(ds)) && t.created <= ds),
+        dueOn: ds => treatyCol.all().filter(t => t.status === 'active' && tOn(t, ds) && t.created <= ds),
+        hasRec: t => tHas(t), recLabel: t => tLabel(t), recOn: tOn,
         check(id, ds) {   // סימון ביצוע של מחויבות קבועה: היום או עד 7 ימים אחורה, ורק ביום שבו היא חלה
             const t = treatyCol.get(id); if (!t || t.status !== 'active') return ERR('האמנה לא פעילה.');
             if (!DATE_RE.test(ds || '') || ds > localDate() || ds < addDays(localDate(), -7)) return ERR('אפשר לסמן היום או עד 7 ימים אחורה.');
-            if (!t.recur.includes(dowOf(ds))) return ERR('המחויבות לא חלה ביום הזה.');
+            if (!tOn(t, ds)) return ERR('המחויבות לא חלה ביום הזה.');
             t.checks = t.checks.includes(ds) ? t.checks.filter(x => x !== ds) : t.checks.concat([ds]); return treatyCol.save(t) ? { ok: true } : ERR('השמירה נכשלה.');
         },
         compliance(t) {
-            if (!t.recur.length) return null; const end = t.closedAt || localDate(), y = addDays(localDate(), -1); let sched = 0, done = 0;
-            for (let d = t.created; d <= end; d = addDays(d, 1)) { if (!t.recur.includes(dowOf(d))) continue; const ok = t.checks.includes(d); if (d <= y || ok) { sched++; if (ok) done++; } }
+            if (!tHas(t)) return null; const end = t.closedAt || localDate(), y = addDays(localDate(), -1); let sched = 0, done = 0;
+            for (let d = t.created; d <= end; d = addDays(d, 1)) { if (!tOn(t, d)) continue; const ok = t.checks.includes(d); if (d <= y || ok) { sched++; if (ok) done++; } }
             return { scheduled: sched, done, pct: sched >= 3 ? Math.round(done / sched * 100) : null };
         },
         addUpdate(id, text, progress) {
@@ -738,6 +745,127 @@
         });
     }
 
+    // ---------- פרופיל יכולות: כרטיס אישי (דירוג לכל תחום + אישיות) וקורות חיים מתפתחים ----------
+    // דירוג ברירת מחדל (auto) נגזר מהרשומות עצמן; אפשר לדרוס ידנית (manual) או לקבל הערכת AI (ai) לכל תחום בנפרד. הדירוג מבוסס על מה שהוזן ולכן סובייקטיבי: מדד הצהרתי, לא מבחן.
+    const CAP_DOMAINS = {
+        skills: { l: 'כישורים מקצועיים', ic: '🛠️', w: 3, c: '#38bdf8', hint: 'רמה: 1 מתחיל, 2 בסיסי, 3 מוכשר, 4 מומחה, 5 עילית' },
+        experience: { l: 'ניסיון ותעסוקה', ic: '💼', w: 3, c: '#818cf8', hint: 'רמה: משקל התפקיד (1 קטן ... 5 בכיר/משמעותי מאוד)' },
+        education: { l: 'השכלה ותארים', ic: '🎓', w: 2, c: '#a78bfa', hint: 'רמה: 1 תעודה, 2 לימודים/פרה-אקדמי, 3 תואר ראשון, 4 תואר שני, 5 דוקטורט ומעלה' },
+        courses: { l: 'קורסים והכשרות', ic: '📚', w: 2, c: '#34d399', hint: 'רמה: עומק והיקף הקורס (1 הרצאה בודדת ... 5 הכשרה ממושכת ומקיפה)' },
+        languages: { l: 'שפות', ic: '🗣️', w: 2, c: '#fbbf24', hint: 'רמה: 1 מבין מעט, 2 בסיסי, 3 שיחה שוטפת, 4 רהוט, 5 שפת אם/דובר מושלם' },
+        certs: { l: 'רישיונות והסמכות', ic: '📜', w: 1, c: '#f472b6', hint: 'רמה: חשיבות ההסמכה. אפשר להגדיר תפוגה: הסמכה שפגה לא נספרת' },
+        soft: { l: 'כישורים בין-אישיים', ic: '🤝', w: 2, c: '#fb923c', hint: 'הובלה, תקשורת, משא ומתן, הרצאות. רמה 1-5' },
+        community: { l: 'קהילה והתנדבות', ic: '🌱', w: 1, c: '#4ade80', hint: 'רמה: היקף והשפעה (1 חד-פעמי ... 5 מחויבות ממושכת עם השפעה)' },
+        achievements: { l: 'הישגים ופרסים', ic: '🏆', w: 1, c: '#facc15', hint: 'רמה: משקל ההישג (1 קטן ... 5 יוצא דופן)' },
+        physical: { l: 'כושר ונתונים פיזיים', ic: '💪', w: 2, c: '#f87171', hint: 'מדידה עם ערך ויחידה (למשל "ריצת 5 ק״מ" 27 דקות). המדידה האחרונה בכל מדד נספרת; רמה 1-5 לפי הערכתך מול המטרה שלך' }
+    };
+    const CAP_TRAITS = { o: 'פתיחות וסקרנות', c: 'מצפוניות ומשמעת', e: 'מוחצנות', a: 'נעימות ושיתוף פעולה', s: 'יציבות רגשית' };
+    const CAP_TIERS = [[85, 'עילית', '#facc15'], [70, 'מצטיין', '#34d399'], [55, 'מוצק', '#38bdf8'], [40, 'מתפתח', '#a78bfa'], [0, 'בתחילת הדרך', '#94a3b8']];
+    const capTier = v => { const t = CAP_TIERS.find(x => v >= x[0]); return { l: t[1], c: t[2] }; };
+    const numOrNull = v => (v === '' || v == null || !Number.isFinite(Number(v))) ? null : Number(v);
+    const capsCol = collection('caps', p => { const o = base(p); return { id: str(o.id, 40) || uid(), domain: CAP_DOMAINS[o.domain] ? o.domain : 'skills', title: str(o.title, 160), org: str(o.org, 120), level: clampInt(o.level, 1, 5, 3),
+        start: dateOr(o.start, ''), end: dateOr(o.end, ''), current: o.current === true, detail: str(o.detail, 600), hours: clampInt(o.hours, 0, 100000, 0), expires: dateOr(o.expires, ''), value: numOrNull(o.value), unit: str(o.unit, 20) }; });
+    const cleanCapCfg = v => { const o = base(v), pick = (src, keys, f) => { const r = {}; Object.keys(base(src)).filter(k => keys.includes(k)).forEach(k => { const x = f(src[k]); if (x != null) r[k] = x; }); return r; };
+        const rate = x => { const q = base(x), n = numOrNull(q.v); return n == null || n < 0 || n > 100 ? null : { v: Math.round(n), why: str(q.why, 400), at: dateOr(q.at, localDate()) }; }, dk = Object.keys(CAP_DOMAINS), tk = Object.keys(CAP_TRAITS);
+        return { modes: pick(o.modes, dk, x => ['auto', 'manual', 'ai'].includes(x) ? x : null), manual: pick(o.manual, dk, x => { const n = numOrNull(x); return n == null || n < 0 || n > 100 ? null : Math.round(n); }), ai: pick(o.ai, dk, rate),
+            traits: pick(o.traits, tk, x => { const n = numOrNull(x); return n == null || n < 0 || n > 100 ? null : Math.round(n); }), traitsAi: pick(o.traitsAi, tk, rate), summary: { text: str(base(o.summary).text, 900), at: dateOr(base(o.summary).at, '') } }; };
+    const capCfg = () => cleanCapCfg(rd('capcfg', {})), capCfgSave = c => wr('capcfg', cleanCapCfg(c));
+    const capItems = (d, asOf) => { let l = capsCol.all().filter(e => e.domain === d && (!e.start || e.start <= asOf));
+        if (d === 'physical') { const m = {}; l.slice().sort((a, b) => (a.start || '').localeCompare(b.start || '')).forEach(e => { m[e.title.toLowerCase()] = e; }); l = Object.values(m); }
+        return l; };
+    const capEff = (e, asOf) => e.expires && e.expires < asOf ? 0 : e.end && !e.current && dayDiff(asOf, e.end) > 1826 ? e.level * 0.7 : e.level;   // הסמכה שפגה: 0; משהו שהסתיים לפני יותר מ-5 שנים: 70%
+    function capAuto(d, asOf) {   // עומק (ממוצע 3 הרשומות החזקות) × רוחב (מגיע למלא בשלוש רשומות פעילות ומעלה)
+        asOf = asOf || localDate(); const v = capItems(d, asOf).map(e => capEff(e, asOf)).filter(x => x > 0).sort((a, b) => b - a); if (!v.length) return null;
+        const top = v.slice(0, 3), depth = top.reduce((a, b) => a + b, 0) / top.length / 5 * 100; return Math.round(depth * (0.6 + 0.4 * Math.min(1, v.length / 3)));
+    }
+    function capEffective(d) {
+        const c = capCfg(), a = capAuto(d), m = c.modes[d] || 'auto';
+        if (m === 'manual' && c.manual[d] != null) return { v: c.manual[d], src: 'manual', auto: a, mode: m };
+        if (m === 'ai' && c.ai[d]) return { v: c.ai[d].v, src: 'ai', auto: a, mode: m, why: c.ai[d].why, at: c.ai[d].at };
+        return { v: a, src: 'auto', auto: a, mode: m };
+    }
+    function capOverall(asOfAuto) {   // כמו OVR: ממוצע משוקלל של התחומים שיש בהם דירוג; דורש לפחות 3 תחומים
+        const rows = Object.keys(CAP_DOMAINS).map(d => ({ d, v: asOfAuto ? capAuto(d, asOfAuto) : capEffective(d).v })).filter(x => x.v != null); if (rows.length < 3) return null;
+        const tw = rows.reduce((a, x) => a + CAP_DOMAINS[x.d].w, 0); return Math.round(rows.reduce((a, x) => a + CAP_DOMAINS[x.d].w * x.v, 0) / tw);
+    }
+    function capSeries() {   // איך הדירוג הכולל גדל לאורך השנים (לפי נוסחת ברירת המחדל, על רשומות עם תאריך)
+        const ys = capsCol.all().map(e => e.start && Number(e.start.slice(0, 4))).filter(Boolean), td = localDate(), y1 = Number(td.slice(0, 4)); if (!ys.length) return [];
+        const out = []; for (let y = Math.min(...ys); y <= y1; y++) { const asOf = y === y1 ? td : y + '-12-31', v = capOverall(asOf); out.push({ label: String(y), v }); } return out;
+    }
+    function capTraits() {
+        const c = capCfg(), parts = score(monthOf(localDate())).parts, pr = parts.find(x => x.id === 'promises'), dl = parts.find(x => x.id === 'daily'), av = [pr, dl].filter(x => x && x.v != null).map(x => x.v);
+        const auto = { c: av.length ? Math.round(av.reduce((a, b) => a + b, 0) / av.length) : null };   // היחיד שאפשר לגזור מהתנהגות במערכת: ביצוע הבטחות ועקביות יומית
+        return Object.keys(CAP_TRAITS).map(k => { const m = c.traits[k], a = c.traitsAi[k], x = auto[k]; return { k, l: CAP_TRAITS[k], v: m != null ? m : a ? a.v : x != null ? x : null, src: m != null ? 'manual' : a ? 'ai' : x != null ? 'auto' : null, manual: m, ai: a || null, auto: x == null ? null : x }; });
+    }
+    function capStats() {
+        const E = capsCol.all(), td = localDate(), iv = E.filter(e => e.domain === 'experience' && e.start).map(e => [e.start, e.end && !e.current ? e.end : td]).sort((a, b) => a[0].localeCompare(b[0])); let days = 0, cs = null, ce = null;
+        iv.forEach(([a, b]) => { if (cs === null) { cs = a; ce = b; } else if (a <= ce) { if (b > ce) ce = b; } else { days += dayDiff(ce, cs); cs = a; ce = b; } }); if (cs !== null) days += dayDiff(ce, cs);
+        return { langs: E.filter(e => e.domain === 'languages').length, courseHours: E.filter(e => e.domain === 'courses').reduce((a, e) => a + e.hours, 0), expYears: Math.round(days / 365.25 * 10) / 10, certsActive: E.filter(e => e.domain === 'certs' && (!e.expires || e.expires >= td)).length, entries: E.length };
+    }
+    function capTimeline(withGov) {
+        const l = capsCol.all().filter(e => e.domain !== 'physical').map(e => ({ id: e.id, domain: e.domain, title: e.title, org: e.org, start: e.start, end: e.end, current: e.current, level: e.level, detail: e.detail, hours: e.hours, expires: e.expires, gov: false }));
+        if (withGov) ops.all().filter(o => o.status === 'done').forEach(o => l.push({ id: 'op_' + o.id, domain: 'achievements', title: 'מבצע שהושלם: ' + o.title, org: 'ממשל אישי', start: o.doneAt, end: '', current: false, level: o.importance + 2, detail: o.note, hours: 0, expires: '', gov: true }));
+        return l.sort((a, b) => (b.start || '').localeCompare(a.start || ''));
+    }
+    function capAiData() {
+        const L = ['פרופיל יכולות של המשתמש (רשומות לפי תחום):'], E = capsCol.all();
+        Object.keys(CAP_DOMAINS).forEach(d => { const r = E.filter(e => e.domain === d); L.push(CAP_DOMAINS[d].l + ' (דירוג אוטומטי ' + (capAuto(d) == null ? 'אין' : capAuto(d)) + '): ' + (r.length ? r.slice(0, 25).map(e => e.title + (e.org ? ' (' + e.org + ')' : '') + ' רמה ' + e.level + (e.start ? ', ' + e.start.slice(0, 7) : '') + (e.end ? '-' + e.end.slice(0, 7) : e.current ? '-היום' : '') + (e.value != null ? ', ' + e.value + ' ' + e.unit : '') + (e.hours ? ', ' + e.hours + ' שעות' : '')).join('; ') : 'אין רשומות')); });
+        const tr = capTraits(); L.push('אישיות (הערכה עצמית 0-100): ' + tr.map(t => t.l + ' ' + (t.manual != null ? t.manual : 'לא הוזן')).join(', ')); return L.join('\n');
+    }
+    function capApplyAi(j) {   // j: { domains: {key:{rating,why}}, traits: {key:{rating,why}}, summary }
+        const c = capCfg(), td = localDate(), o = base(j); let n = 0;
+        Object.entries(base(o.domains)).forEach(([k, x]) => { const r = numOrNull(base(x).rating); if (CAP_DOMAINS[k] && r != null && r >= 0 && r <= 100 && capItems(k, td).length) { c.ai[k] = { v: Math.round(r), why: str(base(x).why, 400), at: td }; n++; } });
+        Object.entries(base(o.traits)).forEach(([k, x]) => { const r = numOrNull(base(x).rating); if (CAP_TRAITS[k] && r != null && r >= 0 && r <= 100) { c.traitsAi[k] = { v: Math.round(r), why: str(base(x).why, 400), at: td }; n++; } });
+        if (str(o.summary, 900)) c.summary = { text: str(o.summary, 900), at: td };
+        return n || c.summary.text ? (capCfgSave(c) ? { ok: true, n } : { ok: false }) : { ok: false };
+    }
+    const caps = {
+        DOMAINS: CAP_DOMAINS, TRAITS: CAP_TRAITS, tier: capTier, all: capsCol.all, get: capsCol.get, remove: capsCol.remove, cfg: capCfg,
+        save(item) { const c = base(item), d = CAP_DOMAINS[c.domain] ? c.domain : null; if (!d || str(c.title, 160).length < 2) return null; if (c.start && c.end && c.end < c.start) return null; if (d === 'physical' && numOrNull(c.value) == null) return null; return capsCol.save(c); },
+        auto: capAuto, effective: capEffective, overall: () => capOverall(), series: capSeries, traits: capTraits, stats: capStats, timeline: capTimeline, aiData: capAiData, applyAi: capApplyAi,
+        history: title => capsCol.all().filter(e => e.domain === 'physical' && e.title.toLowerCase() === String(title).toLowerCase()).sort((a, b) => (a.start || '').localeCompare(b.start || '')),
+        setMode(d, m) { if (!CAP_DOMAINS[d] || !['auto', 'manual', 'ai'].includes(m)) return false; const c = capCfg(); c.modes[d] = m; return capCfgSave(c); },
+        setManual(d, v) { const n = numOrNull(v); if (!CAP_DOMAINS[d] || n == null || n < 0 || n > 100) return false; const c = capCfg(); c.manual[d] = Math.round(n); c.modes[d] = 'manual'; return capCfgSave(c); },
+        setTrait(k, v) { if (!CAP_TRAITS[k]) return false; const c = capCfg(), n = numOrNull(v); if (n == null) delete c.traits[k]; else if (n < 0 || n > 100) return false; else c.traits[k] = Math.round(n); return capCfgSave(c); }
+    };
+
+    // ---------- סימולטור קריירה ולימודים: מטרה = רשימת דרישות (תחום + שם + רמה נדרשת); הסימולטור משווה לפרופיל היכולות ומחשב מוכנות, פערים ומסלול ----------
+    // הערכות הזמן הן היוריסטיקה גסה (שעות לרמה לפי תחום), לא תחזית. המשתמש קובע שעות פנויות בשבוע ורואה כמה זמן ייקח ואם היעד ריאלי.
+    const CAREER_KINDS = { career: 'קריירה / תפקיד', study: 'לימודים / תואר', job: 'משרה ספציפית', skill: 'מיומנות / שפה' };
+    const HRS_PER_LEVEL = { skills: 120, experience: 300, education: 400, courses: 40, languages: 180, certs: 60, soft: 80, community: 50, achievements: 100, physical: 60 };
+    const cleanReq = v => (Array.isArray(v) ? v : []).slice(0, 25).map(x => { const o = base(x); return { id: str(o.id, 40) || uid(), domain: CAP_DOMAINS[o.domain] ? o.domain : 'skills', title: str(o.title, 120), need: clampInt(o.need, 1, 5, 3), weight: clampInt(o.weight, 1, 3, 2) }; }).filter(r => r.title.length >= 2);
+    const careersCol = collection('careers', p => { const o = base(p); return { id: str(o.id, 40) || uid(), title: str(o.title, 160), kind: CAREER_KINDS[o.kind] ? o.kind : 'career', why: str(o.why, 400), target: dateOr(o.target, ''), reqs: cleanReq(o.reqs), opId: str(o.opId, 40), created: dateOr(o.created, localDate()), ai: str(o.ai, 900) }; });
+    function careerMatch(r) {   // הרשומה הטובה ביותר בתחום שהשם שלה תואם (הכלה דו-כיוונית, בלי רגישות לאותיות)
+        const t = r.title.toLowerCase().trim(), td = localDate();
+        const hit = capsCol.all().filter(e => e.domain === r.domain && e.title.trim() && (e.title.toLowerCase().includes(t) || t.includes(e.title.toLowerCase().trim()))).map(e => ({ e, v: capEff(e, td) })).sort((a, b) => b.v - a.v)[0];
+        return hit && hit.v > 0 ? { id: hit.e.id, title: hit.e.title, level: Math.round(hit.v * 10) / 10 } : null;
+    }
+    function careerSim(id, hpw, order) {
+        const c = careersCol.get(id); if (!c) return null; hpw = Math.max(1, Math.min(60, Number(hpw) || 5)); order = order === 'easy' ? 'easy' : 'important';
+        const rows = c.reqs.map(r => { const m = careerMatch(r), cur = m ? m.level : 0, gap = Math.max(0, r.need - cur), hours = Math.round(gap * HRS_PER_LEVEL[r.domain]); return { req: r, match: m, cur, gap, hours, met: gap === 0, ratio: Math.min(1, cur / r.need) }; });
+        const tw = rows.reduce((a, x) => a + x.req.weight, 0), ready = tw ? Math.round(rows.reduce((a, x) => a + x.req.weight * x.ratio, 0) / tw * 100) : null;
+        const steps = rows.filter(x => !x.met).sort((a, b) => order === 'easy' ? a.hours - b.hours : b.req.weight - a.req.weight || a.hours - b.hours);
+        let acc = 0; steps.forEach(x => { acc += x.hours; x.cumHours = acc; x.eta = addDays(localDate(), Math.ceil(acc / hpw * 7)); });
+        const total = acc, td = localDate(), etaAll = steps.length ? steps[steps.length - 1].eta : td, wk = c.target ? Math.max(0, dayDiff(c.target, td)) / 7 : null;
+        return { career: c, rows, ready, steps, totalHours: total, hpw, eta: etaAll, weeks: Math.round(total / hpw * 10) / 10, feasible: c.target ? etaAll <= c.target : null, neededHpw: c.target && wk > 0 ? Math.ceil(total / wk * 10) / 10 : null, strongest: rows.filter(x => x.match).sort((a, b) => b.ratio * b.req.weight - a.ratio * a.req.weight).slice(0, 3) };
+    }
+    const careers = {
+        KINDS: CAREER_KINDS, HRS: HRS_PER_LEVEL, all: careersCol.all, get: careersCol.get, remove: careersCol.remove, sim: careerSim, match: careerMatch,
+        save(item) { const c = base(item); if (str(c.title, 160).length < 3) return null; const ex = c.id ? careersCol.get(c.id) : null; if (c.target && !(DATE_RE.test(c.target) && c.target > localDate())) return null; return careersCol.save(Object.assign({}, ex || {}, c)); },
+        applyAiReqs(id, j) {   // j: { reqs:[{domain,title,need,weight}], note }
+            const c = careersCol.get(id), o = base(j); if (!c) return { ok: false }; const add = cleanReq(o.reqs).filter(r => !c.reqs.some(q => q.domain === r.domain && q.title.toLowerCase() === r.title.toLowerCase())); if (!add.length) return { ok: false };
+            c.reqs = c.reqs.concat(add).slice(0, 25); if (str(o.note, 900)) c.ai = str(o.note, 900); return careersCol.save(c) ? { ok: true, n: add.length } : { ok: false };
+        },
+        toOperation(id, hpw, order) {   // הופך את המסלול למבצע עם שלבים (שלב לכל פער) ויעד אחרי התאריך המשוער
+            const s = careerSim(id, hpw, order); if (!s) return ERR0('המטרה לא נמצאה.'); const c = s.career;
+            if (c.opId && ops.get(c.opId) && ops.get(c.opId).status === 'active') return ERR0('כבר קיים מבצע פעיל למטרה הזו.');
+            if (s.steps.length < 2) return ERR0('נדרשים לפחות 2 פערים כדי לבנות מבצע (אחרת זו משימה או סוגיה).');
+            const o = ops.save({ title: 'מסלול: ' + c.title, importance: 2, why: 'נבנה מסימולטור הקריירה. ' + s.totalHours + ' שעות משוערות בקצב ' + s.hpw + ' שעות בשבוע.', target: c.target && c.target > s.eta ? c.target : (s.eta > localDate() ? s.eta : ''),
+                stages: s.steps.map(x => ({ text: (x.req.domain === 'languages' ? 'שפה: ' : '') + x.req.title + ': מרמה ' + x.cur + ' ל-' + x.req.need + ' (כ-' + x.hours + ' שעות)', due: x.eta })) });
+            if (!o) return ERR0('יצירת המבצע נכשלה.'); c.opId = o.id; careersCol.save(c); return { ok: true, opId: o.id };
+        }
+    };
+
     // ---------- "במה התקדמתי": סיכום עובדתי של מה שקרה בטווח (לא ציון). מקור אחד גם לדף הסיכום וגם ל-AI ----------
     function progressRange(from, to) {
         const td = localDate(), end = to < td ? to : td, inR = d => !!d && d >= from && d <= to, tp = t => t.pid || ((promises.get(t.promiseId) || {}).pid) || '';
@@ -812,5 +940,5 @@
             + `<text x="50%" y="${o.label ? '47%' : '50%'}" text-anchor="middle" dominant-baseline="central" fill="#f8fafc" font-weight="800" font-size="${fs}" font-family="Rubik,sans-serif">${p}<tspan font-size="${Math.round(fs * 0.6)}">%</tspan></text>`
             + (o.label ? `<text x="50%" y="70%" text-anchor="middle" dominant-baseline="central" fill="#94a3b8" font-size="${Math.round(size * 0.13)}" font-family="Rubik,sans-serif">${esc(o.label)}</text>` : '') + `</svg>`;
     }
-    window.GOV = { VERSION: '0.8.0', esc, uid, pad, localDate, monthOf, addDays, addMonths, monthLabel, daysInMonth, HEB_MONTHS, DATE_RE, MONTH_RE, STATUS, PRIORITY, gradeFor, portfolios: Object.assign({}, portfolios, { save(p) { const r = portfolios.save(p); ministers.ensure(); return r; }, remove(id) { const r = portfolios.remove(id); ministers.ensure(); return r; } }), promises, ideas, daily, term, review, profile, score, lock, exportAll, importAll, rd, wr, TREATY_STATUS, PARTY_KIND, LEVEL, DECISION_STATUS, treaties, decisions, impactItem, optionImpact, nl, gauge, critStatus, wish, DROP_SCALE, dropStats, HORIZON, historyItems, pmProfile, tasks, routines, dayItems, issues: issues, ISSUE_STATUS, events, timelog, ministers, difficulty, history, METHODS, DOW, dowOf, cleanDays, people, relEvents, REL, closeness, contactStatus, relationAlerts, treatyTimeline, SECRET_KEYS, ops, DROP_CATS, DROP_MIN, progressRange, progressSummary };
+    window.GOV = { VERSION: '0.10.0', esc, uid, pad, localDate, monthOf, addDays, addMonths, monthLabel, daysInMonth, HEB_MONTHS, DATE_RE, MONTH_RE, STATUS, PRIORITY, gradeFor, portfolios: Object.assign({}, portfolios, { save(p) { const r = portfolios.save(p); ministers.ensure(); return r; }, remove(id) { const r = portfolios.remove(id); ministers.ensure(); return r; } }), promises, ideas, daily, term, review, profile, score, lock, exportAll, importAll, rd, wr, TREATY_STATUS, PARTY_KIND, LEVEL, DECISION_STATUS, treaties, decisions, impactItem, optionImpact, nl, gauge, critStatus, wish, DROP_SCALE, dropStats, HORIZON, historyItems, pmProfile, tasks, routines, dayItems, issues: issues, ISSUE_STATUS, events, timelog, ministers, difficulty, history, METHODS, DOW, dowOf, cleanDays, people, relEvents, REL, closeness, contactStatus, relationAlerts, treatyTimeline, SECRET_KEYS, ops, caps, careers, DROP_CATS, DROP_MIN, progressRange, progressSummary };
 })();

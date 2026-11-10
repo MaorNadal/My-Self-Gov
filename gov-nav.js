@@ -11,6 +11,8 @@
         { file: 'portfolios.html', icon: '🗂️', title: 'תיקי ממשלה', desc: 'תחומי החיים, השרים, הסוגיות והרעיונות.', sections: [['portfolios-grid', 'התיקים'], ['portfolio-detail', 'פירוט תיק']] },
         { file: 'issues.html', icon: '🔥', title: 'סוגיות', desc: 'סוגיות על הפרק, חומרה וקישור להבטחות ולמשימות.', sections: [['iss-list', 'הסוגיות'], ['iss-detail', 'פירוט']] },
         { file: 'operations.html', icon: '🚀', title: 'מבצעים ורפורמות', desc: 'יחידות גדולות עם שלבים, שמאגדות סוגיות והבטחות. משקל כפול בציון.', sections: [['op-add', 'מבצע חדש'], ['op-list', 'המבצעים'], ['op-detail', 'פירוט']] },
+        { file: 'player.html', icon: '🪪', title: 'כרטיס אישי וקו"ח', desc: 'דירוג יכולות לכל תחום, אישיות וקורות חיים מתפתחים בציר זמן.', sections: [['pl-hero', 'הכרטיס'], ['pl-domains', 'תחומים'], ['pl-traits', 'אישיות'], ['pl-cv', 'קורות חיים']] },
+        { file: 'career.html', icon: '🧭', title: 'סימולטור קריירה', desc: 'מטרה, דרישות, פער מול הכרטיס האישי, מסלול ותאריך משוער.', sections: [['list', 'מטרות'], ['detail', 'סימולציה']] },
         { file: 'cabinet.html', icon: '🏛️', title: 'קבינט', desc: 'החלטות מרכזיות, אפשרויות, השפעה על הבטחות ואמנות, ובדיקת תוצאה בדיעבד.', sections: [['cabinet-new', 'נושא חדש'], ['cabinet-list', 'כל ההחלטות'], ['cabinet-detail', 'דיון'], ['cabinet-insight', 'איכות החלטות']] },
         { file: 'treaties.html', icon: '🤝', title: 'יחסי חוץ', desc: 'אמנות והסכמים עם אנשים, קבוצות וגופים, ומחיר הפרה.', sections: [['treaties-overview', 'תמונת מצב'], ['treaties-form', 'אמנה חדשה'], ['treaties-list', 'לפי צד']] },
         { file: 'people.html', icon: '👥', title: 'יחסים', desc: 'אנשים, יומן יחסים, אינדקס קרבה ואמנות לכל אדם.', sections: [['people-overview', 'תמונת מצב'], ['people-list', 'אנשים'], ['people-detail', 'פירוט']] },
@@ -27,6 +29,7 @@
         { id: 'today', icon: '🗓️', title: 'היום והזמן', files: ['schedule.html', 'tasks.html', 'wish.html'] },
         { id: 'goals', icon: '🎯', title: 'יעדים', files: ['promises.html', 'issues.html', 'operations.html', 'portfolios.html'] },
         { id: 'gov', icon: '🏛️', title: 'ממשל', files: ['cabinet.html', 'treaties.html', 'people.html', 'ministers.html'] },
+        { id: 'me', icon: '🪪', title: 'אני', files: ['player.html', 'career.html'] },
         { id: 'score', files: ['review.html'] }
     ];
     const pg = f => PAGES.find(x => x.file === f);
@@ -73,11 +76,11 @@
     })();
 
     // אם נטען gov-core.js ישן (מטמון, או קובץ שלא הועלה): מציגים הודעה ברורה במקום דף ריק
-    if (!window.GOV || window.GOV.VERSION !== '0.8.0') { window.addEventListener('DOMContentLoaded', () => { document.body.insertAdjacentHTML('afterbegin', '<div style="position:sticky;top:0;z-index:2000;background:#7f1d1d;color:#fff;padding:10px 14px;font:14px Rubik,sans-serif;direction:rtl;text-align:right">⚠️ גרסאות הקבצים לא תואמות (נטען gov-core.js ' + ((window.GOV && window.GOV.VERSION) || 'ישן') + ', נדרש 0.8.0). פתרון: ודא שהעלית את כל הקבצים מה-zip (בעיקר gov-core.js) ל-GitHub, המתן דקה-שתיים, ורענן בלי מטמון (באנדרואיד: הגדרות הדפדפן ← נקה נתוני אתר מטמון בלבד, לא "נתוני אתר" כי זה ימחק את הנתונים!).</div>'); }); }
-    document.write('<script src="gov-vault.js?v=0.8.0"><\/script>');   // כספת המפתחות (נטענת לפני הסנכרון וה-AI)
-    document.write('<script src="gov-sync.js?v=0.8.0"><\/script>');
-    document.write('<script src="gov-ai.js?v=0.8.0"><\/script>');
-    document.write('<script src="gov-review.js?v=0.8.0"><\/script>');    // הערכת ביטול (סוגיות והבטחות)    // שכבת AI משותפת (מפתח Gemini של המשתמש)    // סנכרון לענן: נטען סינכרונית בכל דף, כדי שכל שמירה תופעל אוטומטית
+    if (!window.GOV || window.GOV.VERSION !== '0.10.0') { window.addEventListener('DOMContentLoaded', () => { document.body.insertAdjacentHTML('afterbegin', '<div style="position:sticky;top:0;z-index:2000;background:#7f1d1d;color:#fff;padding:10px 14px;font:14px Rubik,sans-serif;direction:rtl;text-align:right">⚠️ גרסאות הקבצים לא תואמות (נטען gov-core.js ' + ((window.GOV && window.GOV.VERSION) || 'ישן') + ', נדרש 0.10.0). פתרון: ודא שהעלית את כל הקבצים מה-zip (בעיקר gov-core.js) ל-GitHub, המתן דקה-שתיים, ורענן בלי מטמון (באנדרואיד: הגדרות הדפדפן ← נקה נתוני אתר מטמון בלבד, לא "נתוני אתר" כי זה ימחק את הנתונים!).</div>'); }); }
+    document.write('<script src="gov-vault.js?v=0.10.0"><\/script>');   // כספת המפתחות (נטענת לפני הסנכרון וה-AI)
+    document.write('<script src="gov-sync.js?v=0.10.0"><\/script>');
+    document.write('<script src="gov-ai.js?v=0.10.0"><\/script>');
+    document.write('<script src="gov-review.js?v=0.10.0"><\/script>');    // הערכת ביטול (סוגיות והבטחות)    // שכבת AI משותפת (מפתח Gemini של המשתמש)    // סנכרון לענן: נטען סינכרונית בכל דף, כדי שכל שמירה תופעל אוטומטית
 
 
     // מכשיר חדש: קישור חיבור (#setup=...) או gov-config.enc.json. מזינים סיסמה: מפענחים, קובעים אותה כסיסמת כניסה, שומרים את הכתובת והמפתח בכספת ומושכים נתונים.
@@ -119,4 +122,30 @@
             else { document.getElementById('govGateMsg').textContent = 'סיסמה שגויה.'; document.getElementById('govPin').value = ''; }
         });
     }
+})();
+
+/* GOV_REC: טופס תדירות משותף (ימים בשבוע / כל N ימים-שבועות / כל N חודשים) לאמנות. form(px, {rec,days}, optional) ו-read(px) -> {error} | {rec, days} */
+window.GOV_REC = (function () {
+    const G = window.GOV, h = G.esc, $ = id => document.getElementById(id);
+    const kinds = opt => (opt ? '<option value="none">ללא</option>' : '') + Object.entries(G.routines.REC_KINDS).map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
+    function form(px, v, opt) {
+        const rec = v.rec || { kind: 'weekdays', n: 2, unit: 'week', dom: 1, anchor: G.localDate() }, days = v.days || [], k = rec.kind === 'weekdays' && opt && !days.length ? 'none' : rec.kind, anc = rec.anchor || G.localDate();
+        return `<div class="space-y-1.5"><label class="text-[10px] text-slate-400">תדירות${opt ? ' (אופציונלי)' : ''}<select id="${px}Kind" class="g-inp" style="margin:0" onchange="GOV_REC.kind('${px}')">${kinds(opt).replace(`value="${k}"`, `value="${k}" selected`)}</select></label>
+            <div id="${px}W" style="display:${k === 'weekdays' ? '' : 'none'}" class="flex flex-wrap gap-1">${G.DOW.map((d, i) => `<label class="text-xs px-2 py-1 rounded-lg border border-slate-600 cursor-pointer"><input type="checkbox" class="${px}Day accent-amber-400" value="${i}" ${days.includes(i) ? 'checked' : ''}> ${d}׳</label>`).join('')}</div>
+            <div id="${px}I" style="display:${k === 'interval' ? '' : 'none'}" class="grid grid-cols-3 gap-2 items-end"><label class="text-[10px] text-slate-400">כל<input id="${px}N" type="number" min="1" max="90" class="g-inp" style="margin:0" value="${rec.kind === 'interval' ? rec.n : 2}"></label>
+                <label class="text-[10px] text-slate-400">יחידה<select id="${px}U" class="g-inp" style="margin:0"><option value="day"${rec.kind === 'interval' && rec.unit === 'day' ? ' selected' : ''}>ימים</option><option value="week"${rec.kind !== 'interval' || rec.unit === 'week' ? ' selected' : ''}>שבועות</option></select></label>
+                <label class="text-[10px] text-slate-400">החל מתאריך<input id="${px}A" type="date" class="g-inp" style="margin:0" value="${h(anc)}"></label></div>
+            <div id="${px}M" style="display:${k === 'monthly' ? '' : 'none'}" class="grid grid-cols-3 gap-2 items-end"><label class="text-[10px] text-slate-400">כל (חודשים)<input id="${px}Mn" type="number" min="1" max="12" class="g-inp" style="margin:0" value="${rec.kind === 'monthly' ? rec.n : 1}"></label>
+                <label class="text-[10px] text-slate-400">ביום בחודש<input id="${px}D" type="number" min="1" max="31" class="g-inp" style="margin:0" value="${rec.dom || 1}"></label>
+                <label class="text-[10px] text-slate-400">החל מחודש<input id="${px}Ma" type="month" class="g-inp" style="margin:0" value="${h(anc.slice(0, 7))}"></label></div></div>`;
+    }
+    function kind(px) { const k = $(px + 'Kind').value; $(px + 'W').style.display = k === 'weekdays' ? '' : 'none'; $(px + 'I').style.display = k === 'interval' ? '' : 'none'; $(px + 'M').style.display = k === 'monthly' ? '' : 'none'; }
+    function read(px) {
+        const k = $(px + 'Kind').value; if (k === 'none') return { rec: { kind: 'weekdays' }, days: [] };
+        if (k === 'weekdays') return { rec: { kind: 'weekdays' }, days: [...document.querySelectorAll('.' + px + 'Day:checked')].map(c => Number(c.value)) };
+        if (k === 'interval') { const n = Number($(px + 'N').value); if (!(n >= 1 && n <= 90) || !$(px + 'A').value) return { error: 'הזן מספר בין 1 ל-90 ותאריך התחלה.' }; return { rec: { kind: k, n, unit: $(px + 'U').value, anchor: $(px + 'A').value }, days: [] }; }
+        const n = Number($(px + 'Mn').value), d = Number($(px + 'D').value); if (!(n >= 1 && n <= 12) || !(d >= 1 && d <= 31) || !$(px + 'Ma').value) return { error: 'הזן כל כמה חודשים, יום בחודש (1-31) וחודש התחלה.' };
+        return { rec: { kind: k, n, dom: d, anchor: $(px + 'Ma').value + '-01' }, days: [] };
+    }
+    return { form, kind, read };
 })();
