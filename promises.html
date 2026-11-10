@@ -11,8 +11,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.7.0"></script>
-    <script src="gov-nav.js?v=0.7.0"></script>
+    <script src="gov-core.js?v=0.8.0"></script>
+    <script src="gov-nav.js?v=0.8.0"></script>
 
     <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
         <h1 class="text-3xl font-black text-white">📜 הבטחות הממשלה</h1>
@@ -136,15 +136,15 @@
         function setProgress(id, v) { mutate(id, p => { p.progress = Number(v); if (p.progress === 100) { p.status = 'done'; p.doneAt = NOW; } else if (p.progress > 0 && (p.status === 'open' || p.status === 'done')) { p.status = 'progress'; p.doneAt = ''; } else if (p.progress === 0 && p.status === 'progress') p.status = 'open'; }); }
         function setStatus(id, s) { if (s === 'done' && G.tasks.forPromise(id).some(t => !t.done)) { alert('יש משימות פתוחות בהבטחה. השלם אותן, או מחק אותן אם הן כבר לא רלוונטיות.'); render(); return; } mutate(id, p => { p.status = s; if (s === 'done') { p.progress = 100; p.doneAt = NOW; } else p.doneAt = ''; }); }
         function editText(id) { const p = G.promises.get(id); if (!p) return; const t = prompt('נוסח ההבטחה:', p.text); if (t && t.trim().length >= 5) mutate(id, x => { x.text = t.trim(); }); }
-        function dropPromise(id) {
-            const r = prompt('הסרת הבטחה היא החלטה, לא מחיקה. מה הנימוק? (לפחות 10 תווים; הוא יוצג בסיכום החודש)');
-            if (r === null) return;
-            if (r.trim().length < 10) { alert('נימוק קצר מדי. אם אין נימוק אמיתי, ההבטחה פשוט לא בוצעה: סמן אותה "לא בוצעה".'); return; }
-            const x = G.promises.drop(id, r); if (!x.ok) { alert(x.error); return; } if (x.tasks) alert('ההבטחה הוסרה. ' + x.tasks + ' משימות שלה סומנו כמבוטלות (נשמרות בהיסטוריה).'); render();
+        function dropPromise(id) {   // טופס ביטול מוקשח בחלון: סיבה + נימוק 40 תווים + תצוגה מקדימה (GOV_REV.dropForm)
+            closeDrop(); const m = document.createElement('div'); m.id = 'dropModal'; m.style.cssText = 'position:fixed;inset:0;z-index:900;background:#020617cc;display:flex;align-items:center;justify-content:center;padding:14px';
+            m.innerHTML = '<div class="g-card" style="max-width:460px;width:100%;background:#0f172a"><div class="flex justify-between items-center mb-2"><b class="text-white text-sm">הסרת הבטחה</b><button class="g-btn" onclick="closeDrop()">✕</button></div>' + GOV_REV.dropForm('promise', id) + '</div>';
+            m.addEventListener('click', e => { if (e.target === m) closeDrop(); }); document.body.appendChild(m);
         }
+        function closeDrop() { const m = document.getElementById('dropModal'); if (m) m.remove(); }
         function removePromise(id) { if (closed()) return; if (confirm('למחוק את ההבטחה לגמרי? (אם היא פשוט לא בוצעה, עדיף לסמן "לא בוצעה" ולא למחוק)')) { G.promises.remove(id); render(); } }
 
-        function render() { renderTop(); renderAdd(); renderList(); }
+        function render() { closeDrop(); renderTop(); renderAdd(); renderList(); }
         window.addEventListener('DOMContentLoaded', render);
         window.addEventListener('storage', render);
     </script>

@@ -11,8 +11,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.7.0"></script>
-    <script src="gov-nav.js?v=0.7.0"></script>
+    <script src="gov-core.js?v=0.8.0"></script>
+    <script src="gov-nav.js?v=0.8.0"></script>
     <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
         <h1 class="text-3xl font-black text-white">☑️ משימות והיסטוריה</h1>
         <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">כל המשימות במקום אחד: עם הבטחה, עם סוגיה, מאמנה, או עצמאיות. כל מה שהושלם לא נעלם, אלא עובר לטאב ההיסטוריה.</p>
@@ -59,7 +59,7 @@
             const by = t => t.mode === 'by' && t.from <= TODAY && t.due >= TODAY, g = [['⚠️ באיחור', ts.filter(t => t.due && t.due < TODAY), '#f87171'], ['⏳ פתוחות עד תאריך (בטווח הביצוע)', ts.filter(by), '#22d3ee'], ['📅 להיום', ts.filter(t => t.due === TODAY && !by(t)), '#fbbf24'], ['🗓️ בהמשך', ts.filter(t => t.due > TODAY && !by(t)), '#38bdf8'], ['📭 ללא תאריך', ts.filter(t => !t.due), '#94a3b8']];
             $('tk-list').innerHTML = g.map(([l, a, c]) => a.length ? `<div class="g-card" style="border-right:4px solid ${c};padding:12px"><div class="font-bold text-sm mb-2" style="color:${c}">${l} (${a.length})</div><div class="space-y-1">${a.map(t => `<div class="flex items-center gap-2 text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-2.5 py-1.5"><input type="checkbox" onchange="tog('${h(t.id)}')" class="w-4 h-4 accent-emerald-400"><span class="flex-1">${t.time ? '<b class="text-sky-300" dir="ltr">' + h(t.time) + '</b> ' : ''}${h(t.text)}<div class="text-[10px] text-slate-500">${ctx(t)}</div></span>${t.due ? `<span class="text-slate-400">${t.mode === 'by' ? 'עד ' : ''}${h(t.due)}</span>` : ''}<details class="relative"><summary class="cursor-pointer text-sky-300 list-none" title="קישור להבטחות">🔗</summary><div class="absolute left-0 z-10 bg-slate-800 border border-slate-600 rounded-lg p-2 w-56 space-y-1">${t.promiseIds.map(id => G.promises.get(id)).filter(Boolean).map(p => `<div class="flex justify-between gap-1"><span>📜 ${h(p.text.slice(0, 24))}</span><button class="text-rose-400" onclick="unlinkP('${h(t.id)}','${h(p.id)}')">נתק</button></div>`).join('')}<select class="g-inp" style="margin:0" onchange="linkP('${h(t.id)}',this.value)"><option value="">➕ קשר להבטחה…</option>${G.promises.all().filter(p => !t.promiseIds.includes(p.id) && !['done', 'failed', 'dropped'].includes(p.status)).map(p => `<option value="${h(p.id)}">${h(p.text.slice(0, 40))}</option>`).join('')}</select></div></details><button class="text-rose-400" onclick="del('${h(t.id)}')">✕</button></div>`).join('')}</div></div>` : '').join('') || '<div class="g-card text-center text-sm text-slate-400">אין משימות פתוחות.</div>';
         }
-        const KIND = { task: ['☑️', 'משימה'], promise: ['📜', 'הבטחה'], issue: ['🔥', 'סוגיה'], distraction: ['🚫', 'הסחה'], treaty: ['🤝', 'אמנה'], wish: ['🎞️', 'רשימה צדדית'] };
+        const KIND = { task: ['☑️', 'משימה'], promise: ['📜', 'הבטחה'], issue: ['🔥', 'סוגיה'], distraction: ['🚫', 'הסחה'], treaty: ['🤝', 'אמנה'], wish: ['🎞️', 'רשימה צדדית'], op: ['🚀', 'מבצע'] };
         function renderHist() {
             let all = G.historyItems(); const cnt = k => all.filter(x => x.kind === k).length;
             if (kind !== 'all') all = all.filter(x => x.kind === kind); if (q) all = all.filter(x => (x.text + ' ' + (x.note || '')).toLowerCase().includes(q.toLowerCase()));

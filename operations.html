@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מבצעים ורפורמות - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+    <script src="gov-core.js?v=0.8.0"></script>
+    <script src="gov-nav.js?v=0.8.0"></script>
+    <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
+        <h1 class="text-3xl font-black text-white">🚀 מבצעים ורפורמות</h1>
+        <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">יחידה גדולה מסוגיה: שינוי עומק בחיים שמורכב משלבים ומאגד סוגיות והבטחות. בציון הממשלה משקלו כפול (חשיבות 1-3 הופכת למשקל 2/4/6, מול חומרת סוגיה 1/2/3), והוא נמדד לפי אחוז השלבים שבוצעו. מבצע דורש לפחות 2 שלבים; פחות מזה זו סוגיה.</p>
+    </header>
+    <main class="max-w-6xl mx-auto px-4 mt-4 grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <section id="op-list" class="lg:col-span-2 space-y-3">
+            <div id="op-add" class="g-card"><h2 class="font-bold text-white text-sm mb-2">➕ מבצע חדש</h2>
+                <input id="nTitle" class="g-inp" maxlength="200" placeholder="שם המבצע / הרפורמה (למשל: מעבר לשגרת שינה קבועה)">
+                <div class="grid grid-cols-2 gap-2 mt-2"><select id="nImp" class="g-inp" style="margin:0"><option value="3">⭐⭐⭐ חשיבות גבוהה (משקל 6)</option><option value="2" selected>⭐⭐ חשיבות רגילה (משקל 4)</option><option value="1">⭐ חשיבות נמוכה (משקל 2)</option></select>
+                    <select id="nPid" class="g-inp" style="margin:0"></select>
+                    <label class="g-lab col-span-2">יעד לסיום (אופציונלי)<input id="nTgt" type="date" class="g-inp"></label></div>
+                <input id="nWhy" class="g-inp mt-2" maxlength="500" placeholder="למה זה חשוב? (אופציונלי)">
+                <label class="g-lab mt-2">שלבים, שלב בכל שורה (לפחות 2)<textarea id="nStages" rows="4" class="g-inp" placeholder="שלב 1: בדיקות והערכת מצב&#10;שלב 2: תוכנית פעולה&#10;שלב 3: יישום"></textarea></label>
+                <button class="g-btn pri mt-2" onclick="addOp()">הוסף מבצע</button></div>
+            <div id="list" class="space-y-1.5"></div>
+        </section>
+        <section id="op-detail" class="lg:col-span-3"></section>
+    </main>
+    <script>
+        const G = window.GOV, h = G.esc, $ = id => document.getElementById(id), NOW = G.localDate();
+        let sel = (location.hash.match(/^#o=(.+)$/) || [])[1] || null, showOld = false;
+        const pOpts = s => '<option value="">ללא תיק</option>' + G.portfolios.all().map(p => `<option value="${h(p.id)}"${p.id === s ? ' selected' : ''}>${p.icon} ${h(p.name)}</option>`).join('');
+        const stars = n => '⭐'.repeat(n);
+        function renderList() {
+            $('nPid').innerHTML = pOpts('');
+            const all = G.ops.all().sort((a, b) => b.importance - a.importance || a.created.localeCompare(b.created)), act = all.filter(o => o.status === 'active'), old = all.filter(o => o.status !== 'active');
+            const row = o => { const s = G.ops.STATUS[o.status], pg = G.ops.progress(o.id);
+                return `<button type="button" onclick="openO('${h(o.id)}')" class="w-full text-right g-card hover:border-amber-400 transition ${sel === o.id ? 'border-amber-400' : ''}" style="padding:10px"><div class="flex items-center gap-3">${G.gauge(pg.pct, { size: 52 })}<div class="flex-1 min-w-0"><div class="flex items-center gap-2 text-[10px]"><span class="g-chip" style="color:${s.c};border-color:${s.c}55;background:${s.c}1a">${s.l}</span><span>${stars(o.importance)}</span></div><div class="text-sm font-bold text-white truncate mt-0.5">${h(o.title)}</div>
+                    <div class="text-[10px] text-slate-500">${(G.portfolios.get(o.pid) || { icon: '📁' }).icon} • שלבים ${pg.done}/${pg.n} • ${o.issueIds.length} סוגיות • ${o.promiseIds.length} הבטחות${o.target ? ' • יעד ' + h(o.target) : ''}</div></div></div></button>`; };
+            $('list').innerHTML = (act.map(row).join('') || '<p class="text-xs text-slate-500 text-center">אין מבצעים פעילים.</p>') + (old.length ? `<button class="text-[11px] text-sky-300 underline" onclick="showOld=!showOld;renderList()">${showOld ? 'הסתר' : 'הצג'} הושלמו ובוטלו (${old.length})</button>${showOld ? old.map(row).join('') : ''}` : '');
+        }
+        function addOp() {
+            const st = $('nStages').value.split('\n').map(x => x.trim()).filter(x => x.length >= 2);
+            if ($('nTitle').value.trim().length < 3) { alert('נסח את שם המבצע (לפחות 3 תווים).'); return; } if (st.length < 2) { alert('מבצע דורש לפחות 2 שלבים (שלב בכל שורה). אם יש רק שלב אחד, זו סוגיה או משימה.'); return; }
+            const o = G.ops.save({ title: $('nTitle').value.trim(), importance: $('nImp').value, pid: $('nPid').value, why: $('nWhy').value, target: $('nTgt').value, stages: st });
+            if (!o) { alert('לא ניתן לשמור. אם הזנת יעד, הוא חייב להיות אחרי היום.'); return; }
+            ['nTitle', 'nWhy', 'nTgt', 'nStages'].forEach(i => { $(i).value = ''; }); openO(o.id);
+        }
+        function openO(id) { sel = id; history.replaceState(null, '', '#o=' + id); render(); if (innerWidth < 1024) $('op-detail').scrollIntoView({ behavior: 'smooth' }); }
+        function renderDetail() {
+            const o = sel && G.ops.get(sel), box = $('op-detail');
+            if (!o) { box.innerHTML = '<div class="g-card text-center text-sm text-slate-400">בחר מבצע כדי לנהל את שלביו ולקשר לו סוגיות והבטחות, או הוסף מבצע חדש.</div>'; return; }
+            const s = G.ops.STATUS[o.status], act = o.status === 'active', drp = o.status === 'dropped', pg = G.ops.progress(o.id);
+            const left = o.target ? Math.round((Date.parse(o.target) - Date.parse(NOW)) / 864e5) : null;
+            const iss = o.issueIds.map(i => G.issues.get(i)).filter(Boolean), prs = o.promiseIds.map(i => G.promises.get(i)).filter(Boolean);
+            const candI = G.issues.all().filter(i => !o.issueIds.includes(i.id) && ['open', 'handling'].includes(i.status)), candP = G.promises.all().filter(p => !o.promiseIds.includes(p.id) && !['dropped', 'failed'].includes(p.status) && p.month >= G.addMonths(G.monthOf(NOW), -1));
+            const stage = (q, k) => `<div class="flex items-center gap-2 text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-2.5 py-1.5"><input type="checkbox" ${q.done ? 'checked' : ''} ${act ? '' : 'disabled'} onchange="togS('${h(q.id)}',this.checked)" class="accent-emerald-400"><span class="text-slate-500 w-5">${k + 1}.</span><span class="flex-1 ${q.done ? 'line-through text-slate-500' : ''}">${h(q.text)}</span>${q.due ? `<span class="text-[10px] ${!q.done && q.due < NOW ? 'text-rose-400' : 'text-slate-500'}">${h(q.due)}</span>` : ''}${q.done ? `<span class="text-[10px] text-emerald-400">${h(q.doneAt)}</span>` : ''}</div>`;
+            box.innerHTML = `<div class="g-card space-y-4" style="border-right:4px solid ${s.c}">
+                <div class="flex items-center gap-4">${G.gauge(pg.pct, { size: 84, label: 'שלבים' })}<div class="flex-1"><div class="flex flex-wrap gap-2 items-center"><span class="g-chip" style="color:${s.c};border-color:${s.c}55;background:${s.c}1a">${s.l}</span><span class="text-sm">${stars(o.importance)} <span class="text-[10px] text-slate-400">משקל בציון ${G.ops.WEIGHT * o.importance}</span></span></div>
+                    <h2 class="text-lg font-black text-white mt-1">${h(o.title)}</h2><div class="text-[11px] text-slate-400">${(G.portfolios.get(o.pid) || { icon: '📁', name: 'ללא תיק' }).icon} ${h((G.portfolios.get(o.pid) || { name: 'ללא תיק' }).name)} • נפתח ${h(o.created)}${o.target ? ' • יעד ' + h(o.target) + (act ? (left < 0 ? ' (<span class="text-rose-400">באיחור ' + (-left) + ' ימים</span>)' : ' (עוד ' + left + ' ימים)') : '') : ''}</div>
+                    ${o.why ? `<div class="text-xs text-slate-300 mt-1">${G.nl(o.why)}</div>` : ''}</div></div>
+                ${act && pg.n && !o.target && (Date.parse(NOW) - Date.parse(o.created)) / 864e5 < 14 ? '<p class="text-[10px] text-slate-500">ב-14 הימים הראשונים המבצע עוד לא נכנס לציון (כדי שלא יקבל 100 בחינם).</p>' : ''}
+                <div><div class="text-xs font-bold text-slate-300 mb-1.5">🪜 שלבים (${pg.done}/${pg.n})</div><div class="space-y-1">${o.stages.map(stage).join('')}</div>
+                    ${act ? `<div class="flex flex-wrap gap-2 mt-2"><input id="sT" class="g-inp flex-1 min-w-[10rem]" style="margin:0" maxlength="200" placeholder="שלב נוסף…" onkeydown="if(event.key==='Enter')addS()"><input id="sD" type="date" class="g-inp" style="margin:0;width:auto"><button class="g-btn" onclick="addS()">הוסף</button></div>` : ''}</div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="rounded-xl border border-slate-700 bg-slate-900/40 p-2.5"><div class="text-xs font-bold text-slate-300 mb-1.5">🔥 סוגיות במבצע (${pg.issuesResolved}/${pg.issues} נסגרו)</div><div class="space-y-1">${iss.map(i => `<div class="flex items-center gap-2 text-xs"><a class="flex-1 text-amber-300 underline" href="issues.html#i=${h(i.id)}">${h(i.title.slice(0, 60))}</a><span class="text-[10px] text-slate-500">${G.ISSUE_STATUS[i.status].l}</span>${act ? `<button class="text-rose-400" onclick="lk('issue','${h(i.id)}',false)" title="נתק">✕</button>` : ''}</div>`).join('') || '<p class="text-[11px] text-slate-500">אין.</p>'}</div>
+                        ${act ? `<div class="flex gap-1 mt-2"><select id="aI" class="g-inp flex-1" style="margin:0"><option value="">קשר סוגיה…</option>${candI.map(i => `<option value="${h(i.id)}">${h(i.title.slice(0, 50))}</option>`).join('')}</select><button class="g-btn" onclick="if($('aI').value)lk('issue',$('aI').value,true)">קשר</button></div>` : ''}</div>
+                    <div class="rounded-xl border border-slate-700 bg-slate-900/40 p-2.5"><div class="text-xs font-bold text-slate-300 mb-1.5">📜 הבטחות במבצע (${pg.promisesDone}/${pg.promises} בוצעו)</div><div class="space-y-1">${prs.map(p => `<div class="flex items-center gap-2 text-xs"><span class="flex-1">${h(p.text.slice(0, 60))}</span><span class="text-[10px] text-slate-500">${h(p.month)} • ${p.progress}%</span>${act ? `<button class="text-rose-400" onclick="lk('promise','${h(p.id)}',false)" title="נתק">✕</button>` : ''}</div>`).join('') || '<p class="text-[11px] text-slate-500">אין.</p>'}</div>
+                        ${act ? `<div class="flex gap-1 mt-2"><select id="aP" class="g-inp flex-1" style="margin:0"><option value="">קשר הבטחה…</option>${candP.map(p => `<option value="${h(p.id)}">${h(p.text.slice(0, 50))} (${h(p.month)})</option>`).join('')}</select><button class="g-btn" onclick="if($('aP').value)lk('promise',$('aP').value,true)">קשר</button></div>` : ''}</div></div>
+                <p class="text-[10px] text-slate-500">הסוגיות וההבטחות שבמבצע ממשיכות להיספר גם בנפרד (חפיפה מכוונת: המבצע נמדד לפי שלביו). ביטול מבצע לא מבטל אותן.</p>
+                ${act ? `<div class="rounded-xl border border-slate-700 bg-slate-900/40 p-3"><h3 class="font-bold text-slate-200 text-sm mb-2">✏️ עריכה</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-2"><label class="g-lab md:col-span-2">שם<input id="eT" class="g-inp" maxlength="200" value="${h(o.title)}"></label>
+                    <label class="g-lab">חשיבות<select id="eI" class="g-inp">${[3, 2, 1].map(n => `<option value="${n}"${n === o.importance ? ' selected' : ''}>${stars(n)}</option>`).join('')}</select></label><label class="g-lab">תיק<select id="eP" class="g-inp">${pOpts(o.pid)}</select></label>
+                    <label class="g-lab">יעד<input id="eTg" type="date" class="g-inp" value="${h(o.target)}"></label><label class="g-lab">למה<input id="eW" class="g-inp" maxlength="500" value="${h(o.why)}"></label></div><button class="g-btn mt-2" onclick="saveO()">💾 שמור</button> <button class="g-btn red mt-2" onclick="delO()">🗑️ מחק (רק אם נפתח בטעות)</button></div>` : ''}
+                ${drp ? GOV_REV.html('op', o.id) : GOV_REV.restoresLog(o)}
+                ${o.status === 'done' ? `<div class="rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-3 text-xs"><b class="text-emerald-300">✅ הושלם ב-${h(o.doneAt)}</b><div class="text-slate-300 mt-1">${G.nl(o.note)}</div></div>` : ''}
+                ${act ? GOV_REV.dropForm('op', o.id) : ''}
+                ${act ? `<div class="rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-3 space-y-2"><h3 class="font-bold text-emerald-300 text-sm">✅ סיום המבצע</h3><label class="g-lab">מה הושג? (לפחות 10 תווים)<textarea id="cN" rows="2" maxlength="400" class="g-inp"></textarea></label><button class="g-btn ok" onclick="completeO()">סיים מבצע</button><p class="text-[10px] text-slate-500">אפשר לסיים רק כשכל השלבים בוצעו. מבצע שהושלם נעול ועובר להיסטוריה.</p></div>` : ''}
+            </div>`;
+        }
+        function togS(sid, on) { G.ops.setStage(sel, sid, on); render(); }
+        function addS() { const t = $('sT').value.trim(); if (t.length < 2) { alert('נסח את השלב (לפחות 2 תווים).'); return; } G.ops.addStage(sel, t, $('sD').value); render(); }
+        function lk(kind, id, on) { G.ops.link(sel, kind, id, on); render(); }
+        function saveO() { const o = G.ops.get(sel); if (!o) return; o.title = $('eT').value; o.importance = $('eI').value; o.pid = $('eP').value; o.target = $('eTg').value; o.why = $('eW').value; if (!G.ops.save(o)) { alert('לא ניתן לשמור: שם קצר מדי או יעד שלא אחרי תאריך היצירה.'); return; } render(); }
+        function completeO() { const r = G.ops.complete(sel, $('cN').value); if (!r.ok) { alert(r.error); return; } if (r.openIssues) alert('המבצע הושלם. שים לב: ' + r.openIssues + ' סוגיות מקושרות עדיין פתוחות (הן ממשיכות בנפרד).'); showOld = true; render(); }
+        function delO() { if (confirm('למחוק את המבצע לגמרי? מחיקה מיועדת רק למבצע שנפתח בטעות; אחרת עדיף לבטל בנימוק כדי שיישמר בהיסטוריה.')) { G.ops.remove(sel); sel = null; history.replaceState(null, '', location.pathname); render(); } }
+        function render() { renderList(); renderDetail(); }
+        window.addEventListener('hashchange', () => { sel = (location.hash.match(/^#o=(.+)$/) || [])[1] || null; render(); }); window.addEventListener('DOMContentLoaded', render); window.addEventListener('storage', render);
+    </script>
+</body>
+</html>

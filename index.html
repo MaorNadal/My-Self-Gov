@@ -12,8 +12,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.7.0"></script>
-    <script src="gov-nav.js?v=0.7.0"></script>
+    <script src="gov-core.js?v=0.8.0"></script>
+    <script src="gov-nav.js?v=0.8.0"></script>
 
     <header class="max-w-6xl mx-auto px-4 pt-8 pb-4">
         <div class="text-[11px] font-bold text-amber-400 tracking-wider">☀️ לוח הבקרה של הממשלה</div>
@@ -202,19 +202,35 @@
         // ---------- שגרות (משימות בסיס): עוברות בירושה בין ממשלות ----------
         let editR = null;
         function renderRoutines() {
-            const rs = G.routines.active(), r = editR && G.routines.get(editR), v = r || { text: '', pid: '', days: [0, 1, 2, 3, 4, 5, 6] };
-            $('routinesBox').innerHTML = `<h2 class="font-bold text-white text-sm mb-1">🔁 שגרות הממשלה</h2><p class="text-[10px] text-slate-500 mb-2">משימות בסיס שעוברות בירושה מממשלה לממשלה, עד שתשנה אותן. הן מופיעות אוטומטית בסדר היום ונספרות בעקביות היומית. שינוי ימים יוצר גרסה חדשה מהיום, כדי שההיסטוריה לא תשוכתב.</p>
-                <div class="space-y-1.5 mb-3">${rs.map(x => `<div class="bg-slate-900/70 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs"><div class="flex items-center gap-2"><span class="flex-1">${pIcon(x.pid)} ${h(x.text)}</span><button class="text-sky-300" onclick="editR='${h(x.id)}';renderRoutines()">✏️</button><button class="text-rose-400" onclick="stopRoutine('${h(x.id)}')" title="הפסק שגרה">⏹</button></div><div class="text-[10px] text-slate-500">${h(G.routines.dayLabel(x.days))}${x.time ? ' • ' + h(x.time) : ''}${x.treatyId ? ' • 🤝 מאמנה' : ''} • מאז ${h(x.since)}</div></div>`).join('') || '<p class="text-xs text-slate-500">עוד אין שגרות.</p>'}</div>
+            const rs = G.routines.active(), r = editR && G.routines.get(editR), v = r || { text: '', pid: '', days: [0, 1, 2, 3, 4, 5, 6], rec: { kind: 'weekdays', n: 1, unit: 'week', dom: new Date().getDate(), anchor: TODAY } };
+            $('routinesBox').innerHTML = `<h2 class="font-bold text-white text-sm mb-1">🔁 שגרות הממשלה</h2><p class="text-[10px] text-slate-500 mb-2">משימות בסיס שעוברות בירושה מממשלה לממשלה, עד שתשנה אותן. הן מופיעות אוטומטית בסדר היום ונספרות בעקביות היומית. שינוי תדירות יוצר גרסה חדשה מהיום, כדי שההיסטוריה לא תשוכתב.</p>
+                <div class="space-y-1.5 mb-3">${rs.map(x => `<div class="bg-slate-900/70 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs"><div class="flex items-center gap-2"><span class="flex-1">${pIcon(x.pid)} ${h(x.text)}</span><button class="text-sky-300" onclick="editR='${h(x.id)}';renderRoutines()">✏️</button><button class="text-rose-400" onclick="stopRoutine('${h(x.id)}')" title="הפסק שגרה">⏹</button></div><div class="text-[10px] text-slate-500">🔁 ${h(G.routines.recLabel(x))}${x.time ? ' • ' + h(x.time) : ''}${x.rec.kind !== 'weekdays' ? ' • הבאה: ' + h(G.routines.nextDue(x) || '—') : ''}${x.treatyId ? ' • 🤝 מאמנה' : ''} • מאז ${h(x.since)}</div></div>`).join('') || '<p class="text-xs text-slate-500">עוד אין שגרות.</p>'}</div>
                 <div class="rounded-xl border border-dashed border-slate-600 p-2.5 space-y-2"><div class="text-[11px] font-bold text-slate-300">${r ? '✏️ עריכת שגרה' : '➕ שגרה חדשה'}</div><input id="rText" class="g-inp" style="margin:0" maxlength="200" placeholder="למשל: 20 דקות קריאה" value="${h(v.text)}">
                     <div class="grid grid-cols-2 gap-2"><select id="rPid" class="g-inp" style="margin:0">${pOpts(v.pid)}</select><label class="text-[10px] text-slate-400">שעה (אופציונלי)<input id="rTime" type="time" class="g-inp" style="margin:0" value="${h(v.time || '')}"></label></div>
-                    <div class="flex flex-wrap gap-1">${G.DOW.map((d, k) => `<label class="text-xs px-2 py-1 rounded-lg border border-slate-600 cursor-pointer"><input type="checkbox" class="rDay accent-amber-400" value="${k}" ${v.days.includes(k) ? 'checked' : ''}> ${d}׳</label>`).join('')}</div>
-                    <div class="flex flex-wrap gap-1 text-[10px]"><button type="button" class="g-btn" onclick="setDays([0,1,2,3,4,5,6])">כל יום</button><button type="button" class="g-btn" onclick="setDays([0,1,2,3,4])">א׳-ה׳</button><button type="button" class="g-btn" onclick="setDays([5,6])">סוף שבוע</button></div>
+                    <label class="text-[10px] text-slate-400">תדירות<select id="rKind" class="g-inp" style="margin:0" onchange="recKind()">${Object.entries(G.routines.REC_KINDS).map(([k, l]) => `<option value="${k}"${v.rec.kind === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+                    <div id="rpW" style="display:${v.rec.kind === 'weekdays' ? '' : 'none'}"><div class="flex flex-wrap gap-1">${G.DOW.map((d, k) => `<label class="text-xs px-2 py-1 rounded-lg border border-slate-600 cursor-pointer"><input type="checkbox" class="rDay accent-amber-400" value="${k}" ${v.days.includes(k) ? 'checked' : ''}> ${d}׳</label>`).join('')}</div>
+                        <div class="flex flex-wrap gap-1 text-[10px] mt-1"><button type="button" class="g-btn" onclick="setDays([0,1,2,3,4,5,6])">כל יום</button><button type="button" class="g-btn" onclick="setDays([0,1,2,3,4])">א׳-ה׳</button><button type="button" class="g-btn" onclick="setDays([5,6])">סוף שבוע</button></div></div>
+                    <div id="rpI" style="display:${v.rec.kind === 'interval' ? '' : 'none'}"><div class="grid grid-cols-3 gap-2 items-end"><label class="text-[10px] text-slate-400">כל<input id="rN" type="number" min="1" max="90" class="g-inp" style="margin:0" value="${v.rec.kind === 'interval' ? v.rec.n : 2}"></label>
+                        <label class="text-[10px] text-slate-400">יחידה<select id="rU" class="g-inp" style="margin:0"><option value="day"${v.rec.unit === 'day' && v.rec.kind === 'interval' ? ' selected' : ''}>ימים</option><option value="week"${v.rec.unit === 'week' || v.rec.kind !== 'interval' ? ' selected' : ''}>שבועות</option></select></label>
+                        <label class="text-[10px] text-slate-400">החל מתאריך<input id="rA" type="date" class="g-inp" style="margin:0" value="${h(v.rec.anchor)}"></label></div>
+                        <div class="flex flex-wrap gap-1 text-[10px] mt-1"><button type="button" class="g-btn" onclick="recPreset(2,'week')">כל שבועיים</button><button type="button" class="g-btn" onclick="recPreset(3,'week')">כל 3 שבועות</button><button type="button" class="g-btn" onclick="recPreset(4,'week')">כל 4 שבועות</button><button type="button" class="g-btn" onclick="recPreset(10,'day')">כל 10 ימים</button></div></div>
+                    <div id="rpM" style="display:${v.rec.kind === 'monthly' ? '' : 'none'}"><div class="grid grid-cols-3 gap-2 items-end"><label class="text-[10px] text-slate-400">כל (חודשים)<input id="rMn" type="number" min="1" max="12" class="g-inp" style="margin:0" value="${v.rec.kind === 'monthly' ? v.rec.n : 1}"></label>
+                        <label class="text-[10px] text-slate-400">ביום בחודש<input id="rD" type="number" min="1" max="31" class="g-inp" style="margin:0" value="${v.rec.dom}"></label>
+                        <label class="text-[10px] text-slate-400">החל מחודש<input id="rMa" type="month" class="g-inp" style="margin:0" value="${h(v.rec.anchor.slice(0, 7))}"></label></div>
+                        <div class="text-[10px] text-slate-500 mt-1">ביום 31 בחודש קצר השגרה תיפול על היום האחרון של החודש. מועדים: כל חודש = 1, כל חודשיים = 2, רבעון = 3.</div></div>
                     <div class="flex gap-2"><button class="g-btn pri" onclick="saveRoutine()">💾 ${r ? 'שמור' : 'הוסף'}</button>${r ? '<button class="g-btn" onclick="editR=null;renderRoutines()">ביטול</button>' : ''}</div></div>`;
         }
         function setDays(a) { document.querySelectorAll('.rDay').forEach(c => { c.checked = a.includes(Number(c.value)); }); }
+        function recKind() { const k = $('rKind').value; $('rpW').style.display = k === 'weekdays' ? '' : 'none'; $('rpI').style.display = k === 'interval' ? '' : 'none'; $('rpM').style.display = k === 'monthly' ? '' : 'none'; }
+        function recPreset(n, u) { $('rN').value = n; $('rU').value = u; }
         function saveRoutine() {
-            const days = [...document.querySelectorAll('.rDay:checked')].map(c => Number(c.value)); if ($('rText').value.trim().length < 2) { alert('נסח את השגרה (לפחות 2 תווים).'); return; } if (!days.length) { alert('בחר לפחות יום אחד.'); return; }
-            G.routines.save({ id: editR, text: $('rText').value.trim(), pid: $('rPid').value, days, time: $('rTime').value }); editR = null; renderRoutines(); renderAgenda(); renderScore();
+            if ($('rText').value.trim().length < 2) { alert('נסח את השגרה (לפחות 2 תווים).'); return; }
+            const kind = $('rKind').value, days = [...document.querySelectorAll('.rDay:checked')].map(c => Number(c.value)); let rec = { kind };
+            if (kind === 'weekdays') { if (!days.length) { alert('בחר לפחות יום אחד.'); return; } }
+            else if (kind === 'interval') { const n = Number($('rN').value); if (!(n >= 1 && n <= 90) || !$('rA').value) { alert('הזן מספר בין 1 ל-90 ותאריך התחלה.'); return; } rec = { kind, n, unit: $('rU').value, anchor: $('rA').value }; }
+            else { const n = Number($('rMn').value), d = Number($('rD').value); if (!(n >= 1 && n <= 12) || !(d >= 1 && d <= 31) || !$('rMa').value) { alert('הזן כל כמה חודשים, יום בחודש (1-31) וחודש התחלה.'); return; } rec = { kind, n, dom: d, anchor: $('rMa').value + '-01' }; }
+            if (!G.routines.save({ id: editR, text: $('rText').value.trim(), pid: $('rPid').value, days, time: $('rTime').value, rec })) { alert('לא ניתן לשמור את השגרה.'); return; }
+            editR = null; renderRoutines(); renderAgenda(); renderScore();
         }
         function stopRoutine(id) { const r = prompt('למה להפסיק את השגרה? (לפחות 5 תווים; השגרה נשמרת בהיסטוריה)'); if (r === null) return; if (!G.routines.stop(id, r)) { alert('הנימוק קצר מדי.'); return; } renderRoutines(); renderDaily(); renderAgenda(); renderScore(); }
 
@@ -275,7 +291,7 @@
         window.addEventListener('gov:sync', () => { if (!document.activeElement || !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) renderCloud(); });
 
         function renderScore() {
-            const sc = G.score(MK), names = { promises: 'הבטחות', daily: 'עקביות יומית', self: 'הערכה עצמית' };
+            const sc = G.score(MK), names = { promises: 'הבטחות', daily: 'עקביות יומית', self: 'הערכה עצמית', issues: 'סוגיות ומבצעים' };
             const g = sc.total != null ? G.gradeFor(sc.total) : null, day = Number(TODAY.slice(8)), dim = G.daysInMonth(MK);
             $('scoreBox').innerHTML = `<div class="flex items-center justify-between mb-3"><h2 class="font-bold text-white text-sm">📊 ציון הממשלה (עד כה)</h2><a href="review.html" class="text-[11px] text-amber-400 hover:underline">פירוט ←</a></div>
                 <div class="text-center mb-3">${g ? ring(sc.total, g) + `<div class="text-xs text-slate-400 -mt-1">${sc.total} מתוך 100</div>` : '<div class="text-sm text-slate-400 py-3">אין עדיין מספיק נתונים לציון</div>'}</div>

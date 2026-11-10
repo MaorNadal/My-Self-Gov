@@ -6,7 +6,7 @@
     const HEB_MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
     const DATE_RE = /^\d{4}-\d{2}-\d{2}$/, MONTH_RE = /^\d{4}-\d{2}$/;
     const MIN_PROMISES = 3, MIN_DAILY_DAYS = 5;                 // ספי נתונים מינימליים לפני שניתן ציון
-    const W = { promises: 60, daily: 25, self: 15 }, ISSUES_SHARE = 20;   // כשיש סוגיות ארוכות טווח הן 20% מהציון והשאר שומרים על היחס ביניהם (48/20/12/20); בלעדיהן 60/25/15. תמיד סכום 100
+    const W = { promises: 60, daily: 25, self: 15 }, ISSUES_SHARE = 20, OPS_WEIGHT = 2;   // כשיש סוגיות ארוכות טווח הן 20% מהציון והשאר שומרים על היחס ביניהם (48/20/12/20); בלעדיהן 60/25/15. תמיד סכום 100
     const SECRET_KEYS = [PREFIX + 'lock', PREFIX + 'sync', PREFIX + 'ai', PREFIX + 'vault'];   // לעולם לא מיוצאים, לא מיובאים ולא מסונכרנים (נעילה, הגדרות ענן, מפתח Gemini)            // משקלי הציון החודשי
 
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -64,6 +64,8 @@
             log: (Array.isArray(o.log) ? o.log : []).slice(-400).map(x => { const q = base(x); return { at: dateOr(q.at, localDate()), value: clampInt(q.value, 1, 100000, 1) }; }) }; };
     // הערכת ביטול: ביטול אינו בהכרח שלילי. סולם 1-5: 1 שגויה ומזיקה ... 3 ניטרלית ... 5 נכונה ומועילה מאוד. by: pm (ראש הממשלה = המשתמש) או ai
     const DROP_SCALE = { 1: { l: 'שגויה ומזיקה', c: '#f87171' }, 2: { l: 'כנראה שגויה', c: '#fb923c' }, 3: { l: 'ניטרלית / לא ברור', c: '#fbbf24' }, 4: { l: 'נכונה', c: '#a3e635' }, 5: { l: 'נכונה ומועילה מאוד', c: '#34d399' } };
+    const DROP_MIN = 40, DROP_CATS = { solved: 'הבעיה נפתרה מעצמה', irrelevant: 'איבדה רלוונטיות', priorities: 'שינוי סדרי עדיפויות', impossible: 'לא ניתנת לביצוע', other: 'אחר' };
+    const cleanRestores = v => (Array.isArray(v) ? v : []).slice(-20).map(x => { const q = base(x); return { at: dateOr(q.at, localDate()), note: str(q.note, 600) }; });
     const cleanReviews = v => (Array.isArray(v) ? v : []).slice(-20).map(x => { const q = base(x); return { at: dateOr(q.at, localDate()), by: q.by === 'ai' ? 'ai' : 'pm', rating: clampInt(q.rating, 1, 5, 3), note: str(q.note, 1500), model: str(q.model, 60) }; });
     function addReview(entity, col, o) {
         if (!entity) return ERR0('הפריט לא נמצא.'); if (entity.status !== 'dropped') return ERR0('אפשר להעריך רק פריט שבוטל.');
@@ -74,7 +76,7 @@
     const promises = collection('promises', p => {
         const o = base(p), status = STATUS[o.status] ? o.status : 'open';
         return { id: str(o.id, 40) || uid(), month: MONTH_RE.test(o.month || '') ? o.month : monthOf(localDate()), pid: str(o.pid, 40), text: str(o.text, 300), why: str(o.why, 300), measure: str(o.measure, 300),
-            priority: clampInt(o.priority, 1, 3, 2), status, crit: cleanCrit(o.crit), progress: status === 'done' ? 100 : clampInt(o.progress, 0, 100, 0), created: dateOr(o.created, localDate()), doneAt: dateOr(o.doneAt, ''), dropReason: str(o.dropReason, 300), droppedAt: dateOr(o.droppedAt, ''), dropIssueId: str(o.dropIssueId, 40), reviews: cleanReviews(o.reviews), carried: o.carried === true };
+            priority: clampInt(o.priority, 1, 3, 2), status, crit: cleanCrit(o.crit), progress: status === 'done' ? 100 : clampInt(o.progress, 0, 100, 0), created: dateOr(o.created, localDate()), doneAt: dateOr(o.doneAt, ''), dropReason: str(o.dropReason, 400), dropCat: DROP_CATS[o.dropCat] ? o.dropCat : '', droppedAt: dateOr(o.droppedAt, ''), dropIssueId: str(o.dropIssueId, 40), restores: cleanRestores(o.restores), reviews: cleanReviews(o.reviews), carried: o.carried === true };
     });
     function critStatus(p) {
         const c = p.crit; if (!c || c.type === 'none') return null; const td = localDate();
@@ -97,7 +99,7 @@
     const HORIZON = { month: 'חודשית', half: 'חצי שנתית', year: 'שנתית', date: 'עד תאריך יעד', ongoing: 'קבועה (ללא יעד)' };
     const issuesCol = collection('issues', p => { const o = base(p); return { id: str(o.id, 40) || uid(), title: str(o.title, 200), pid: str(o.pid, 40), severity: clampInt(o.severity, 1, 3, 2), status: ISSUE_STATUS[o.status] ? o.status : 'open',
         detail: str(o.detail, 1500), promiseIds: idList(o.promiseIds, 10), created: dateOr(o.created, localDate()), resolvedAt: dateOr(o.resolvedAt, ''), note: str(o.note, 800),
-        dropReason: str(o.dropReason, 400), droppedAt: dateOr(o.droppedAt, ''), reviews: cleanReviews(o.reviews), kind: o.kind === 'distraction' ? 'distraction' : 'issue', horizon: HORIZON[o.horizon] ? o.horizon : 'month', target: dateOr(o.target, '') }; });
+        dropReason: str(o.dropReason, 400), dropCat: DROP_CATS[o.dropCat] ? o.dropCat : '', droppedAt: dateOr(o.droppedAt, ''), restores: cleanRestores(o.restores), reviews: cleanReviews(o.reviews), kind: o.kind === 'distraction' ? 'distraction' : 'issue', horizon: HORIZON[o.horizon] ? o.horizon : 'month', target: dateOr(o.target, '') }; });
     const issues = {
         all: issuesCol.all, get: issuesCol.get,
         save(item) {
@@ -119,16 +121,30 @@
             const openT = issues.allTasks(id).filter(t => !t.done).length; if (openT) return ERR0('יש ' + openT + ' משימות פתוחות בסוגיה (כולל משימות של הבטחות מקושרות). השלם אותן או נתק אותן קודם.');
             x.status = 'resolved'; x.resolvedAt = localDate(); x.note = note; return issuesCol.save(x) ? { ok: true } : ERR0('השמירה נכשלה.');
         },
-        drop(id, reason) {   // ביטול סוגיה: החלטה מנומקת, לא מחיקה. הסוגיה נשמרת בהיסטוריה. מחיקה (remove) היא הדרך היחידה להעלים סוגיה (נפתחה בטעות)
+        dropEffects(id) {   // תצוגה מקדימה: מה יבוטל איתה (לא משנה דבר)
+            const x = issuesCol.get(id); if (!x) return { promises: [], tasks: [] };
+            const ps = x.promiseIds.map(pid => promises.get(pid)).filter(p => p && ['open', 'progress'].includes(p.status) && !review.isClosed(p.month) && !issuesCol.all().some(i => i.id !== id && ['open', 'handling'].includes(i.status) && i.promiseIds.includes(p.id)));
+            return { promises: ps, tasks: cancelOrphans({ issueId: id, promiseIds: ps.map(p => p.id) }, '', true) };
+        },
+        drop(id, reason, cat) {   // ביטול סוגיה: החלטה מנומקת (סיבה + נימוק של 40 תווים לפחות), לא מחיקה. נשמרת בהיסטוריה. מחיקה (remove) היא הדרך היחידה להעלים סוגיה (נפתחה בטעות)
             const x = issuesCol.get(id); if (!x) return ERR0('הסוגיה לא נמצאה.'); if (x.status === 'resolved') return ERR0('סוגיה שנסגרה לא מבטלים.'); if (x.status === 'dropped') return ERR0('הסוגיה כבר בוטלה.');
-            reason = str(reason, 400); if (reason.length < 10) return ERR0('ביטול דורש נימוק (לפחות 10 תווים). אם נפתחה בטעות, מחק אותה.');
-            x.status = 'dropped'; x.droppedAt = localDate(); x.dropReason = reason; if (!issuesCol.save(x)) return ERR0('השמירה נכשלה.');
+            if (!DROP_CATS[cat]) return ERR0('בחר סיבת ביטול.'); reason = str(reason, 400); if (reason.length < DROP_MIN) return ERR0('ביטול דורש נימוק של לפחות ' + DROP_MIN + ' תווים (כמה מילים על מה קרה ולמה מוותרים). אם נפתחה בטעות, מחק אותה.');
+            const fx = issues.dropEffects(id), cut = fx.promises.map(p => p.id);
+            x.status = 'dropped'; x.droppedAt = localDate(); x.dropReason = reason; x.dropCat = cat; if (!issuesCol.save(x)) return ERR0('השמירה נכשלה.');
             // מדורג: הבטחות פתוחות שקושרו לסוגיה (ושאינן קשורות גם לסוגיה פעילה אחרת, ובחודש שלא נסגר) מבוטלות אוטומטית; ומשימות שנשארו בלי שום שיוך פעיל מסומנות כמבוטלות (לא נמחקות)
-            const cut = [], td = localDate();
-            x.promiseIds.map(pid => promises.get(pid)).filter(p => p && ['open', 'progress'].includes(p.status) && !review.isClosed(p.month) && !issuesCol.all().some(i => i.id !== id && ['open', 'handling'].includes(i.status) && i.promiseIds.includes(p.id))).forEach(p => {
-                p.status = 'dropped'; p.droppedAt = td; p.dropIssueId = id; p.dropReason = 'בוטלה אוטומטית עקב ביטול הסוגיה "' + x.title + '". הנימוק וההערכה בדף הסוגיה.'; promises.save(p); cut.push(p.id); });
+            fx.promises.forEach(p => { p.status = 'dropped'; p.droppedAt = localDate(); p.dropIssueId = id; p.dropCat = cat; p.dropReason = 'בוטלה אוטומטית עקב ביטול הסוגיה "' + x.title + '". הנימוק וההערכה בדף הסוגיה.'; promises.save(p); });
             const nt = cancelOrphans({ issueId: id, promiseIds: cut }, 'בוטלה עם הסוגיה "' + x.title + '"');
             return { ok: true, promises: cut.length, tasks: nt };
+        },
+        restore(id, note) {   // ביטול הביטול: מחזיר את הסוגיה, את ההבטחות והמשימות שבוטלו איתה (ההיסטוריה וההערכות נשמרות ביומן)
+            const x = issuesCol.get(id); if (!x || x.status !== 'dropped') return ERR0('אפשר לשחזר רק סוגיה שבוטלה.'); note = str(note, 600); if (note.length < 20) return ERR0('שחזור דורש נימוק (לפחות 20 תווים): מה השתנה ולמה הסוגיה חוזרת.');
+            const ps = promises.all().filter(p => p.dropIssueId === id && p.status === 'dropped' && !review.isClosed(p.month));
+            x.restores = x.restores.concat([{ at: localDate(), note: note + ' (בוטלה ב-' + x.droppedAt + (DROP_CATS[x.dropCat] ? ', סיבה: ' + DROP_CATS[x.dropCat] : '') + ': ' + x.dropReason + ')' }]);
+            x.status = 'open'; x.droppedAt = ''; x.dropReason = ''; x.dropCat = ''; if (!issuesCol.save(x)) return ERR0('השמירה נכשלה.');
+            ps.forEach(p => { p.status = 'open'; p.dropIssueId = ''; p.dropReason = ''; p.dropCat = ''; p.droppedAt = ''; promises.save(p); });
+            const ids = ['issue:' + id].concat(ps.map(p => 'promise:' + p.id)); let nt = 0;
+            tasksCol.all().filter(t => t.cancelled && ids.includes(t.cancelRef)).forEach(t => { t.cancelled = false; t.cancelledAt = ''; t.cancelReason = ''; t.cancelRef = ''; tasksCol.save(t); nt++; });
+            ps.forEach(p => syncPromise(p.id)); return { ok: true, promises: ps.length, tasks: nt };
         },
         review(id, o) { return addReview(issuesCol.get(id), issuesCol, o); }
     };
@@ -387,12 +403,21 @@
     function issuesScore(mk) {
         const t = localDate(), endM = mk + '-' + pad(daysInMonth(mk)), asOf = t < endM ? t : endM; let sw = 0, sum = 0;
         issuesCol.all().filter(i => i.kind === 'issue' && i.horizon !== 'month' && (i.target || i.horizon === 'ongoing') && i.created <= asOf && i.status !== 'dropped' && (i.status !== 'resolved' || (i.resolvedAt && i.resolvedAt.slice(0, 7) >= mk))).forEach(i => {
-            let v; if (i.status === 'resolved') v = !i.target || i.resolvedAt <= i.target ? 100 : 70;
+            let v, conf = 1; if (i.status === 'resolved') v = !i.target || i.resolvedAt <= i.target ? 100 : 70;
             else if (i.horizon === 'ongoing') {   // קבועה: אין יעד ולכן אין "קצב". נמדדת לפי המשימות הרלוונטיות לחודש: שמועדן בחודש, שבוצעו בו, או שפתוחות ובאיחור
-                const rel = issues.allTasks(i.id).filter(t => (t.due || t.created).slice(0, 7) === mk || (t.done && (t.doneAt || '').slice(0, 7) === mk) || (!t.done && t.due && t.due < asOf)); if (rel.length < 3) return; v = Math.round(rel.filter(t => t.done).length / rel.length * 100); }
-            else { const p = issues.progress(i.id); if (p.n < 3 || dayDiff(asOf, i.created) < 14) return;   // סוגיה חדשה (פחות מ-14 יום) עדיין לא נמדדת: אחרת היא מקבלת 100 "בחינם" בתחילת הדרך const span = Math.max(1, dayDiff(i.target, i.created)), exp = Math.min(1, Math.max(0, dayDiff(asOf, i.created) / span));
+                const rel = issues.allTasks(i.id).filter(t => (t.due || t.created).slice(0, 7) === mk || (t.done && (t.doneAt || '').slice(0, 7) === mk) || (!t.done && t.due && t.due < asOf)); if (rel.length < 1) return; v = Math.round(rel.filter(t => t.done).length / rel.length * 100); conf = Math.min(1, rel.length / 3); }   // גם משימה אחת בחודש נספרת, במשקל יחסי (עד 3 משימות = משקל מלא)
+            else { const p = issues.progress(i.id); if (p.n < 3 || dayDiff(asOf, i.created) < 14) return;   // סוגיה חדשה (פחות מ-14 יום) עדיין לא נמדדת: אחרת היא מקבלת 100 "בחינם" בתחילת הדרך
+                const span = Math.max(1, dayDiff(i.target, i.created)), exp = Math.min(1, Math.max(0, dayDiff(asOf, i.created) / span));
                 v = asOf >= i.target ? p.pct : exp <= 0.05 ? 100 : Math.min(100, Math.round(p.pct / (exp * 100) * 100)); }
-            sw += i.severity; sum += i.severity * v; });
+            sw += i.severity * conf; sum += i.severity * conf * v; });
+        // מבצעים ורפורמות: יחידה גבוהה מסוגיה. משקל = 2 × חשיבות (2/4/6) לעומת חומרת סוגיה (1/2/3). נמדדים לפי שלבים שבוצעו
+        opsCol.all().filter(op => op.status !== 'dropped' && op.created <= asOf && (op.status !== 'done' || (op.doneAt && op.doneAt.slice(0, 7) >= mk))).forEach(op => {
+            let v, conf = 1; const w0 = OPS_WEIGHT * op.importance;
+            if (op.status === 'done') v = !op.target || op.doneAt <= op.target ? 100 : 70;
+            else { const n = op.stages.length, pct = n ? op.stages.filter(s => s.done).length / n * 100 : 0, age = dayDiff(asOf, op.created); if (n < 2 || age < 14) return;
+                if (op.target) { const span = Math.max(1, dayDiff(op.target, op.created)), exp = Math.min(1, Math.max(0, age / span)); v = asOf >= op.target ? Math.round(pct) : exp <= 0.05 ? 100 : Math.min(100, Math.round(pct / (exp * 100) * 100)); }
+                else { v = Math.round(pct); conf = Math.min(1, age / 30); } }   // בלי יעד: האחוז שהושלם, ובמשקל עולה עם הגיל (30 יום = מלא)
+            sw += w0 * conf; sum += w0 * conf * v; });
         return sw ? Math.round(sum / sw) : null;
     }
     function score(mk) {
@@ -436,17 +461,17 @@
         return { id: str(o.id, 40) || uid(), text: str(o.text, 200), promiseId: ids[0] || '', promiseIds: ids, issueId: str(o.issueId, 40), pid: str(o.pid, 40),
             due: dateOr(o.due, ''), time: timeOr(o.time, ''), mode: mode === 'by' && dateOr(o.due, '') ? 'by' : 'on', from: dateOr(o.from, created),   // mode 'by': פתוחה לביצוע בכל יום בטווח from..due עד שתבוצע
             treatyId: str(o.treatyId, 40), done: o.done === true, doneAt: dateOr(o.doneAt, ''), created,
-            cancelled: o.cancelled === true, cancelledAt: dateOr(o.cancelledAt, ''), cancelReason: str(o.cancelReason, 300) }; });
+            cancelled: o.cancelled === true, cancelledAt: dateOr(o.cancelledAt, ''), cancelReason: str(o.cancelReason, 300), cancelRef: str(o.cancelRef, 60) }; });
     const liveTasks = () => tasksCol.all().filter(t => !t.cancelled);
-    function cancelOrphans(o, reason) {   // מסמן כמבוטלות (לא מוחק) משימות פתוחות שנשארו בלי שיוך פעיל אחרי ביטול סוגיה/הבטחה
-        let n = 0; const gone = o.promiseIds || [];
+    function cancelOrphans(o, reason, dry) {   // מסמן כמבוטלות (לא מוחק) משימות פתוחות שנשארו בלי שיוך פעיל אחרי ביטול סוגיה/הבטחה
+        let n = 0; const gone = o.promiseIds || [], would = [];
         tasksCol.all().forEach(t => {
             if (t.done || t.cancelled) return;
             if (!((o.issueId && t.issueId === o.issueId) || t.promiseIds.some(p => gone.includes(p)))) return;
             const keepP = t.promiseIds.some(pid => { const p = promises.get(pid); return p && p.status !== 'dropped' && !gone.includes(pid); });
             const is = t.issueId && t.issueId !== o.issueId ? issuesCol.get(t.issueId) : null, keepI = !!(is && ['open', 'handling'].includes(is.status));
-            if (keepP || keepI) return; t.cancelled = true; t.cancelledAt = localDate(); t.cancelReason = str(reason, 300); tasksCol.save(t); n++;
-        }); return n;
+            if (keepP || keepI) return; if (dry) { would.push(t); return; } t.cancelled = true; t.cancelledAt = localDate(); t.cancelReason = str(reason, 300); t.cancelRef = o.issueId ? 'issue:' + o.issueId : 'promise:' + (gone[0] || ''); tasksCol.save(t); n++;
+        }); return dry ? would : n;
     }
     function syncPromise(id) {   // התקדמות = אחוז משימות שבוצעו. לא נוגע בהבטחה שהוכרעה (בוצעה/נכשלה/הוסרה) או בחודש שנסגר.
         const p = id && promises.get(id); if (!p || ['done', 'failed', 'dropped'].includes(p.status) || review.isClosed(p.month)) return;
@@ -462,11 +487,19 @@
         if (p.crit.type === 'recurring' && p.crit.log.some(x => x.at === date)) return ERR0('כבר סומן ביצוע בתאריך הזה.');
         p.crit.log = p.crit.log.concat([{ at: date, value: v }]); promises.save(p); syncPromise(id); return { ok: true };
     };
-    promises.drop = function (id, reason) {   // הסרה בנימוק (לא מחיקה): נשמרת בהיסטוריה ומקבלת הערכה בדיעבד
+    promises.dropEffects = function (id) { const p = promises.get(id); return { tasks: p ? cancelOrphans({ promiseIds: [id] }, '', true) : [] }; };
+    promises.drop = function (id, reason, cat) {   // הסרה בנימוק (לא מחיקה): סיבה + 40 תווים לפחות; נשמרת בהיסטוריה ומקבלת הערכה בדיעבד
         const p = promises.get(id); if (!p) return ERR0('ההבטחה לא נמצאה.'); if (p.status === 'dropped') return ERR0('ההבטחה כבר הוסרה.'); if (review.isClosed(p.month)) return ERR0('החודש נסגר.');
-        reason = str(reason, 300); if (reason.length < 10) return ERR0('הסרה דורשת נימוק (לפחות 10 תווים).');
-        p.status = 'dropped'; p.dropReason = reason; p.droppedAt = localDate(); if (!promises.save(p)) return ERR0('השמירה נכשלה.');
+        if (!DROP_CATS[cat]) return ERR0('בחר סיבת הסרה.'); reason = str(reason, 400); if (reason.length < DROP_MIN) return ERR0('הסרה דורשת נימוק של לפחות ' + DROP_MIN + ' תווים.');
+        p.status = 'dropped'; p.dropReason = reason; p.dropCat = cat; p.droppedAt = localDate(); if (!promises.save(p)) return ERR0('השמירה נכשלה.');
         return { ok: true, tasks: cancelOrphans({ promiseIds: [id] }, 'בוטלה עם ההבטחה "' + p.text + '"') };
+    };
+    promises.restore = function (id, note) {
+        const p = promises.get(id); if (!p || p.status !== 'dropped') return ERR0('אפשר לשחזר רק הבטחה שהוסרה.'); if (p.dropIssueId) return ERR0('הבטחה זו בוטלה אוטומטית עם סוגיה. שחזר את הסוגיה (היא תחזיר גם אותה).'); if (review.isClosed(p.month)) return ERR0('החודש נסגר.');
+        note = str(note, 600); if (note.length < 20) return ERR0('שחזור דורש נימוק (לפחות 20 תווים).');
+        p.restores = p.restores.concat([{ at: localDate(), note: note + ' (הוסרה ב-' + p.droppedAt + ': ' + p.dropReason + ')' }]); p.status = 'open'; p.dropReason = ''; p.dropCat = ''; p.droppedAt = ''; if (!promises.save(p)) return ERR0('השמירה נכשלה.');
+        let nt = 0; tasksCol.all().filter(t => t.cancelled && t.cancelRef === 'promise:' + id).forEach(t => { t.cancelled = false; t.cancelledAt = ''; t.cancelReason = ''; t.cancelRef = ''; tasksCol.save(t); nt++; });
+        syncPromise(id); return { ok: true, tasks: nt };
     };
     promises.review = function (id, o) { const p = promises.get(id); if (p && p.dropIssueId) return ERR0('הבטחה זו בוטלה אוטומטית עם סוגיה. ההערכה נעשית בדף הסוגיה.'); return addReview(p, promises, o); };   // מותר גם בחודש סגור: זו הערכה בדיעבד, לא שינוי בהבטחה
     promises.undoCrit = function (id) { const p = promises.get(id); if (!p || review.isClosed(p.month) || ['done', 'failed', 'dropped'].includes(p.status) || !p.crit.log.length) return false; p.crit.log = p.crit.log.slice(0, -1); promises.save(p); syncPromise(id); return true; };
@@ -504,33 +537,102 @@
         issuesCol.all().filter(i => ['open', 'handling'].includes(i.status) && i.promiseIds.includes(id)).forEach(i => { i.promiseIds = i.promiseIds.concat([n.id]); issuesCol.save(i); });
         syncPromise(n.id); return n;
     };
-    // ---------- שגרות (משימות בסיס): עוברות בירושה מממשלה לממשלה; שינוי בימים יוצר גרסה חדשה מהיום ----------
+    // ---------- שגרות (משימות בסיס): עוברות בירושה מממשלה לממשלה; שינוי בתדירות יוצר גרסה חדשה מהיום ----------
+    // תדירות: weekdays = ימים קבועים בשבוע • interval = כל N ימים/שבועות מתאריך עוגן (שבועיים, שלושה שבועות...) • monthly = כל N חודשים ביום קבוע בחודש (נחתך לסוף חודש קצר)
+    const REC_KINDS = { weekdays: 'ימים קבועים בשבוע', interval: 'כל N ימים / שבועות', monthly: 'כל N חודשים ביום קבוע' };
+    const monthsBetween = (a, b) => (Number(b.slice(0, 4)) - Number(a.slice(0, 4))) * 12 + Number(b.slice(5, 7)) - Number(a.slice(5, 7));
+    const cleanRec = (v, since) => { const o = base(v), kind = REC_KINDS[o.kind] ? o.kind : 'weekdays'; return { kind, n: clampInt(o.n, 1, kind === 'monthly' ? 12 : 90, 1), unit: o.unit === 'week' ? 'week' : 'day', dom: clampInt(o.dom, 1, 31, 1), anchor: dateOr(o.anchor, since) }; };
     const cleanRlog = v => (Array.isArray(v) ? v : []).slice(-60).map(x => { const o = base(x); return { at: dateOr(o.at, localDate()), text: str(o.text, 200) }; }).filter(x => x.text);
-    const routinesCol = collection('routines', p => { const o = base(p); return { id: str(o.id, 40) || uid(), text: str(o.text, 200), pid: str(o.pid, 40), days: cleanDays(o.days), time: timeOr(o.time, ''), treatyId: str(o.treatyId, 40),
-        since: dateOr(o.since, localDate()), endedAt: dateOr(o.endedAt, ''), log: cleanRlog(o.log) }; });
+    const routinesCol = collection('routines', p => { const o = base(p), since = dateOr(o.since, localDate()); return { id: str(o.id, 40) || uid(), text: str(o.text, 200), pid: str(o.pid, 40), days: cleanDays(o.days), time: timeOr(o.time, ''), treatyId: str(o.treatyId, 40),
+        rec: cleanRec(o.rec, since), since, endedAt: dateOr(o.endedAt, ''), log: cleanRlog(o.log) }; });
     const dayLbl = d => d.length === 7 ? 'כל יום' : d.length ? 'ימים ' + d.map(x => DOW[x]).join('׳, ') + '׳' : 'ללא ימים';
+    const nWord = (n, one, two, many) => n === 1 ? one : n === 2 ? two : n + ' ' + many;
+    function recLabel(r) {
+        const c = r.rec;
+        if (c.kind === 'interval') { if (c.unit === 'day' && c.n === 1) return 'כל יום'; return 'כל ' + (c.unit === 'week' ? nWord(c.n, 'שבוע', 'שבועיים', 'שבועות') : nWord(c.n, 'יום', 'יומיים', 'ימים')) + ' (החל מ-' + c.anchor + ')'; }
+        if (c.kind === 'monthly') return 'כל ' + nWord(c.n, 'חודש', 'חודשיים', 'חודשים') + ' ביום ' + c.dom + ' בחודש' + (c.n > 1 ? ' (החל מ-' + c.anchor.slice(0, 7) + ')' : '');
+        return dayLbl(r.days);
+    }
+    function recOn(r, ds) {   // האם השגרה אמורה להתקיים בתאריך הזה (לפי התדירות בלבד)
+        const c = r.rec;
+        if (c.kind === 'weekdays') return r.days.includes(dowOf(ds));
+        if (ds < c.anchor) return false;
+        if (c.kind === 'interval') { const step = c.n * (c.unit === 'week' ? 7 : 1); return dayDiff(ds, c.anchor) % step === 0; }
+        const m = monthsBetween(c.anchor, ds); return m >= 0 && m % c.n === 0 && Number(ds.slice(8)) === Math.min(c.dom, daysInMonth(ds.slice(0, 7)));
+    }
+    const recSig = (rec, days) => JSON.stringify([rec.kind, rec.n, rec.unit, rec.dom, rec.anchor, rec.kind === 'weekdays' ? days : []]);
     const routines = {
-        all: routinesCol.all, get: routinesCol.get, dayLabel: dayLbl,
+        all: routinesCol.all, get: routinesCol.get, dayLabel: dayLbl, recLabel, recOn, REC_KINDS,
         active: () => routinesCol.all().filter(r => !r.endedAt),
+        nextDue(r, from) { from = from || localDate(); for (let i = 0; i < 800; i++) { const d = addDays(from, i); if (r.endedAt && d > r.endedAt) return ''; if (d >= r.since && recOn(r, d)) return d; } return ''; },
         save(item) {
-            const c = base(item), ex = c.id ? routinesCol.get(c.id) : null, days = cleanDays(c.days), text = str(c.text, 200);
-            if (text.length < 2 || !days.length) return null;
-            if (!ex) return routinesCol.save({ text, pid: c.pid, days, time: c.time, treatyId: c.treatyId, since: localDate(), log: [{ at: localDate(), text: 'נקבעה שגרה: ' + dayLbl(days) + (timeOr(c.time, '') ? ' בשעה ' + c.time : '') }] });
+            const c = base(item), ex = c.id ? routinesCol.get(c.id) : null, days = cleanDays(c.days), text = str(c.text, 200), td = localDate();
+            const rec = c.rec ? cleanRec(c.rec, td) : cleanRec({ kind: 'weekdays' }, td);
+            if (text.length < 2 || (rec.kind === 'weekdays' && !days.length)) return null;
+            const mk = { text, pid: c.pid, days: rec.kind === 'weekdays' ? days : [], time: c.time, rec };
+            if (!ex) return routinesCol.save(Object.assign(mk, { treatyId: c.treatyId, since: td, log: [{ at: td, text: 'נקבעה שגרה: ' + recLabel(mk) + (timeOr(c.time, '') ? ' בשעה ' + c.time : '') }] }));
             if (ex.endedAt) return null;
-            if (String(ex.days) !== String(days) && ex.since < localDate()) {   // היסטוריה לא משוכתבת: הגרסה הישנה מסתיימת אתמול, וגרסה חדשה מתחילה היום
-                ex.endedAt = addDays(localDate(), -1); ex.log = ex.log.concat([{ at: localDate(), text: 'הוחלפה בגרסה חדשה: ' + dayLbl(days) }]); routinesCol.save(ex);
-                return routinesCol.save({ text, pid: c.pid, days, time: c.time, treatyId: ex.treatyId, since: localDate(), log: [{ at: localDate(), text: 'המשך השגרה "' + ex.text + '" בימים: ' + dayLbl(days) }] });
+            if (recSig(ex.rec, ex.days) !== recSig(rec, mk.days) && ex.since < td) {   // היסטוריה לא משוכתבת: הגרסה הישנה מסתיימת אתמול, וגרסה חדשה מתחילה היום
+                ex.endedAt = addDays(td, -1); ex.log = ex.log.concat([{ at: td, text: 'הוחלפה בגרסה חדשה: ' + recLabel(mk) }]); routinesCol.save(ex);
+                return routinesCol.save(Object.assign(mk, { treatyId: ex.treatyId, since: td, log: [{ at: td, text: 'המשך השגרה "' + ex.text + '": ' + recLabel(mk) }] }));
             }
-            const ch = []; if (ex.text !== text) ch.push('הנוסח'); if (ex.pid !== str(c.pid, 40)) ch.push('התיק'); if (String(ex.days) !== String(days)) ch.push('הימים'); if (ex.time !== timeOr(c.time, '')) ch.push('השעה');
-            return routinesCol.save(Object.assign({}, ex, { text, pid: c.pid, days, time: c.time, log: ch.length ? ex.log.concat([{ at: localDate(), text: 'עודכנו: ' + ch.join(', ') }]) : ex.log }));
+            const ch = []; if (ex.text !== text) ch.push('הנוסח'); if (ex.pid !== str(c.pid, 40)) ch.push('התיק'); if (recSig(ex.rec, ex.days) !== recSig(rec, mk.days)) ch.push('התדירות'); if (ex.time !== timeOr(c.time, '')) ch.push('השעה');
+            return routinesCol.save(Object.assign({}, ex, mk, { log: ch.length ? ex.log.concat([{ at: td, text: 'עודכנו: ' + ch.join(', ') }]) : ex.log }));
         },
         stop(id, reason) { const r = routinesCol.get(id); reason = str(reason, 200); if (!r || r.endedAt || reason.length < 5) return false; r.endedAt = localDate(); r.log = r.log.concat([{ at: localDate(), text: 'הופסקה: ' + reason }]); return !!routinesCol.save(r); },
-        dueOn: ds => routinesCol.all().filter(r => r.since <= ds && (!r.endedAt || ds <= r.endedAt) && r.days.includes(dowOf(ds))),
+        dueOn: ds => routinesCol.all().filter(r => r.since <= ds && (!r.endedAt || ds <= r.endedAt) && recOn(r, ds)),
         doneIds: ds => { const v = rd('rdone_' + ds, []); return Array.isArray(v) ? v.map(x => str(x, 40)) : []; },
         forDay(ds) { const d = routines.doneIds(ds); return routines.dueOn(ds).map(r => ({ r, done: d.includes(r.id) })); },
         setDone(ds, id, on) { if (!DATE_RE.test(ds) || ds > localDate()) return false; const d = routines.doneIds(ds).filter(x => x !== id); if (on) d.push(id); if (!d.length) { del('rdone_' + ds); return true; } return wr('rdone_' + ds, d); }
     };
     const dayItems = ds => daily.get(ds).concat(routines.forDay(ds).map(x => ({ done: x.done })));   // לציון העקביות היומית
+
+    // ---------- מבצעים ורפורמות: יחידה גבוהה מסוגיה, עם שלבים, שמאגדת סוגיות והבטחות. משקלה בציון 2 × חשיבות (ראו issuesScore) ----------
+    const OP_STATUS = { active: { l: 'פעיל', c: '#38bdf8' }, done: { l: 'הושלם', c: '#34d399' }, dropped: { l: 'בוטל', c: '#a78bfa' } };
+    const cleanStages = v => (Array.isArray(v) ? v : []).slice(0, 30).map(x => { const q = typeof x === 'string' ? { text: x } : base(x), done = q.done === true; return { id: str(q.id, 40) || uid(), text: str(q.text, 200), done, doneAt: done ? dateOr(q.doneAt, localDate()) : '', due: dateOr(q.due, '') }; }).filter(s2 => s2.text.length >= 2);
+    const opsCol = collection('ops', p => { const o = base(p); return { id: str(o.id, 40) || uid(), title: str(o.title, 200), pid: str(o.pid, 40), importance: clampInt(o.importance, 1, 3, 2), why: str(o.why, 500), status: OP_STATUS[o.status] ? o.status : 'active',
+        stages: cleanStages(o.stages), issueIds: idList(o.issueIds, 20), promiseIds: idList(o.promiseIds, 20), target: dateOr(o.target, ''), created: dateOr(o.created, localDate()), doneAt: dateOr(o.doneAt, ''), note: str(o.note, 800),
+        dropReason: str(o.dropReason, 400), dropCat: DROP_CATS[o.dropCat] ? o.dropCat : '', droppedAt: dateOr(o.droppedAt, ''), restores: cleanRestores(o.restores), reviews: cleanReviews(o.reviews) }; });
+    const ops = {
+        all: opsCol.all, get: opsCol.get, STATUS: OP_STATUS, MIN_STAGES: 2, WEIGHT: OPS_WEIGHT,
+        save(item) {
+            const ex = item && item.id ? opsCol.get(item.id) : null; if (ex && ex.status !== 'active') return null;
+            const o = Object.assign({}, ex || {}, item), created = (ex && ex.created) || localDate(); o.created = created;
+            if (str(o.title, 200).length < 3) return null; if (cleanStages(o.stages).length < 2) return null;   // מבצע בלי שלבים הוא סוגיה
+            if (o.target && !(DATE_RE.test(o.target) && o.target > created)) return null;
+            o.status = 'active'; return opsCol.save(o);
+        },
+        remove: opsCol.remove,
+        setStage(id, sid, on) { const x = opsCol.get(id); if (!x || x.status !== 'active') return false; const s2 = x.stages.find(q => q.id === sid); if (!s2) return false; s2.done = !!on; s2.doneAt = on ? localDate() : ''; return !!opsCol.save(x); },
+        addStage(id, text, due) { const x = opsCol.get(id); if (!x || x.status !== 'active' || str(text, 200).length < 2 || x.stages.length >= 30) return false; x.stages = x.stages.concat([{ id: uid(), text, done: false, doneAt: '', due: due || '' }]); return !!opsCol.save(x); },
+        link(id, kind, refId, on) {
+            const x = opsCol.get(id); if (!x || x.status !== 'active' || !['issue', 'promise'].includes(kind)) return false; if (on && !(kind === 'issue' ? issuesCol.get(refId) : promises.get(refId))) return false;
+            const f = kind === 'issue' ? 'issueIds' : 'promiseIds'; x[f] = on ? x[f].concat([refId]) : x[f].filter(v => v !== refId); return !!opsCol.save(x);
+        },
+        progress(id) {
+            const x = opsCol.get(id); if (!x) return null; const d = x.stages.filter(s2 => s2.done).length, is = x.issueIds.map(i => issuesCol.get(i)).filter(Boolean), ps = x.promiseIds.map(i => promises.get(i)).filter(Boolean);
+            return { n: x.stages.length, done: d, pct: x.stages.length ? Math.round(d / x.stages.length * 100) : 0, issues: is.length, issuesResolved: is.filter(i => i.status === 'resolved').length, promises: ps.length, promisesDone: ps.filter(p => p.status === 'done').length };
+        },
+        complete(id, note) {
+            const x = opsCol.get(id); if (!x) return ERR0('המבצע לא נמצא.'); if (x.status !== 'active') return ERR0('המבצע כבר לא פעיל.');
+            const left = x.stages.filter(s2 => !s2.done).length; if (left) return ERR0('נותרו ' + left + ' שלבים שלא בוצעו. השלם אותם או בטל את המבצע.');
+            note = str(note, 400); if (note.length < 10) return ERR0('סגירת מבצע דורשת סיכום: מה הושג (לפחות 10 תווים).');
+            x.status = 'done'; x.doneAt = localDate(); x.note = note; if (!opsCol.save(x)) return ERR0('השמירה נכשלה.');
+            return { ok: true, openIssues: x.issueIds.map(i => issuesCol.get(i)).filter(i => i && ['open', 'handling'].includes(i.status)).length };
+        },
+        dropEffects(id) { const x = opsCol.get(id); return { issues: x ? x.issueIds.map(i => issuesCol.get(i)).filter(i => i && ['open', 'handling'].includes(i.status)) : [] }; },   // ביטול מבצע לא מבטל את הסוגיות וההבטחות שבו: יש להן חיים משלהן
+        drop(id, reason, cat) {
+            const x = opsCol.get(id); if (!x) return ERR0('המבצע לא נמצא.'); if (x.status === 'done') return ERR0('מבצע שהושלם לא מבטלים.'); if (x.status === 'dropped') return ERR0('המבצע כבר בוטל.');
+            if (!DROP_CATS[cat]) return ERR0('בחר סיבת ביטול.'); reason = str(reason, 400); if (reason.length < DROP_MIN) return ERR0('ביטול דורש נימוק של לפחות ' + DROP_MIN + ' תווים. אם נפתח בטעות, מחק אותו.');
+            x.status = 'dropped'; x.droppedAt = localDate(); x.dropReason = reason; x.dropCat = cat; return opsCol.save(x) ? { ok: true } : ERR0('השמירה נכשלה.');
+        },
+        restore(id, note) {
+            const x = opsCol.get(id); if (!x || x.status !== 'dropped') return ERR0('אפשר לשחזר רק מבצע שבוטל.'); note = str(note, 600); if (note.length < 20) return ERR0('שחזור דורש נימוק (לפחות 20 תווים).');
+            x.restores = x.restores.concat([{ at: localDate(), note: note + ' (בוטל ב-' + x.droppedAt + (DROP_CATS[x.dropCat] ? ', סיבה: ' + DROP_CATS[x.dropCat] : '') + ': ' + x.dropReason + ')' }]);
+            x.status = 'active'; x.droppedAt = ''; x.dropReason = ''; x.dropCat = ''; return opsCol.save(x) ? { ok: true } : ERR0('השמירה נכשלה.');
+        },
+        review(id, o) { return addReview(opsCol.get(id), opsCol, o); }
+    };
 
     // ---------- פגישות ואירועים ----------
     const eventsCol = collection('events', p => { const o = base(p); const st = timeOr(o.start, ''), en = timeOr(o.end, ''); return { id: str(o.id, 40) || uid(), title: str(o.title, 140), date: dateOr(o.date, localDate()),
@@ -606,7 +708,7 @@
     }
     const lastPm = x => { const r = (x.reviews || []).filter(v => v.by === 'pm').pop(); return r ? r.rating : null; };
     function dropStats() {   // כמה ביטולים, כמה הוערכו, ומה הציון הממוצע של ראש הממשלה. ביטול טוב אינו כישלון
-        const all = issuesCol.all().filter(i => i.status === 'dropped').map(i => ({ kind: 'issue', x: i })).concat(promises.all().filter(p => p.status === 'dropped').map(p => ({ kind: 'promise', x: p })));
+        const all = issuesCol.all().filter(i => i.status === 'dropped').map(i => ({ kind: 'issue', x: i })).concat(promises.all().filter(p => p.status === 'dropped').map(p => ({ kind: 'promise', x: p }))).concat(opsCol.all().filter(o => o.status === 'dropped').map(o => ({ kind: 'op', x: o })));
         const rated = all.map(a => lastPm(a.x)).filter(v => v != null);
         return { n: all.length, rated: rated.length, avg: rated.length >= 2 ? Math.round(rated.reduce((a, v) => a + v, 0) / rated.length * 10) / 10 : null, good: rated.filter(v => v >= 4).length, bad: rated.filter(v => v <= 2).length };
     }
@@ -617,6 +719,7 @@
         wishCol.all().filter(w => w.done).forEach(w => out.push({ kind: 'wish', id: w.id, text: w.text, at: w.doneAt || w.created, note: w.cat }));
         promises.all().filter(p => ['done', 'failed', 'dropped'].includes(p.status)).forEach(p => out.push({ kind: 'promise', id: p.id, text: p.text, at: p.doneAt || eom(p.month), pid: p.pid, status: p.status, note: p.dropReason, rating: p.status === 'dropped' ? lastPm(p) : null }));
         issuesCol.all().filter(i => i.status === 'resolved' || i.status === 'dropped').forEach(i => out.push({ kind: i.kind === 'distraction' ? 'distraction' : 'issue', id: i.id, text: i.title, status: i.status, rating: lastPm(i), at: (i.status === 'dropped' ? i.droppedAt : i.resolvedAt) || i.created, pid: i.pid, note: i.status === 'dropped' ? i.dropReason : i.note }));
+        opsCol.all().filter(o => o.status !== 'active').forEach(o => out.push({ kind: 'op', id: o.id, text: o.title, status: o.status, rating: lastPm(o), at: (o.status === 'dropped' ? o.droppedAt : o.doneAt) || o.created, pid: o.pid, note: o.status === 'dropped' ? o.dropReason : o.note }));
         treatyCol.all().filter(t => t.status !== 'active').forEach(t => out.push({ kind: 'treaty', id: t.id, text: t.party + ': ' + t.title, at: t.closedAt || t.created, status: t.status, note: t.note }));
         return out.sort((a, b) => b.at.localeCompare(a.at));
     }
@@ -633,6 +736,32 @@
             return { mk, term: t, pm: t.kind === 'self' ? (t.name || profile.get().name || 'אני') : (t.name || 'ללא שם'), closed: rv.closed, score: sc, done: ps.filter(p => p.status === 'done').length, total: ps.length, wins: ps.filter(p => p.status === 'done').map(p => p.text).slice(0, 5),
                 ministers: minCol.all().filter(m => m.from <= b && (m.to || '9999-12-31') >= a) };
         });
+    }
+
+    // ---------- "במה התקדמתי": סיכום עובדתי של מה שקרה בטווח (לא ציון). מקור אחד גם לדף הסיכום וגם ל-AI ----------
+    function progressRange(from, to) {
+        const td = localDate(), end = to < td ? to : td, inR = d => !!d && d >= from && d <= to, tp = t => t.pid || ((promises.get(t.promiseId) || {}).pid) || '';
+        const T = tasksCol.all(), tDone = T.filter(t => t.done && !t.cancelled && inR(t.doneAt)), tCanc = T.filter(t => t.cancelled && inR(t.cancelledAt));
+        const pDone = promises.all().filter(p => p.status === 'done' && inR(p.doneAt)), pDrop = promises.all().filter(p => p.status === 'dropped' && inR(p.droppedAt));
+        const iRes = issuesCol.all().filter(i => i.status === 'resolved' && inR(i.resolvedAt)), iDrop = issuesCol.all().filter(i => i.status === 'dropped' && inR(i.droppedAt));
+        const stages = []; opsCol.all().forEach(o => o.stages.forEach(q => { if (q.done && inR(q.doneAt)) stages.push({ op: o, s: q }); }));
+        const oDone = opsCol.all().filter(o => o.status === 'done' && inR(o.doneAt)), id = ideas.all().filter(i => inR(i.created)), wDone = wishCol.all().filter(w => w.done && inR(w.doneAt));
+        const dc = decisions.all().filter(d => inR(d.decidedAt)), mins = timeCol.all().filter(x => inR(x.date)).reduce((a, x) => a + x.mins, 0);
+        let dPlan = 0, dDone = 0, rPlan = 0, rDone = 0;
+        for (let ds = from, k = 0; ds <= end && k < 370; ds = addDays(ds, 1), k++) { const l = daily.get(ds); dPlan += l.length; dDone += l.filter(x => x.done).length; const r = routines.forDay(ds); rPlan += r.length; rDone += r.filter(x => x.done).length; }
+        const byP = {}, bump = (pid, k) => { const r = byP[pid || ''] = byP[pid || ''] || { tasks: 0, promises: 0, issues: 0, stages: 0 }; r[k]++; };
+        tDone.forEach(t => bump(tp(t), 'tasks')); pDone.forEach(p => bump(p.pid, 'promises')); iRes.forEach(i => bump(i.pid, 'issues')); stages.forEach(x => bump(x.op.pid, 'stages'));
+        const hl = [].concat(pDone.map(p => ({ kind: 'promise', text: p.text, at: p.doneAt })), oDone.map(o => ({ kind: 'op', text: o.title, at: o.doneAt })), stages.map(x => ({ kind: 'stage', text: x.op.title + ' › ' + x.s.text, at: x.s.doneAt })),
+            iRes.map(i => ({ kind: 'issue', text: i.title, at: i.resolvedAt })), wDone.map(w => ({ kind: 'wish', text: w.text, at: w.doneAt }))).sort((a, b) => b.at.localeCompare(a.at));
+        return { from, to, counts: { tasks: tDone.length, tasksCancelled: tCanc.length, promises: pDone.length, promisesDropped: pDrop.length, issues: iRes.length, issuesDropped: iDrop.length, stages: stages.length, ops: oDone.length, ideas: id.length, adopted: id.filter(i => i.status === 'adopted').length, decisions: dc.length, wish: wDone.length, mins, dailyPlanned: dPlan, dailyDone: dDone, routinesPlanned: rPlan, routinesDone: rDone },
+            byPortfolio: byP, highlights: hl.slice(0, 15) };
+    }
+    function progressSummary(mk) {
+        if (!MONTH_RE.test(mk || '')) mk = monthOf(localDate());
+        const cur = progressRange(mk + '-01', mk + '-' + pad(daysInMonth(mk))), pm = addMonths(mk, -1), prev = progressRange(pm + '-01', pm + '-' + pad(daysInMonth(pm))), delta = {};
+        Object.keys(cur.counts).forEach(k => { delta[k] = cur.counts[k] - prev.counts[k]; });
+        const act = promises.all().filter(p => p.month === mk && p.status !== 'dropped');
+        return { mk, partial: mk === monthOf(localDate()), cur, prev, delta, active: { promises: act.length, avgProgress: act.length ? Math.round(act.reduce((a, p) => a + p.progress, 0) / act.length) : null, ops: opsCol.all().filter(o => o.status === 'active').length, openIssues: issuesCol.all().filter(i => ['open', 'handling'].includes(i.status) && i.kind === 'issue').length } };
     }
 
     // ---------- גיבוי ושחזור (הנעילה לעולם לא נכללת) ----------
@@ -683,5 +812,5 @@
             + `<text x="50%" y="${o.label ? '47%' : '50%'}" text-anchor="middle" dominant-baseline="central" fill="#f8fafc" font-weight="800" font-size="${fs}" font-family="Rubik,sans-serif">${p}<tspan font-size="${Math.round(fs * 0.6)}">%</tspan></text>`
             + (o.label ? `<text x="50%" y="70%" text-anchor="middle" dominant-baseline="central" fill="#94a3b8" font-size="${Math.round(size * 0.13)}" font-family="Rubik,sans-serif">${esc(o.label)}</text>` : '') + `</svg>`;
     }
-    window.GOV = { VERSION: '0.7.0', esc, uid, pad, localDate, monthOf, addDays, addMonths, monthLabel, daysInMonth, HEB_MONTHS, DATE_RE, MONTH_RE, STATUS, PRIORITY, gradeFor, portfolios: Object.assign({}, portfolios, { save(p) { const r = portfolios.save(p); ministers.ensure(); return r; }, remove(id) { const r = portfolios.remove(id); ministers.ensure(); return r; } }), promises, ideas, daily, term, review, profile, score, lock, exportAll, importAll, rd, wr, TREATY_STATUS, PARTY_KIND, LEVEL, DECISION_STATUS, treaties, decisions, impactItem, optionImpact, nl, gauge, critStatus, wish, DROP_SCALE, dropStats, HORIZON, historyItems, pmProfile, tasks, routines, dayItems, issues: issues, ISSUE_STATUS, events, timelog, ministers, difficulty, history, METHODS, DOW, dowOf, cleanDays, people, relEvents, REL, closeness, contactStatus, relationAlerts, treatyTimeline, SECRET_KEYS };
+    window.GOV = { VERSION: '0.8.0', esc, uid, pad, localDate, monthOf, addDays, addMonths, monthLabel, daysInMonth, HEB_MONTHS, DATE_RE, MONTH_RE, STATUS, PRIORITY, gradeFor, portfolios: Object.assign({}, portfolios, { save(p) { const r = portfolios.save(p); ministers.ensure(); return r; }, remove(id) { const r = portfolios.remove(id); ministers.ensure(); return r; } }), promises, ideas, daily, term, review, profile, score, lock, exportAll, importAll, rd, wr, TREATY_STATUS, PARTY_KIND, LEVEL, DECISION_STATUS, treaties, decisions, impactItem, optionImpact, nl, gauge, critStatus, wish, DROP_SCALE, dropStats, HORIZON, historyItems, pmProfile, tasks, routines, dayItems, issues: issues, ISSUE_STATUS, events, timelog, ministers, difficulty, history, METHODS, DOW, dowOf, cleanDays, people, relEvents, REL, closeness, contactStatus, relationAlerts, treatyTimeline, SECRET_KEYS, ops, DROP_CATS, DROP_MIN, progressRange, progressSummary };
 })();

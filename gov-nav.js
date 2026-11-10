@@ -10,17 +10,33 @@
         { file: 'promises.html', icon: '📜', title: 'הבטחות', desc: 'הבטחות הממשלה לחודש, עדיפויות והתקדמות.', sections: [['promises-add', 'הבטחה חדשה'], ['promises-list', 'רשימת ההבטחות']] },
         { file: 'portfolios.html', icon: '🗂️', title: 'תיקי ממשלה', desc: 'תחומי החיים, השרים, הסוגיות והרעיונות.', sections: [['portfolios-grid', 'התיקים'], ['portfolio-detail', 'פירוט תיק']] },
         { file: 'issues.html', icon: '🔥', title: 'סוגיות', desc: 'סוגיות על הפרק, חומרה וקישור להבטחות ולמשימות.', sections: [['iss-list', 'הסוגיות'], ['iss-detail', 'פירוט']] },
+        { file: 'operations.html', icon: '🚀', title: 'מבצעים ורפורמות', desc: 'יחידות גדולות עם שלבים, שמאגדות סוגיות והבטחות. משקל כפול בציון.', sections: [['op-add', 'מבצע חדש'], ['op-list', 'המבצעים'], ['op-detail', 'פירוט']] },
         { file: 'cabinet.html', icon: '🏛️', title: 'קבינט', desc: 'החלטות מרכזיות, אפשרויות, השפעה על הבטחות ואמנות, ובדיקת תוצאה בדיעבד.', sections: [['cabinet-new', 'נושא חדש'], ['cabinet-list', 'כל ההחלטות'], ['cabinet-detail', 'דיון'], ['cabinet-insight', 'איכות החלטות']] },
         { file: 'treaties.html', icon: '🤝', title: 'יחסי חוץ', desc: 'אמנות והסכמים עם אנשים, קבוצות וגופים, ומחיר הפרה.', sections: [['treaties-overview', 'תמונת מצב'], ['treaties-form', 'אמנה חדשה'], ['treaties-list', 'לפי צד']] },
         { file: 'people.html', icon: '👥', title: 'יחסים', desc: 'אנשים, יומן יחסים, אינדקס קרבה ואמנות לכל אדם.', sections: [['people-overview', 'תמונת מצב'], ['people-list', 'אנשים'], ['people-detail', 'פירוט']] },
         { file: 'ministers.html', icon: '🎖️', title: 'שרים והיסטוריה', desc: 'שרים, דירוג, דפי שר והיסטוריית ממשלות.', sections: [['min-list', 'השרים'], ['min-history', 'היסטוריית ממשלות'], ['min-diff', 'קושי משרדים']] },
-        { file: 'review.html', icon: '📊', title: 'ציון חודשי', desc: 'ציון הממשלה, הערכה עצמית והיסטוריית ממשלות.', sections: [['review-current', 'החודש'], ['review-history', 'היסטוריית ממשלות']] }
+        { file: 'review.html', icon: '📊', title: 'ציון חודשי', desc: 'ציון הממשלה, הערכה עצמית והיסטוריית ממשלות.', sections: [['review-current', 'החודש'], ['review-progress', 'במה התקדמתי'], ['review-history', 'היסטוריית ממשלות']] }
     ];
     window.GOV_SITE = { PAGES };
     const cur = location.pathname.split('/').pop() || 'index.html';
     const page = PAGES.find(p => p.file === cur);
 
-    const links = PAGES.map(p => `<a href="${p.file}" class="px-3 py-1.5 rounded-lg ${p.file === cur ? 'bg-amber-600 text-white' : 'bg-slate-800 hover:bg-amber-600 text-slate-200'} transition">${p.icon} ${p.title}</a>`).join('');
+    // תפריט מקובץ: כפתורים שנפתחים (קבוצה = כפתור). דף חדש מוסיפים ל-PAGES ולקבוצה המתאימה כאן.
+    const GROUPS = [
+        { id: 'home', files: ['index.html'] },
+        { id: 'today', icon: '🗓️', title: 'היום והזמן', files: ['schedule.html', 'tasks.html', 'wish.html'] },
+        { id: 'goals', icon: '🎯', title: 'יעדים', files: ['promises.html', 'issues.html', 'operations.html', 'portfolios.html'] },
+        { id: 'gov', icon: '🏛️', title: 'ממשל', files: ['cabinet.html', 'treaties.html', 'people.html', 'ministers.html'] },
+        { id: 'score', files: ['review.html'] }
+    ];
+    const pg = f => PAGES.find(x => x.file === f);
+    const itemHtml = p => `<a href="${p.file}" class="gn-item${p.file === cur ? ' on' : ''}"><span class="gn-ic">${p.icon}</span><span><b>${p.title}</b><small>${p.desc}</small></span></a>`;
+    const links = GROUPS.map(g => {
+        const ps = g.files.map(pg).filter(Boolean); if (!ps.length) return '';
+        if (ps.length === 1) { const p = ps[0]; return `<a href="${p.file}" class="gn-btn${p.file === cur ? ' on' : ''}">${p.icon} ${g.id === 'score' ? 'ציון וסיכום' : p.title}</a>`; }
+        const here = ps.some(p => p.file === cur);
+        return `<div class="gn-grp"><button type="button" class="gn-btn${here ? ' on' : ''}" aria-haspopup="true" aria-expanded="false" data-gn="${g.id}">${g.icon} ${g.title} <span class="gn-car">▾</span></button><div class="gn-panel" role="menu" id="gn-${g.id}" hidden>${ps.map(itemHtml).join('')}</div></div>`;
+    }).join('');
     const lockBtn = G.lock.isSet() ? `<button type="button" onclick="GOV.lock.lockNow()" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:border-amber-400 text-slate-300 transition" title="נעל עכשיו">🔒</button>` : '';
     let html = `<nav class="sticky top-0 z-50 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 py-3 shadow-xl">
         <div class="max-w-6xl mx-auto flex flex-wrap justify-between items-center gap-3">
@@ -41,16 +57,27 @@
 .g-btn.pri{background:#b45309;border-color:#fbbf24;color:#fff}.g-btn.ok{background:#047857;border-color:#34d399;color:#fff}.g-btn.red{background:#7f1d1d;border-color:#f87171;color:#fff}
 .g-bar{height:8px;border-radius:999px;background:#0f172a;overflow:hidden}.g-bar>i{display:block;height:100%;border-radius:999px}
 .g-chip{display:inline-block;font-size:10px;font-weight:800;padding:1px 9px;border-radius:999px;border:1px solid}
+.gn-btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:10px;background:#1e293b;color:#e2e8f0;border:1px solid transparent;font-weight:700;cursor:pointer;font-family:inherit;font-size:inherit;transition:.15s}
+.gn-btn:hover,.gn-btn[aria-expanded=true]{background:#334155;border-color:#fbbf24}.gn-btn.on{background:#b45309;color:#fff}.gn-car{font-size:10px;opacity:.8;transition:transform .15s}.gn-btn[aria-expanded=true] .gn-car{transform:rotate(180deg)}
+.gn-grp{position:relative}.gn-panel{position:absolute;top:calc(100% + 8px);right:0;z-index:60;width:300px;background:#0f172a;border:1px solid #475569;border-radius:14px;padding:6px;box-shadow:0 18px 40px #000a}
+.gn-panel[hidden]{display:none}.gn-item{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:10px;color:#e2e8f0;text-decoration:none}.gn-item:hover{background:#1e293b}.gn-item.on{background:#b4530933}
+.gn-item b{display:block;font-size:13px}.gn-item small{display:block;color:#94a3b8;font-size:11px;font-weight:400;line-height:1.35;margin-top:1px}.gn-ic{font-size:18px;line-height:1.2}
+@media (max-width:640px){.gn-grp{position:static}.gn-panel{position:fixed;right:12px;left:12px;top:64px;width:auto;max-height:70vh;overflow:auto}}
 @media print{nav,.no-print,button{display:none!important}body{background:#fff!important;color:#000!important}}`;
     document.head.appendChild(st);
     document.currentScript.insertAdjacentHTML('beforebegin', html);
+    (function navMenus() {   // פתיחה/סגירה: לחיצה על כפתור, לחיצה בחוץ, Esc. כפתור אחד פתוח בכל רגע
+        const closeAll = (except) => document.querySelectorAll('.gn-btn[data-gn]').forEach(b => { if (b !== except) { b.setAttribute('aria-expanded', 'false'); const p = document.getElementById('gn-' + b.dataset.gn); if (p) p.hidden = true; } });
+        document.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('.gn-btn[data-gn]'); if (b) { const open = b.getAttribute('aria-expanded') !== 'true'; closeAll(b); b.setAttribute('aria-expanded', String(open)); document.getElementById('gn-' + b.dataset.gn).hidden = !open; return; } if (!(ev.target.closest && ev.target.closest('.gn-panel'))) closeAll(); });
+        document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeAll(); });
+    })();
 
     // אם נטען gov-core.js ישן (מטמון, או קובץ שלא הועלה): מציגים הודעה ברורה במקום דף ריק
-    if (!window.GOV || window.GOV.VERSION !== '0.7.0') { window.addEventListener('DOMContentLoaded', () => { document.body.insertAdjacentHTML('afterbegin', '<div style="position:sticky;top:0;z-index:2000;background:#7f1d1d;color:#fff;padding:10px 14px;font:14px Rubik,sans-serif;direction:rtl;text-align:right">⚠️ גרסאות הקבצים לא תואמות (נטען gov-core.js ' + ((window.GOV && window.GOV.VERSION) || 'ישן') + ', נדרש 0.7.0). פתרון: ודא שהעלית את כל הקבצים מה-zip (בעיקר gov-core.js) ל-GitHub, המתן דקה-שתיים, ורענן בלי מטמון (באנדרואיד: הגדרות הדפדפן ← נקה נתוני אתר מטמון בלבד, לא "נתוני אתר" כי זה ימחק את הנתונים!).</div>'); }); }
-    document.write('<script src="gov-vault.js?v=0.7.0"><\/script>');   // כספת המפתחות (נטענת לפני הסנכרון וה-AI)
-    document.write('<script src="gov-sync.js?v=0.7.0"><\/script>');
-    document.write('<script src="gov-ai.js?v=0.7.0"><\/script>');
-    document.write('<script src="gov-review.js?v=0.7.0"><\/script>');    // הערכת ביטול (סוגיות והבטחות)    // שכבת AI משותפת (מפתח Gemini של המשתמש)    // סנכרון לענן: נטען סינכרונית בכל דף, כדי שכל שמירה תופעל אוטומטית
+    if (!window.GOV || window.GOV.VERSION !== '0.8.0') { window.addEventListener('DOMContentLoaded', () => { document.body.insertAdjacentHTML('afterbegin', '<div style="position:sticky;top:0;z-index:2000;background:#7f1d1d;color:#fff;padding:10px 14px;font:14px Rubik,sans-serif;direction:rtl;text-align:right">⚠️ גרסאות הקבצים לא תואמות (נטען gov-core.js ' + ((window.GOV && window.GOV.VERSION) || 'ישן') + ', נדרש 0.8.0). פתרון: ודא שהעלית את כל הקבצים מה-zip (בעיקר gov-core.js) ל-GitHub, המתן דקה-שתיים, ורענן בלי מטמון (באנדרואיד: הגדרות הדפדפן ← נקה נתוני אתר מטמון בלבד, לא "נתוני אתר" כי זה ימחק את הנתונים!).</div>'); }); }
+    document.write('<script src="gov-vault.js?v=0.8.0"><\/script>');   // כספת המפתחות (נטענת לפני הסנכרון וה-AI)
+    document.write('<script src="gov-sync.js?v=0.8.0"><\/script>');
+    document.write('<script src="gov-ai.js?v=0.8.0"><\/script>');
+    document.write('<script src="gov-review.js?v=0.8.0"><\/script>');    // הערכת ביטול (סוגיות והבטחות)    // שכבת AI משותפת (מפתח Gemini של המשתמש)    // סנכרון לענן: נטען סינכרונית בכל דף, כדי שכל שמירה תופעל אוטומטית
 
 
     // מכשיר חדש: קישור חיבור (#setup=...) או gov-config.enc.json. מזינים סיסמה: מפענחים, קובעים אותה כסיסמת כניסה, שומרים את הכתובת והמפתח בכספת ומושכים נתונים.

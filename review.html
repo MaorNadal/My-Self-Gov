@@ -12,8 +12,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.7.0"></script>
-    <script src="gov-nav.js?v=0.7.0"></script>
+    <script src="gov-core.js?v=0.8.0"></script>
+    <script src="gov-nav.js?v=0.8.0"></script>
 
     <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
         <h1 class="text-3xl font-black text-white">📊 ציון הממשלה</h1>
@@ -27,6 +27,7 @@
             <button class="g-btn" onclick="shift(1)">←</button>
         </div>
         <section id="review-current" class="space-y-4"></section>
+        <section id="review-progress" class="g-card"></section>
         <section id="review-history" class="g-card"></section>
     </main>
 
@@ -34,7 +35,7 @@
         const G = window.GOV, h = G.esc, $ = id => document.getElementById(id);
         const NOW = G.localDate(), NOW_MK = G.monthOf(NOW);
         let mk = NOW_MK, chart = null;
-        const NAMES = { promises: 'ביצוע הבטחות', daily: 'עקביות יומית', self: 'הערכה עצמית' };
+        const NAMES = { promises: 'ביצוע הבטחות', daily: 'עקביות יומית', self: 'הערכה עצמית', issues: 'סוגיות ומבצעים' };
         const bar = (pct, color) => `<div class="g-bar"><i style="width:${Math.max(0, Math.min(100, pct))}%;background:${color}"></i></div>`;
         const pIcon = id => (G.portfolios.get(id) || { icon: '📁' }).icon;
         function shift(n) { mk = G.addMonths(mk, n); render(); }
@@ -106,7 +107,34 @@
             chart = new Chart($('hChart').getContext('2d'), { type: 'line', data: { labels: pts.map(x => G.monthLabel(x.m)), datasets: [{ label: 'ציון הממשלה', data: pts.map(x => x.s.total), borderColor: '#fbbf24', backgroundColor: '#fbbf24', tension: .25, pointRadius: 4 }] },
                 options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: 100, grid: { color: '#334155' }, ticks: { color: '#cbd5e1' } }, x: { grid: { color: '#334155' }, ticks: { color: '#cbd5e1' } } }, plugins: { legend: { labels: { color: '#f8fafc' } } } } });
         }
-        function render() { renderCurrent(); renderHistory(); }
+        // ---------- במה התקדמתי: סיכום עובדתי (לא ציון) של מה שהושלם החודש, מול החודש הקודם ----------
+        let aiSummary = '';
+        const KIND_IC = { promise: '📜', op: '🚀', stage: '🪜', issue: '🔥', wish: '🎞️' };
+        function progressText(ps) {
+            const c = ps.cur.counts, L = [`סיכום התקדמות ${G.monthLabel(ps.mk)}${ps.partial ? ' (החודש עוד לא הסתיים)' : ''}:`, `משימות שבוצעו ${c.tasks} (בחודש קודם ${ps.prev.counts.tasks}); הבטחות שבוצעו ${c.promises}; סוגיות שנסגרו ${c.issues}; שלבי מבצעים ${c.stages}; מבצעים שהושלמו ${c.ops}; רעיונות ${c.ideas}; החלטות ${c.decisions}; ביטולים: ${c.promisesDropped} הבטחות, ${c.issuesDropped} סוגיות, ${c.tasksCancelled} משימות`, `עקביות: ${c.dailyDone}/${c.dailyPlanned} משימות יומיות, ${c.routinesDone}/${c.routinesPlanned} שגרות; זמן מתועד ${Math.round(c.mins / 60)} שעות`, `פעיל עכשיו: ${ps.active.promises} הבטחות (התקדמות ממוצעת ${ps.active.avgProgress == null ? '—' : ps.active.avgProgress + '%'}), ${ps.active.ops} מבצעים, ${ps.active.openIssues} סוגיות פתוחות`];
+            Object.entries(ps.cur.byPortfolio).forEach(([pid, r]) => L.push(`תיק ${(G.portfolios.get(pid) || { name: 'ללא תיק' }).name}: ${r.tasks} משימות, ${r.promises} הבטחות, ${r.issues} סוגיות, ${r.stages} שלבים`));
+            ps.cur.highlights.slice(0, 10).forEach(x => L.push(`הישג (${x.kind}, ${x.at}): ${x.text}`)); return L.join('\n');
+        }
+        function renderProgress() {
+            const ps = G.progressSummary(mk), c = ps.cur.counts, d = ps.delta, pc = (a, b) => b ? Math.round(a / b * 100) : null;
+            const tile = (ic, v, lab, k) => `<div class="bg-slate-900/70 border border-slate-700 rounded-xl p-3 text-center"><div class="text-xl">${ic}</div><div class="text-2xl font-black text-white leading-none mt-1">${v}</div><div class="text-[11px] text-slate-400 mt-1">${lab}</div>${k && ps.prev ? `<div class="text-[10px] mt-1 ${d[k] > 0 ? 'text-emerald-400' : d[k] < 0 ? 'text-rose-400' : 'text-slate-500'}">${d[k] > 0 ? '▲ +' + d[k] : d[k] < 0 ? '▼ ' + d[k] : '＝'} מול חודש קודם</div>` : ''}</div>`;
+            const dp = pc(c.dailyDone, c.dailyPlanned), rp = pc(c.routinesDone, c.routinesPlanned), pids = Object.entries(ps.cur.byPortfolio).map(([pid, r]) => [pid, r.tasks + r.promises * 3 + r.issues * 2 + r.stages]).sort((a, b) => b[1] - a[1]), mx = pids.length ? pids[0][1] : 1;
+            $('review-progress').innerHTML = `<div class="flex flex-wrap items-center justify-between gap-2 mb-3"><h2 class="font-bold text-white text-sm">📈 במה התקדמתי ב${h(G.monthLabel(mk))}</h2><span class="text-[10px] text-slate-500">${ps.partial ? 'החודש עוד לא הסתיים' : 'סיכום חודש'} • עובדות בלבד, לא ציון</span></div>
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">${tile('☑️', c.tasks, 'משימות שבוצעו', 'tasks')}${tile('📜', c.promises, 'הבטחות שבוצעו', 'promises')}${tile('🔥', c.issues, 'סוגיות שנסגרו', 'issues')}${tile('🪜', c.stages, 'שלבי מבצעים', 'stages')}${tile('🚀', c.ops, 'מבצעים שהושלמו', 'ops')}${tile('💡', c.ideas, 'רעיונות (' + c.adopted + ' אומצו)', 'ideas')}</div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3"><div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3 flex items-center gap-3">${dp == null ? '' : G.gauge(dp, { size: 64, label: 'יומי' })}<div class="text-[11px] text-slate-400">משימות יומיות: ${c.dailyDone} מתוך ${c.dailyPlanned}${dp == null ? '<br>עוד אין נתונים' : ''}</div></div>
+                    <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3 flex items-center gap-3">${rp == null ? '' : G.gauge(rp, { size: 64, label: 'שגרות' })}<div class="text-[11px] text-slate-400">שגרות: ${c.routinesDone} מתוך ${c.routinesPlanned}${rp == null ? '<br>אין שגרות שמועדן חל' : ''}</div></div>
+                    <div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3 text-[11px] text-slate-300 space-y-1"><div>⏱️ זמן מתועד: <b>${Math.round(c.mins / 60 * 10) / 10}</b> שעות</div><div>🎞️ מהרשימה הצדדית: <b>${c.wish}</b></div><div>🚫 בוטלו: ${c.promisesDropped} הבטחות, ${c.issuesDropped} סוגיות, ${c.tasksCancelled} משימות</div><div class="text-slate-500">פעיל עכשיו: ${ps.active.promises} הבטחות${ps.active.avgProgress == null ? '' : ' (' + ps.active.avgProgress + '% בממוצע)'}, ${ps.active.ops} מבצעים, ${ps.active.openIssues} סוגיות</div></div></div>
+                ${pids.length ? `<div class="mt-3"><div class="text-xs font-bold text-slate-300 mb-2">לפי תיק (משימה = 1, שלב = 1, סוגיה = 2, הבטחה = 3 נקודות)</div><div class="space-y-1.5">${pids.map(([pid, v]) => { const r = ps.cur.byPortfolio[pid], pf = G.portfolios.get(pid) || { icon: '📁', name: 'ללא תיק' }; return `<div class="flex items-center gap-2 text-[11px]"><span class="w-32 shrink-0 truncate">${pf.icon} ${h(pf.name)}</span><div class="flex-1 g-bar"><i style="width:${Math.round(v / mx * 100)}%;background:#fbbf24"></i></div><span class="w-40 shrink-0 text-slate-500">${r.tasks} מש׳ • ${r.promises} הב׳ • ${r.issues} סו׳ • ${r.stages} שלבים</span></div>`; }).join('')}</div></div>` : ''}
+                ${ps.cur.highlights.length ? `<div class="mt-3"><div class="text-xs font-bold text-slate-300 mb-1">🏅 הישגים בולטים</div><div class="space-y-1">${ps.cur.highlights.map(x => `<div class="flex gap-2 text-[11px] bg-slate-900/50 rounded-lg px-2.5 py-1.5"><span>${KIND_IC[x.kind] || '•'}</span><span class="flex-1">${h(x.text)}</span><span class="text-slate-500">${h(x.at.slice(5))}</span></div>`).join('')}</div></div>` : '<p class="text-xs text-slate-500 mt-3">עוד אין הישגים רשומים בחודש הזה.</p>'}
+                <div class="mt-3 flex flex-wrap items-center gap-2"><button class="g-btn" onclick="askProgress()">🤖 סיכום מילולי ב-AI (אנונימי, באישור)</button><span id="progMsg" class="text-[11px] text-slate-400"></span></div>${aiSummary && aiSummary.mk === mk ? `<div class="mt-2 text-xs text-slate-200 bg-slate-900/60 border border-violet-500/30 rounded-xl p-3 leading-relaxed">${G.nl(aiSummary.text)}</div>` : ''}`;
+        }
+        async function askProgress() {
+            const ps = G.progressSummary(mk), m = $('progMsg'); m.textContent = 'ממתין לאישור…';
+            const names = G.people.all().map(p => p.name).concat(G.treaties.all().map(t => t.party), [G.profile.get().name || '']).filter(Boolean);
+            const r = await window.GOVAI.ask({ title: 'סיכום התקדמות', names, data: progressText(ps), task: 'אתה יועץ ישר ולא חנפן. כתוב סיכום קצר (4-6 משפטים) של במה המשתמש התקדם החודש, על סמך הנתונים בלבד: מה בולט לטובה, מה נראה תקוע או חסר (למשל תיקים בלי פעילות, שגרות שלא מתבצעות, סוגיות פתוחות בלי משימות), והמלצה אחת קונקרטית לשבוע הבא. אל תמציא עובדות. אם מעט נתונים - אמור זאת.' });
+            if (!r.ok) { m.textContent = r.cancelled ? 'בוטל.' : '⚠️ ' + r.error; return; } aiSummary = { mk, text: r.text }; m.textContent = ''; renderProgress();
+        }
+        function render() { renderCurrent(); renderProgress(); renderHistory(); }
         window.addEventListener('DOMContentLoaded', render);
     </script>
 </body>
