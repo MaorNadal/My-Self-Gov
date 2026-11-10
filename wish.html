@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>רשימה צדדית - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+    <script src="gov-core.js?v=0.7.0"></script>
+    <script src="gov-nav.js?v=0.7.0"></script>
+    <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
+        <h1 class="text-3xl font-black text-white">🎞️ הרשימה הצדדית</h1>
+        <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">דברים שתרצה לעשות בזמן הפנוי: סרטים, טיולים, מקומות, ספרים... הם <b>מחוץ לסדר העדיפויות</b>: לא נכנסים לציון ולא מתערבבים עם המשימות. כשמבצעים אחד, הוא מופיע ב"פעולות היום" ברשימה נפרדת.</p>
+    </header>
+    <main class="max-w-6xl mx-auto px-4 space-y-4 mt-4">
+        <section id="w-add" class="g-card"></section>
+        <div id="w-tabs" class="flex flex-wrap gap-2"></div>
+        <section id="w-list" class="grid grid-cols-1 md:grid-cols-2 gap-3"></section>
+    </main>
+    <script>
+        const G = window.GOV, h = G.esc, $ = id => document.getElementById(id);
+        let cat = 'all';
+        const PRESETS = ['🎬 סרטים', '🧳 טיולים', '📍 מקומות לראות', '📚 ספרים', '🍽️ מסעדות'];
+        function renderAdd() {
+            const cats = [...new Set(G.wish.cats().concat(PRESETS))];
+            $('w-add').innerHTML = `<h2 class="font-bold text-white text-sm mb-2">➕ פריט חדש</h2><div class="grid grid-cols-2 md:grid-cols-6 gap-2 items-end">
+                <label class="g-lab col-span-2 md:col-span-3">מה<input id="wT" class="g-inp" maxlength="200" onkeydown="if(event.key==='Enter')add()"></label>
+                <label class="g-lab col-span-2">רשימה (בחר או כתוב חדשה)<input id="wC" class="g-inp" maxlength="40" list="wCats" value="${cat !== 'all' ? h(cat) : ''}"><datalist id="wCats">${cats.map(c => `<option value="${h(c)}">`).join('')}</datalist></label>
+                <button class="g-btn pri" onclick="add()">הוסף</button>
+                <label class="g-lab col-span-2 md:col-span-6">הערה (אופציונלי: איפה, עם מי, למה)<textarea id="wN" rows="1" maxlength="300" class="g-inp"></textarea></label></div>`;
+        }
+        function add() { const r = G.wish.save({ text: $('wT').value, cat: $('wC').value.trim() || 'כללי', note: $('wN').value }); if (!r) { alert('נסח את הפריט (לפחות 2 תווים).'); return; } $('wT').value = ''; $('wN').value = ''; render(); }
+        function tog(id) { G.wish.toggle(id); render(); }
+        function del(id) { if (confirm('למחוק את הפריט מהרשימה?')) { G.wish.remove(id); render(); } }
+        function render() {
+            const all = G.wish.all(), cats = G.wish.cats(); if (cat !== 'all' && !cats.includes(cat)) cat = 'all';
+            $('w-tabs').innerHTML = `<button class="g-btn ${cat === 'all' ? 'pri' : ''}" onclick="cat='all';render()">הכול (${all.length})</button>` + cats.map(c => `<button class="g-btn ${cat === c ? 'pri' : ''}" onclick="cat=${h(JSON.stringify(c)).replace(/&quot;/g, '&#34;')};render()">${h(c)} (${all.filter(w => w.cat === c).length})</button>`).join('');
+            renderAdd();
+            const show = cat === 'all' ? cats : [cat];
+            $('w-list').innerHTML = show.map(c => {
+                const l = all.filter(w => w.cat === c), op = l.filter(w => !w.done), dn = l.filter(w => w.done).sort((a, b) => b.doneAt.localeCompare(a.doneAt));
+                const row = w => `<div class="flex items-start gap-2 text-sm bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-2"><input type="checkbox" ${w.done ? 'checked' : ''} onchange="tog('${h(w.id)}')" class="w-4 h-4 mt-0.5 accent-violet-400 shrink-0"><span class="flex-1 ${w.done ? 'line-through text-slate-500' : ''}">${h(w.text)}${w.note ? `<div class="text-[11px] text-slate-400 no-underline">${G.nl(w.note)}</div>` : ''}${w.done ? `<div class="text-[10px] text-violet-300">בוצע ב-${h(w.doneAt)}</div>` : ''}</span><button class="text-rose-400 text-xs" onclick="del('${h(w.id)}')">✕</button></div>`;
+                return `<div class="g-card" style="border-right:4px solid #a78bfa"><div class="flex items-center justify-between mb-2"><h3 class="font-bold text-violet-300">${h(c)}</h3>${G.gauge(l.length ? dn.length / l.length * 100 : 0, { size: 44, color: '#a78bfa' })}</div><div class="space-y-1.5">${op.map(row).join('') || '<p class="text-xs text-slate-500">הכול בוצע 🎉</p>'}</div>${dn.length ? `<details class="mt-2"><summary class="text-[11px] text-emerald-300 cursor-pointer">✔️ בוצעו (${dn.length})</summary><div class="space-y-1.5 mt-1.5">${dn.map(row).join('')}</div></details>` : ''}</div>`;
+            }).join('') || '<div class="g-card text-center text-sm text-slate-400 md:col-span-2">הרשימה ריקה. הוסף סרט, טיול או מקום.</div>';
+        }
+        window.addEventListener('DOMContentLoaded', render); window.addEventListener('storage', render);
+    </script>
+</body>
+</html>

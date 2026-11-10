@@ -11,8 +11,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.6.1"></script>
-    <script src="gov-nav.js?v=0.6.1"></script>
+    <script src="gov-core.js?v=0.7.0"></script>
+    <script src="gov-nav.js?v=0.7.0"></script>
     <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
         <h1 class="text-3xl font-black text-white">☑️ משימות והיסטוריה</h1>
         <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">כל המשימות במקום אחד: עם הבטחה, עם סוגיה, מאמנה, או עצמאיות. כל מה שהושלם לא נעלם, אלא עובר לטאב ההיסטוריה.</p>
@@ -36,27 +36,34 @@
                     <button class="g-btn pri" onclick="add()">הוסף</button>
                     <label class="g-lab col-span-2 md:col-span-2">הבטחה (אופציונלי)<select id="aP" class="g-inp" onchange="syncPid()"><option value="">ללא הבטחה</option>${ps.map(p => `<option value="${h(p.id)}">${h(p.text.slice(0, 50))}</option>`).join('')}</select></label>
                     <label class="g-lab col-span-2 md:col-span-2">סוגיה (אופציונלי)<select id="aI" class="g-inp"><option value="">ללא סוגיה</option>${is.map(i => `<option value="${h(i.id)}">${h(i.title.slice(0, 50))}</option>`).join('')}</select></label>
-                    <label class="g-lab col-span-2">תיק (ברירת מחדל: של ההבטחה)<select id="aPid" class="g-inp">${pOpts('')}</select></label></div>`;
+                    <label class="g-lab col-span-2">תיק (ברירת מחדל: של ההבטחה)<select id="aPid" class="g-inp">${pOpts('')}</select></label>
+                    <div class="col-span-2 md:col-span-6 flex flex-wrap items-center gap-4 text-xs text-slate-300"><label class="flex items-center gap-1.5"><input type="radio" name="aM" value="on" checked> ביצוע ביום הזה</label><label class="flex items-center gap-1.5"><input type="radio" name="aM" value="by"> ⏳ פתוחה לביצוע בכל יום <b>עד</b> התאריך (תופיע בפעולות היום עד שתבוצע)</label></div>
+                    ${ps.length > 1 ? `<details class="col-span-2 md:col-span-6 text-xs"><summary class="cursor-pointer text-sky-300 font-bold">🔗 לקשר ליותר מהבטחה אחת (אופציונלי)</summary><div class="grid grid-cols-1 md:grid-cols-2 gap-1 mt-2">${ps.map(p => `<label class="flex items-center gap-1.5 text-slate-300"><input type="checkbox" class="aPx" value="${h(p.id)}"> ${h(p.text.slice(0, 60))}</label>`).join('')}</div><p class="text-[10px] text-slate-500 mt-1">משימה שמקושרת לכמה הבטחות תקדם את כולן כשתבוצע. שים לב: היא נספרת בכל הבטחה בנפרד.</p></details>` : ''}</div>`;
         }
         function syncPid() { const p = G.promises.get($('aP').value); if (p) $('aPid').value = p.pid || ''; }
         function add() {
             const t = $('aT').value.trim(); if (t.length < 2) { alert('נסח את המשימה (לפחות 2 תווים).'); return; }
-            G.tasks.save({ text: t, due: $('aD').value, time: $('aH').value, promiseId: $('aP').value, issueId: $('aI').value, pid: $('aPid').value }); $('aT').value = ''; render();
+            const by = document.querySelector('input[name=aM]:checked').value === 'by', ids = [$('aP').value].concat([...document.querySelectorAll('.aPx:checked')].map(x => x.value)).filter(Boolean);
+            if (by && !$('aD').value) { alert('משימה פתוחה עד תאריך דורשת תאריך יעד.'); return; }
+            const r = G.tasks.save({ text: t, due: $('aD').value, time: by ? '' : $('aH').value, mode: by ? 'by' : 'on', promiseIds: ids, issueId: $('aI').value, pid: $('aPid').value }); if (!r) { alert('לא ניתן לשמור (בדוק את התאריך).'); return; } $('aT').value = ''; render();
+        }
+        function linkP(id, pid) { if (pid) { G.tasks.link(id, pid, true); render(); } }
+        function unlinkP(id, pid) { if (confirm('לנתק את המשימה מההבטחה הזו?')) { G.tasks.link(id, pid, false); render(); }
         }
         function ctx(t) {
-            const p = t.promiseId && G.promises.get(t.promiseId), i = t.issueId && G.issues.get(t.issueId), tr = t.treatyId && G.treaties.get(t.treatyId), pid = t.pid || (p && p.pid), po = pid && pf(pid);
-            return [po ? po.icon + ' ' + h(po.name) : '', p ? '📜 ' + h(p.text.slice(0, 30)) : '', i ? '🔥 ' + h(i.title.slice(0, 30)) : '', tr ? '🤝 ' + h(tr.party) : ''].filter(Boolean).join(' • ');
+            const p = t.promiseId && G.promises.get(t.promiseId), more = t.promiseIds.length - 1, i = t.issueId && G.issues.get(t.issueId), tr = t.treatyId && G.treaties.get(t.treatyId), pid = t.pid || (p && p.pid), po = pid && pf(pid);
+            return [po ? po.icon + ' ' + h(po.name) : '', p ? '📜 ' + h(p.text.slice(0, 30)) + (more > 0 ? ' <b class="text-sky-300">+' + more + ' הבטחות</b>' : '') : '', i ? '🔥 ' + h(i.title.slice(0, 30)) : '', tr ? '🤝 ' + h(tr.party) : ''].filter(Boolean).join(' • ');
         }
         function renderOpen() {
             const ts = G.tasks.all().filter(t => !t.done).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (a.time || '99').localeCompare(b.time || '99'));
-            const g = [['⚠️ באיחור', ts.filter(t => t.due && t.due < TODAY), '#f87171'], ['📅 להיום', ts.filter(t => t.due === TODAY), '#fbbf24'], ['🗓️ בהמשך', ts.filter(t => t.due > TODAY), '#38bdf8'], ['📭 ללא תאריך', ts.filter(t => !t.due), '#94a3b8']];
-            $('tk-list').innerHTML = g.map(([l, a, c]) => a.length ? `<div class="g-card" style="border-right:4px solid ${c};padding:12px"><div class="font-bold text-sm mb-2" style="color:${c}">${l} (${a.length})</div><div class="space-y-1">${a.map(t => `<div class="flex items-center gap-2 text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-2.5 py-1.5"><input type="checkbox" onchange="tog('${h(t.id)}')" class="w-4 h-4 accent-emerald-400"><span class="flex-1">${t.time ? '<b class="text-sky-300" dir="ltr">' + h(t.time) + '</b> ' : ''}${h(t.text)}<div class="text-[10px] text-slate-500">${ctx(t)}</div></span>${t.due ? `<span class="text-slate-400">${h(t.due)}</span>` : ''}<button class="text-rose-400" onclick="del('${h(t.id)}')">✕</button></div>`).join('')}</div></div>` : '').join('') || '<div class="g-card text-center text-sm text-slate-400">אין משימות פתוחות.</div>';
+            const by = t => t.mode === 'by' && t.from <= TODAY && t.due >= TODAY, g = [['⚠️ באיחור', ts.filter(t => t.due && t.due < TODAY), '#f87171'], ['⏳ פתוחות עד תאריך (בטווח הביצוע)', ts.filter(by), '#22d3ee'], ['📅 להיום', ts.filter(t => t.due === TODAY && !by(t)), '#fbbf24'], ['🗓️ בהמשך', ts.filter(t => t.due > TODAY && !by(t)), '#38bdf8'], ['📭 ללא תאריך', ts.filter(t => !t.due), '#94a3b8']];
+            $('tk-list').innerHTML = g.map(([l, a, c]) => a.length ? `<div class="g-card" style="border-right:4px solid ${c};padding:12px"><div class="font-bold text-sm mb-2" style="color:${c}">${l} (${a.length})</div><div class="space-y-1">${a.map(t => `<div class="flex items-center gap-2 text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-2.5 py-1.5"><input type="checkbox" onchange="tog('${h(t.id)}')" class="w-4 h-4 accent-emerald-400"><span class="flex-1">${t.time ? '<b class="text-sky-300" dir="ltr">' + h(t.time) + '</b> ' : ''}${h(t.text)}<div class="text-[10px] text-slate-500">${ctx(t)}</div></span>${t.due ? `<span class="text-slate-400">${t.mode === 'by' ? 'עד ' : ''}${h(t.due)}</span>` : ''}<details class="relative"><summary class="cursor-pointer text-sky-300 list-none" title="קישור להבטחות">🔗</summary><div class="absolute left-0 z-10 bg-slate-800 border border-slate-600 rounded-lg p-2 w-56 space-y-1">${t.promiseIds.map(id => G.promises.get(id)).filter(Boolean).map(p => `<div class="flex justify-between gap-1"><span>📜 ${h(p.text.slice(0, 24))}</span><button class="text-rose-400" onclick="unlinkP('${h(t.id)}','${h(p.id)}')">נתק</button></div>`).join('')}<select class="g-inp" style="margin:0" onchange="linkP('${h(t.id)}',this.value)"><option value="">➕ קשר להבטחה…</option>${G.promises.all().filter(p => !t.promiseIds.includes(p.id) && !['done', 'failed', 'dropped'].includes(p.status)).map(p => `<option value="${h(p.id)}">${h(p.text.slice(0, 40))}</option>`).join('')}</select></div></details><button class="text-rose-400" onclick="del('${h(t.id)}')">✕</button></div>`).join('')}</div></div>` : '').join('') || '<div class="g-card text-center text-sm text-slate-400">אין משימות פתוחות.</div>';
         }
-        const KIND = { task: ['☑️', 'משימה'], promise: ['📜', 'הבטחה'], issue: ['🔥', 'סוגיה'], distraction: ['🚫', 'הסחה'], treaty: ['🤝', 'אמנה'] };
+        const KIND = { task: ['☑️', 'משימה'], promise: ['📜', 'הבטחה'], issue: ['🔥', 'סוגיה'], distraction: ['🚫', 'הסחה'], treaty: ['🤝', 'אמנה'], wish: ['🎞️', 'רשימה צדדית'] };
         function renderHist() {
             let all = G.historyItems(); const cnt = k => all.filter(x => x.kind === k).length;
             if (kind !== 'all') all = all.filter(x => x.kind === kind); if (q) all = all.filter(x => (x.text + ' ' + (x.note || '')).toLowerCase().includes(q.toLowerCase()));
-            const stL = { done: 'בוצעה', failed: 'נכשלה', dropped: 'בוטלה', resolved: 'נסגרה', fulfilled: 'קוימה', breached: 'הופרה', ended: 'הסתיימה' };
+            const stL = { cancelled: 'בוטלה', done: 'בוצעה', failed: 'נכשלה', dropped: 'בוטלה', resolved: 'נסגרה', fulfilled: 'קוימה', breached: 'הופרה', ended: 'הסתיימה' };
             $('tk-list').innerHTML = `<div class="g-card"><div class="flex flex-wrap gap-2 items-center"><button class="g-btn ${kind === 'all' ? 'pri' : ''}" onclick="kind='all';render()">הכול</button>${Object.entries(KIND).map(([k, v]) => `<button class="g-btn ${kind === k ? 'pri' : ''}" onclick="kind='${k}';render()">${v[0]} ${v[1]} (${cnt(k)})</button>`).join('')}<input class="g-inp flex-1 min-w-[10rem]" style="margin:0" placeholder="חיפוש…" value="${h(q)}" oninput="q=this.value;renderHist2()"></div></div><div id="histRows"></div>`;
             renderHist2();
             function renderHist2() {}

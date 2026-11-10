@@ -12,8 +12,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.6.1"></script>
-    <script src="gov-nav.js?v=0.6.1"></script>
+    <script src="gov-core.js?v=0.7.0"></script>
+    <script src="gov-nav.js?v=0.7.0"></script>
 
     <header class="max-w-6xl mx-auto px-4 pt-8 pb-4">
         <div class="text-[11px] font-bold text-amber-400 tracking-wider">☀️ לוח הבקרה של הממשלה</div>
@@ -122,25 +122,26 @@
             G.daily.get(TODAY).forEach(x => it.push({ src: 'daily', id: x.id, text: x.text, pid: x.pid, done: x.done, time: '' }));
             G.routines.forDay(TODAY).forEach(x => it.push({ src: 'routine', id: x.r.id, text: x.r.text, pid: x.r.pid, done: x.done, time: x.r.time }));
             G.treaties.dueOn(TODAY).forEach(t => it.push({ src: 'treaty', id: t.id, text: t.party + ': ' + t.title, pid: t.pid, done: t.checks.includes(TODAY), time: '' }));
-            G.tasks.all().forEach(t => { if (t.done ? t.doneAt === TODAY : (t.due && t.due <= TODAY)) it.push({ src: 'task', id: t.id, text: t.text, pid: t.pid || ((G.promises.get(t.promiseId) || {}).pid) || '', done: t.done, time: t.time, late: !t.done && t.due < TODAY, due: t.due }); });
+            G.tasks.all().forEach(t => { const by = t.mode === 'by'; if (t.done ? t.doneAt === TODAY : (by ? t.from <= TODAY : (t.due && t.due <= TODAY))) it.push({ src: 'task', id: t.id, text: t.text, pid: t.pid || ((G.promises.get(t.promiseId) || {}).pid) || '', done: t.done, time: by ? '' : t.time, late: !t.done && t.due < TODAY, due: t.due, by }); });
             G.promises.all().filter(p => p.month === MK && p.crit.type === 'recurring' && !['done', 'failed', 'dropped'].includes(p.status)).forEach(p => { const c = G.critStatus(p); if (c && (c.due || c.last === TODAY)) it.push({ src: 'crit', id: p.id, text: p.text + ' (כל ' + c.every + ' ימים)', pid: p.pid, done: c.last === TODAY, time: '', late: c.overdue }); });
             G.events.on(TODAY).forEach(e => it.push({ src: 'event', id: e.id, text: e.title + (e.place ? ' 📍' + e.place : ''), pid: e.pid, done: e.done, time: e.start }));
             return it.sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
         }
         function renderDaily() {
-            const all = todayItems(), open = all.filter(x => !x.done), dn = all.filter(x => x.done);
+            const all = todayItems(), open = all.filter(x => !x.done), dn = all.filter(x => x.done), wd = G.wish.doneOn(TODAY);
             const row = x => `<div class="flex items-center gap-2 bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-2" ${x.late ? 'style="border-right:3px solid #f87171"' : ''}>
                     <input type="checkbox" ${x.done ? 'checked' : ''} onchange="togToday('${x.src}','${h(x.id)}')" class="w-4 h-4 accent-emerald-400 shrink-0">
-                    <span class="flex-1 text-sm ${x.done ? 'line-through text-slate-500' : 'text-slate-100'}">${x.time ? '<b class="text-sky-300" dir="ltr">' + h(x.time) + '</b> ' : ''}${pIcon(x.pid)} ${h(x.text)}${x.late ? ' <span class="text-rose-300 text-[11px]">באיחור' + (x.due ? ' (' + h(x.due.slice(5)) + ')' : '') + '</span>' : ''}</span>
+                    <span class="flex-1 text-sm ${x.done ? 'line-through text-slate-500' : 'text-slate-100'}">${x.time ? '<b class="text-sky-300" dir="ltr">' + h(x.time) + '</b> ' : ''}${pIcon(x.pid)} ${h(x.text)}${x.late ? ' <span class="text-rose-300 text-[11px]">באיחור' + (x.due ? ' (' + h(x.due.slice(5)) + ')' : '') + '</span>' : (x.by && !x.done ? ' <span class="text-sky-300 text-[11px]">פתוחה עד ' + h(x.due.slice(8) + '/' + x.due.slice(5, 7)) + '</span>' : '')}</span>
                     <span class="g-chip" style="color:${SRC[x.src][1]};border-color:${SRC[x.src][1]}55">${SRC[x.src][0]}</span>${x.src === 'daily' ? `<button class="text-rose-400 text-xs" onclick="removeDaily('${h(x.id)}')">✕</button>` : ''}</div>`;
             $('today').innerHTML = `<div class="flex items-center justify-between mb-3"><h2 class="font-bold text-white text-sm">✅ פעולות היום</h2><span class="text-[11px] text-slate-400">${dn.length}/${all.length} בוצעו</span></div>
                 ${all.length ? `<div class="mb-3">${bar(dn.length / all.length * 100, '#34d399')}</div>` : ''}
                 <div class="space-y-1.5 mb-3">${open.map(row).join('') || `<p class="text-xs text-slate-500 py-2">${all.length ? '🎉 הכול בוצע להיום.' : 'אין מה לבצע היום. הגדר שגרות, משימות עם תאריך או פעולה חדשה.'}</p>`}</div>
                 ${dn.length ? `<details class="mb-3" open><summary class="text-[11px] font-bold text-emerald-300 cursor-pointer mb-1.5">✔️ הושלמו היום (${dn.length})</summary><div class="space-y-1.5">${dn.map(row).join('')}</div></details>` : ''}
+                ${wd.length ? `<details class="mb-3" open><summary class="text-[11px] font-bold text-violet-300 cursor-pointer mb-1.5">🎞️ מהרשימה הצדדית, הושלמו היום (${wd.length})</summary><div class="space-y-1.5">${wd.map(w => `<div class="flex items-center gap-2 bg-slate-900/70 border border-violet-500/30 rounded-lg px-3 py-2 text-sm"><input type="checkbox" checked onchange="G.wish.toggle('${h(w.id)}');renderDaily()" class="w-4 h-4 accent-violet-400 shrink-0"><span class="flex-1 line-through text-slate-400">${h(w.text)}</span><span class="g-chip" style="color:#a78bfa;border-color:#a78bfa55">${h(w.cat)}</span></div>`).join('')}</div><p class="text-[10px] text-slate-500 mt-1">הרשימה הצדדית נפרדת: לא נספרת בהתקדמות היום ולא בציון.</p></details>` : ''}
                 <div class="flex flex-wrap gap-2"><input id="dText" class="g-inp flex-1 min-w-[10rem]" style="margin:0" maxlength="200" placeholder="פעולה או משימה חדשה…" onkeydown="if(event.key==='Enter')addDaily()">
                     <input id="dDue" type="date" class="g-inp" style="margin:0;width:auto" title="תאריך (ריק = פעולה להיום בלבד; מלא = משימה עם תאריך)"><input id="dTime" type="time" class="g-inp" style="margin:0;width:auto" title="שעה (למשימה)">
                     <select id="dPid" class="g-inp" style="margin:0;width:auto">${pOpts('')}</select><button class="g-btn pri" onclick="addDaily()">הוסף</button><button class="g-btn" onclick="carryOver()" title="מעביר מאתמול פעולות שלא בוצעו">↪️ גלגל מאתמול</button></div>
-                <p class="text-[10px] text-slate-500 mt-1">ללא תאריך: פעולה להיום בלבד. עם תאריך: משימה עצמאית שתופיע כאן ביום שלה. <a href="tasks.html" class="text-amber-400">כל המשימות וההיסטוריה ←</a></p>`;
+                <p class="text-[10px] text-slate-500 mt-1">ללא תאריך: פעולה להיום בלבד. עם תאריך: משימה עצמאית שתופיע כאן ביום שלה. <a href="tasks.html" class="text-amber-400">כל המשימות וההיסטוריה ←</a> • <a href="wish.html" class="text-violet-300">הרשימה הצדדית ←</a></p>`;
         }
         function togToday(src, id) {
             if (src === 'daily') { const l = G.daily.get(TODAY), x = l.find(i => i.id === id); if (x) { x.done = !x.done; G.daily.set(TODAY, l); } }
@@ -323,9 +324,10 @@
                 `<div class="flex flex-wrap gap-2 items-end"><label class="g-lab flex-1 min-w-[14rem]">מפתח API<input id="aiKey" type="password" dir="ltr" autocomplete="off" class="g-inp" placeholder="AIza…"></label><button class="g-btn pri" onclick="aiSave()">💾 שמור ובדוק</button>${qb ? '<button class="g-btn" onclick="aiImportQb()">📥 השתמש במפתח של QB Master Class</button>' : ''}</div>`}
                 <div id="aiMsg" class="text-[11px] mt-2 text-slate-400"></div>`;
         }
-        async function aiVerify() { $('aiMsg').textContent = 'בודק חיבור…'; const r = await GOVAI.test(); $('aiMsg').style.color = r.ok ? '#34d399' : '#f87171'; $('aiMsg').textContent = r.ok ? 'החיבור תקין (מודל: ' + r.model + ').' : '⚠️ ' + r.error; return r.ok; }
-        async function aiSave() { const r = await GOVAI.setKey($('aiKey').value); if (!r.ok) { $('aiMsg').style.color = '#f87171'; $('aiMsg').textContent = r.error; return; } renderAi(); await aiVerify(); }
-        async function aiImportQb() { const r = await GOVAI.setKey(GOVAI.importQbKey()); renderAi(); if (r.ok) await aiVerify(); }
+        async function aiVerify() { aiMsgShow('בודק חיבור…', true); const r = await GOVAI.test(); aiMsgShow(r.ok ? 'החיבור תקין (מודל: ' + r.model + ').' : '⚠️ ' + r.error + ' המפתח נשמר; אפשר לנסות שוב מאוחר יותר או להחליף מפתח.', r.ok); return r.ok; }
+        function aiMsgShow(t, ok) { const m = $('aiMsg'); if (m) { m.style.color = ok ? '#34d399' : '#f87171'; m.textContent = t; } }
+        async function aiSave() { const r = await GOVAI.setKey($('aiKey').value); if (!r.ok) { aiMsgShow('⚠️ ' + r.error, false); return; } renderAi(); await aiVerify(); }
+        async function aiImportQb() { const r = await GOVAI.setKey(GOVAI.importQbKey()); renderAi(); if (r.ok) await aiVerify(); else aiMsgShow('⚠️ ' + r.error, false); }
         async function aiTest() { await aiVerify(); }
         function aiClear() { if (confirm('להסיר את מפתח ה-Gemini מהדפדפן הזה?')) { GOVAI.clearKey(); renderAi(); } }
         window.addEventListener('gov:vault', () => { renderCloud(); renderAi(); renderSettings(); });

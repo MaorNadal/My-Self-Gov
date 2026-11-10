@@ -11,8 +11,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.6.1"></script>
-    <script src="gov-nav.js?v=0.6.1"></script>
+    <script src="gov-core.js?v=0.7.0"></script>
+    <script src="gov-nav.js?v=0.7.0"></script>
 
     <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
         <h1 class="text-3xl font-black text-white">🗂️ תיקי הממשלה</h1>
@@ -33,7 +33,7 @@
         let sel = (location.hash.match(/^#p=(.+)$/) || [])[1] || null;
 
         function renderGrid() {
-            const ps = G.promises.all().filter(p => p.month === MK && p.status !== 'dropped'), is = G.issues.all().filter(i => i.status !== 'resolved'), ids = G.ideas.all().filter(i => i.status === 'new');
+            const ps = G.promises.all().filter(p => p.month === MK && p.status !== 'dropped'), is = G.issues.all().filter(i => i.status !== 'resolved' && i.status !== 'dropped'), ids = G.ideas.all().filter(i => i.status === 'new');
             $('grid').innerHTML = G.portfolios.all().map(p => {
                 const mine = ps.filter(x => x.pid === p.id), done = mine.filter(x => x.status === 'done').length;
                 return `<button type="button" onclick="openP('${h(p.id)}')" class="g-card text-right hover:border-amber-400 transition ${sel === p.id ? 'border-amber-400' : ''}">
@@ -53,7 +53,8 @@
             const box = $('portfolio-detail'), p = sel && G.portfolios.get(sel);
             if (!p) { box.innerHTML = '<div class="g-card text-center text-sm text-slate-400">בחר תיק כדי לראות את הסוגיות, הרעיונות וההבטחות שלו.</div>'; return; }
             const proms = G.promises.all().filter(x => x.pid === p.id && x.month === MK && x.status !== 'dropped');
-            const is = G.issues.all().filter(x => x.pid === p.id).sort((a, b) => (a.status === 'resolved' ? 1 : 0) - (b.status === 'resolved' ? 1 : 0) || b.severity - a.severity);
+            const tk = G.tasks.forPortfolio(p.id), tOpen = tk.filter(t => !t.done).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')), tDone = tk.filter(t => t.done && (t.doneAt || '').slice(0, 7) === MK), TD = G.localDate();
+            const is = G.issues.all().filter(x => x.pid === p.id).sort((a, b) => (['resolved', 'dropped'].includes(a.status) ? 1 : 0) - (['resolved', 'dropped'].includes(b.status) ? 1 : 0) || b.severity - a.severity);
             const ids = G.ideas.all().filter(x => x.pid === p.id && x.status !== 'rejected').sort((a, b) => (a.status === 'new' ? 0 : 1) - (b.status === 'new' ? 0 : 1));
             box.innerHTML = `<div class="g-card space-y-5">
                 <div class="flex flex-wrap items-center justify-between gap-2"><h2 class="text-xl font-black text-amber-400">${p.icon} ${h(p.name)}</h2>${p.builtin ? '' : `<button class="g-btn red" onclick="deleteP()">🗑️ מחק תיק</button>`}</div>
@@ -66,8 +67,12 @@
                 <div><h3 class="font-bold text-white text-sm mb-2">📜 הבטחות החודש בתיק (${proms.length})</h3>
                     ${proms.map(x => `<div class="text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1.5 mb-1.5 flex justify-between gap-2"><span>${h(x.text)}</span><span style="color:${G.STATUS[x.status].c}">${G.STATUS[x.status].l} ${x.progress}%</span></div>`).join('') || '<p class="text-xs text-slate-500">אין הבטחות החודש בתיק הזה.</p>'}</div>
 
+                <div><h3 class="font-bold text-white text-sm mb-2">☑️ משימות התיק (${tOpen.length} פתוחות, ${tDone.length} בוצעו החודש)</h3>
+                    ${tOpen.map(t => `<div class="text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1.5 mb-1.5 flex items-center gap-2" ${t.due && t.due < TD ? 'style="border-right:3px solid #f87171"' : ''}><input type="checkbox" onchange="G.tasks.toggle('${h(t.id)}');render()" class="w-4 h-4 accent-emerald-400"><span class="flex-1">${h(t.text)}${t.promiseId && G.promises.get(t.promiseId) ? ' <span class="text-slate-500">📜 ' + h(G.promises.get(t.promiseId).text.slice(0, 28)) + '</span>' : ''}</span>${t.due ? `<span class="${t.due < TD ? 'text-rose-300' : 'text-slate-400'}">${t.mode === 'by' ? 'עד ' : ''}${h(t.due.slice(5))}</span>` : ''}</div>`).join('') || '<p class="text-xs text-slate-500">אין משימות פתוחות בתיק (משימות נכללות לפי התיק שלהן, או לפי תיק ההבטחה).</p>'}
+                    <a href="tasks.html" class="text-[11px] text-amber-400">כל המשימות וההיסטוריה ←</a></div>
+
                 <div><h3 class="font-bold text-white text-sm mb-2">🔥 סוגיות</h3>
-                    ${is.map(x => { const st = G.ISSUE_STATUS[x.status]; return `<a href="issues.html#i=${h(x.id)}" class="text-xs bg-slate-900/70 border border-slate-700 hover:border-amber-400 rounded-lg px-3 py-1.5 mb-1.5 flex items-center gap-2"><span>${x.severity === 3 ? '🔴' : (x.severity === 2 ? '🟠' : '🟡')}</span><span class="flex-1 ${x.status === 'resolved' ? 'line-through text-slate-500' : ''}">${h(x.title)}</span><span class="g-chip" style="color:${st.c};border-color:${st.c}55">${st.l}</span></a>`; }).join('') || '<p class="text-xs text-slate-500 mb-1.5">אין סוגיות.</p>'}
+                    ${is.map(x => { const st = G.ISSUE_STATUS[x.status]; return `<a href="issues.html#i=${h(x.id)}" class="text-xs bg-slate-900/70 border border-slate-700 hover:border-amber-400 rounded-lg px-3 py-1.5 mb-1.5 flex items-center gap-2"><span>${x.severity === 3 ? '🔴' : (x.severity === 2 ? '🟠' : '🟡')}</span><span class="flex-1 ${x.status === 'resolved' || x.status === 'dropped' ? 'line-through text-slate-500' : ''}">${h(x.title)}</span><span class="g-chip" style="color:${st.c};border-color:${st.c}55">${st.l}</span></a>`; }).join('') || '<p class="text-xs text-slate-500 mb-1.5">אין סוגיות.</p>'}
                     <div class="flex flex-wrap gap-2 mt-2"><input id="iT" class="g-inp flex-1 min-w-[10rem]" style="margin:0" maxlength="200" placeholder="סוגיה חדשה בתיק…" onkeydown="if(event.key==='Enter')addI()"><select id="iS" class="g-inp" style="margin:0;width:auto"><option value="3">חמורה</option><option value="2" selected>רגילה</option><option value="1">קלה</option></select><button class="g-btn" onclick="addI()">הוסף</button></div></div>
 
                 <div><h3 class="font-bold text-white text-sm mb-2">💡 רעיונות של התיק</h3>

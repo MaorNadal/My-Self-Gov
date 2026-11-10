@@ -22,14 +22,25 @@
     function meta() { try { const o = JSON.parse(localStorage.getItem(KEY) || 'null'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
     function cfg() { const k = V() && V().get('ai'); return k && typeof k.key === 'string' && k.key ? Object.assign({}, meta(), { key: k.key }) : null; }   // המפתח רק מהכספת
     function hasKey() { return !!cfg(); }
+    // ניקוי והסבר מדויק: מפתחות חדשים של גוגל כוללים לעיתים נקודה (למשל קידומת AQ.) ואורך שונה, ולכן אין לפסול לפי אורך או פורמט צר. האימות האמיתי הוא קריאת בדיקה ל-Gemini.
+    function cleanKey(k) { return String(k || '').replace(/[\u200B-\u200F\u202A-\u202E\uFEFF]/g, '').replace(/^["'\s]+|["'\s]+$/g, '').replace(/^key\s*[=:]\s*/i, ''); }
+    function keyProblem(k) {
+        if (!k) return 'לא הוזן מפתח.';
+        if (/\s/.test(k)) return 'במפתח יש רווח או ירידת שורה באמצע. העתק שוב את המפתח כמות שהוא.';
+        const bad = k.match(/[^A-Za-z0-9_\-.~+\/=]/); if (bad) return 'המפתח מכיל תו שאינו חוקי ("' + bad[0] + '"). בדוק שמקלדת המכשיר באנגלית ושלא נוסף תו בהדבקה.';
+        if (k.length < 20) return 'המפתח קצר מדי (' + k.length + ' תווים). ייתכן שהועתק רק חלקו.';
+        if (k.length > 250) return 'המפתח ארוך מדי (' + k.length + ' תווים). ייתכן שהודבק יותר מהמפתח.';
+        return '';
+    }
     async function setKey(k) {
-        k = String(k || '').trim();
-        if (!/^[A-Za-z0-9_\-]{20,80}$/.test(k)) return { ok: false, error: 'המפתח נראה לא תקין (אמור להכיל 20-80 תווים לטיניים, ספרות, מקף או קו תחתון).' };
-        const r = await V().set('ai', { key: k }); if (!r.ok) return { ok: false, error: 'הכספת נעולה. הגדר סיסמה והיכנס אליה כדי לשמור מפתח.' };
+        k = cleanKey(k); const bad = keyProblem(k); if (bad) return { ok: false, error: bad };
+        if (!V() || !V().supported()) return { ok: false, error: 'הדפדפן הזה לא תומך בכספת המוצפנת (נדרש https).' };
+        if (!window.GOV.lock.isSet()) return { ok: false, error: 'כדי לשמור מפתח צריך קודם לקבוע סיסמה (בכרטיס שמעל או בהגדרות). הוא נשמר מוצפן בסיסמה.' };
+        const r = await V().set('ai', { key: k }); if (!r.ok) return { ok: false, error: 'הכספת נעולה. היכנס מחדש עם הסיסמה ונסה שוב.' };
         localStorage.setItem(KEY, JSON.stringify({ model: '', savedAt: new Date().toISOString() })); return { ok: true };
     }
     function clearKey() { V() && V().remove('ai'); localStorage.removeItem(KEY); }
-    function importQbKey() { try { return localStorage.getItem('qbmc_gemini_key') || ''; } catch (e) { return ''; } }
+    function importQbKey() { try { return cleanKey(localStorage.getItem('qbmc_gemini_key') || ''); } catch (e) { return ''; } }
     function setModel(m) { try { const o = meta(); o.model = m; localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) {} }
     function mask() { const c = cfg(); return c ? c.key.slice(0, 4) + '…' + c.key.slice(-3) : ''; }
 

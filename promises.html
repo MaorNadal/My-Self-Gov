@@ -11,8 +11,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.6.1"></script>
-    <script src="gov-nav.js?v=0.6.1"></script>
+    <script src="gov-core.js?v=0.7.0"></script>
+    <script src="gov-nav.js?v=0.7.0"></script>
 
     <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
         <h1 class="text-3xl font-black text-white">📜 הבטחות הממשלה</h1>
@@ -76,7 +76,7 @@
         function critForm() { const t = $('fCt').value; $('fCnW').style.display = $('fCuW').style.display = t === 'count' ? '' : 'none'; $('fCeW').style.display = t === 'recurring' ? '' : 'none'; }
         function critBlock(p, ro) {
             const c = G.critStatus(p); if (!c) return '';
-            if (c.type === 'count') return `<div class="mt-2 bg-slate-900/60 border border-slate-700 rounded-lg p-2"><div class="flex justify-between text-[11px] text-slate-300"><span>📏 ספירה: <b>${c.total}</b> מתוך <b>${c.target}</b> ${h(c.unit)}</span><span class="flex-none">${G.gauge(c.pct, { size: 44 })}</span></div><div class="g-bar mt-1"><i style="width:${c.pct}%;background:#34d399"></i></div>
+            if (c.type === 'count') return `<div class="mt-2 bg-slate-900/60 border border-slate-700 rounded-lg p-2"><div class="flex justify-between text-[11px] text-slate-300"><span>📏 ספירה: <b>${c.total}</b> מתוך <b>${c.target}</b> ${h(c.unit)}${c.base ? `<span class="text-slate-400"> • מתוכם ${c.base} מחודשים קודמים ו-<b class="text-emerald-300">${c.month}</b> החודש</span>` : ''}</span><span class="flex-none">${G.gauge(c.pct, { size: 44 })}</span></div><div class="g-bar mt-1"><i style="width:${c.pct}%;background:#34d399"></i></div>
                 ${ro || ['done', 'failed', 'dropped'].includes(p.status) ? '' : `<div class="flex gap-2 mt-2"><input id="cv_${h(p.id)}" type="number" min="1" value="1" class="g-inp" style="margin:0;width:5rem"><button class="g-btn ok" onclick="logC('${h(p.id)}')">➕ הוסף ${h(c.unit)}</button><button class="g-btn" onclick="undoC('${h(p.id)}')">↩️ בטל אחרון</button></div>`}</div>`;
             return `<div class="mt-2 bg-slate-900/60 border border-slate-700 rounded-lg p-2"><div class="flex flex-wrap justify-between gap-2 text-[11px] text-slate-300"><span>🔁 כל ${c.every} ימים: בוצע <b>${c.done}</b> מתוך <b>${c.expected}</b> החודש</span><span class="flex-none">${G.gauge(c.pct, { size: 44 })}</span></div><div class="g-bar mt-1"><i style="width:${c.pct}%;background:#34d399"></i></div>
                 <div class="text-[11px] mt-1 ${c.overdue ? 'text-rose-300' : 'text-slate-400'}">${c.last ? 'ביצוע אחרון: ' + h(c.last) + ' • ' : ''}${c.overdue ? 'באיחור! היה אמור להתבצע עד ' + h(c.next) : 'הביצוע הבא: ' + h(c.next)}</div>
@@ -93,7 +93,7 @@
         function carryOver() {
             const prev = G.addMonths(mk, -1), have = new Set(G.promises.all().filter(p => p.month === mk).map(p => p.text));
             let n = 0;
-            G.promises.all().filter(p => p.month === prev && ['open', 'progress', 'failed'].includes(p.status) && !have.has(p.text)).forEach(p => { G.promises.save({ month: mk, text: p.text, pid: p.pid, priority: p.priority, measure: p.measure, why: p.why, carried: true }); n++; });
+            G.promises.all().filter(p => p.month === prev && ['open', 'progress', 'failed'].includes(p.status) && !have.has(p.text)).forEach(p => { if (G.promises.carry(p.id, mk)) n++; });
             if (!n) alert('כל ההבטחות כבר קיימות החודש.'); render();
         }
 
@@ -117,7 +117,7 @@
                     <div class="text-[11px] text-slate-400 mt-0.5">${port ? port.icon + ' ' + h(port.name) : 'ללא תיק'} • עדיפות ${G.PRIORITY[p.priority]}${p.doneAt ? ' • בוצעה ב-' + p.doneAt : ''}</div></div>
                     <span class="g-chip" style="color:${s.c};border-color:${s.c}55;background:${s.c}1a">${s.l}</span></div>
                 ${p.measure ? `<div class="text-[11px] text-slate-300 mt-2">🎯 קריטריון: ${h(p.measure)}</div>` : ''}${critBlock(p, ro)}${p.why ? `<div class="text-[11px] text-slate-400">💭 ${h(p.why)}</div>` : ''}
-                ${p.status === 'dropped' ? `<div class="text-[11px] text-violet-300 mt-2">נימוק להסרה${p.droppedAt ? ' (' + h(p.droppedAt) + ')' : ''}: ${G.nl(p.dropReason)}</div><div class="mt-2">${GOV_REV.html('promise', p.id)}</div>` : ''}
+                ${p.status === 'dropped' ? `<div class="text-[11px] text-violet-300 mt-2">נימוק להסרה${p.droppedAt ? ' (' + h(p.droppedAt) + ')' : ''}: ${G.nl(p.dropReason)}</div><div class="mt-2">${p.dropIssueId ? `<a href="issues.html#i=${h(p.dropIssueId)}" class="block text-xs rounded-xl border border-violet-500/40 bg-violet-500/5 p-3 text-violet-300 hover:border-amber-400">⚖️ בוטלה אוטומטית עם סוגיה. הנימוק וההערכה (ראש הממשלה ו-AI) נמצאים בדף הסוגיה ←</a>` : GOV_REV.html('promise', p.id)}</div>` : ''}
                 ${p.status !== 'dropped' ? `<div class="flex items-center gap-3 mt-3">${G.gauge(p.progress, { size: 72, color: s.c, label: s.l })}<div class="flex-1 min-w-0">${bar(p.progress, s.c)}<div class="flex justify-between text-[10px] text-slate-500 mt-1"><span>0</span><span>50%</span><span>100%</span></div></div></div>` : ''}
                 ${taskBlock(p, ro)}
                 ${ro ? '' : `<div class="flex flex-wrap items-center gap-2 mt-3">
@@ -140,7 +140,7 @@
             const r = prompt('הסרת הבטחה היא החלטה, לא מחיקה. מה הנימוק? (לפחות 10 תווים; הוא יוצג בסיכום החודש)');
             if (r === null) return;
             if (r.trim().length < 10) { alert('נימוק קצר מדי. אם אין נימוק אמיתי, ההבטחה פשוט לא בוצעה: סמן אותה "לא בוצעה".'); return; }
-            const x = G.promises.drop(id, r); if (!x.ok) { alert(x.error); return; } render();
+            const x = G.promises.drop(id, r); if (!x.ok) { alert(x.error); return; } if (x.tasks) alert('ההבטחה הוסרה. ' + x.tasks + ' משימות שלה סומנו כמבוטלות (נשמרות בהיסטוריה).'); render();
         }
         function removePromise(id) { if (closed()) return; if (confirm('למחוק את ההבטחה לגמרי? (אם היא פשוט לא בוצעה, עדיף לסמן "לא בוצעה" ולא למחוק)')) { G.promises.remove(id); render(); } }
 

@@ -27,18 +27,35 @@
         if (!r.ok) { alert(r.error); return; } rerender();
     }
     function parse(t) { try { return JSON.parse(String(t).replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch (e) { const m = String(t).match(/\{[\s\S]*\}/); try { return m ? JSON.parse(m[0]) : null; } catch (e2) { return null; } } }
+    // תמונה כוללת של המערכת עבור הערכת ה-AI: מצב החודש והציון, הבטחות לפי תיק, סוגיות פעילות, ניצול זמן, ביטולים קודמים והערכותיהם, אמנות. קצר ומדויק (הטקסט המלא מוצג לך באישור לפני שליחה).
+    function systemContext(excl) {
+        const td = G.localDate(), mk = G.monthOf(td), L = ['--- תמונה כללית של המערכת ---'], T = (f, d) => { try { return f(); } catch (e) { return d; } };
+        T(() => { const sc = G.score(mk), N = { promises: 'הבטחות', daily: 'עקביות יומית', self: 'הערכה עצמית', issues: 'סוגיות ארוכות טווח' }; L.push(`ציון החודש (${mk}) עד כה: ${sc.total == null ? 'אין עדיין' : sc.total} | רכיבים: ` + sc.parts.map(p => N[p.id] + ' ' + (p.v == null ? '—' : p.v) + ' (משקל ' + p.w + '%)').join(', ')); });
+        T(() => { const h = G.history().filter(x => x.closed && x.score != null).slice(-4).map(x => x.mk + ': ' + x.score); if (h.length) L.push('ציונים בחודשים שנסגרו: ' + h.join(', ')); });
+        T(() => { const ps = G.promises.all().filter(p => p.month === mk), by = {}; ps.forEach(p => { const n = (G.portfolios.get(p.pid) || { name: 'ללא תיק' }).name, r = by[n] = by[n] || { a: 0, d: 0, x: 0 }; if (p.status === 'dropped') r.x++; else { r.a++; if (p.status === 'done') r.d++; } });
+            L.push('הבטחות החודש לפי תיק (פעילות/בוצעו/בוטלו): ' + Object.entries(by).map(([n, r]) => n + ' ' + r.a + '/' + r.d + '/' + r.x).join('; ')); });
+        T(() => { const is = G.issues.all().filter(i => ['open', 'handling'].includes(i.status) && i.id !== excl).sort((a, b) => b.severity - a.severity).slice(0, 8); if (is.length) L.push('סוגיות פעילות: ' + is.map(i => i.title.slice(0, 50) + ' (חומרה ' + i.severity + ', ' + G.HORIZON[i.horizon] + ', משימות ' + G.issues.progress(i.id).done + '/' + G.issues.progress(i.id).n + ')').join('; ')); });
+        T(() => { const from = G.addDays(td, -13), by = G.timelog.byPortfolio(from, td), tot = Object.values(by).reduce((a, v) => a + v, 0), ds = Object.values(G.timelog.distractions(from, td)).reduce((a, v) => a + v.mins, 0);
+            if (tot) L.push('ניצול זמן ב-14 ימים אחרונים (' + Math.round(tot / 60) + ' שעות מתועדות): ' + Object.entries(by).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => ((G.portfolios.get(k) || {}).name || 'ללא תיק') + ' ' + Math.round(v / 60) + 'ש\'').join(', ') + (ds ? ' | הסחות דעת: ' + Math.round(ds / 60 * 10) / 10 + ' שעות' : '')); });
+        T(() => { const dr = [].concat(G.issues.all().filter(i => i.status === 'dropped' && i.id !== excl).map(i => ({ k: 'סוגיה', t: i.title, r: i.dropReason, a: i.reviews })), G.promises.all().filter(p => p.status === 'dropped' && !p.dropIssueId && p.id !== excl).map(p => ({ k: 'הבטחה', t: p.text, r: p.dropReason, a: p.reviews }))).slice(-6);
+            if (dr.length) L.push('ביטולים קודמים והערכתם: ' + dr.map(x => { const r = (x.a || []).filter(v => v.by === 'pm').pop(); return x.k + ' "' + x.t.slice(0, 40) + '" (נימוק: ' + (x.r || '').slice(0, 70) + '; הערכת ר"מ: ' + (r ? r.rating + '/5' : 'טרם') + ')'; }).join(' | ')); });
+        T(() => { const tr = G.treaties.all(), c = k => tr.filter(t => t.status === k).length; if (tr.length) L.push('אמנות: ' + c('active') + ' בתוקף, ' + c('fulfilled') + ' קוימו, ' + c('breached') + ' הופרו'); });
+        return L.join('\n');
+    }
     async function ai(kind, id) {
         const x = item(kind, id), msg = document.getElementById('rvMsg_' + id); if (!x) return;
         const pf = G.portfolios.get(x.pid), tasks = kind === 'issue' ? G.issues.allTasks(id) : G.tasks.forPromise(id), td = tasks.filter(t => t.done).length;
         const lines = kind === 'issue'
             ? [`סוג: סוגיה${x.kind === 'distraction' ? ' (הסחת דעת / פעולה פסולה)' : ''}`, `הסוגיה: ${x.title}`, `פירוט: ${x.detail || '(לא נכתב)'}`, `חומרה (1-3): ${x.severity}`, `טווח: ${G.HORIZON[x.horizon]}${x.target ? ' עד ' + x.target : ''}`, `נפתחה: ${x.created}`]
             : ['סוג: הבטחה', `ההבטחה: ${x.text}`, `למה חשובה: ${x.why || '(לא נכתב)'}`, `קריטריון: ${x.measure || '(לא נכתב)'}`, `עדיפות (1-3): ${x.priority}`, `חודש: ${x.month}`, `התקדמות בעת ההסרה: ${x.progress}%`];
+        const cx = kind === 'issue' ? G.promises.all().filter(p => p.dropIssueId === id) : [], ct = G.tasks.cancelled().filter(t => t.cancelledAt === x.droppedAt && (t.issueId === id || t.promiseIds.some(q => cx.some(p => p.id === q) || q === id)));
+        if (cx.length || ct.length) lines.push(`בוטלו יחד איתה אוטומטית: ${cx.length} הבטחות (${cx.map(p => p.text.slice(0, 40)).join('; ')}) ו-${ct.length} משימות`);
         lines.push(`תיק: ${pf ? pf.name + ' (משימה: ' + (pf.mission || 'לא הוגדרה') + ')' : 'ללא'}`, `בוטלה ב: ${x.droppedAt || 'לא ידוע'}`, `נימוק הביטול: ${x.dropReason}`, `משימות קשורות: ${td} בוצעו מתוך ${tasks.length}`);
         (x.reviews || []).filter(v => v.by === 'pm').forEach(v => lines.push(`הערכת ראש הממשלה (${v.at}, ${v.rating}/5): ${v.note}`));
         const names = G.people.all().map(p => p.name).concat(G.treaties.all().map(t => t.party), [G.profile.get().name || '']).filter(Boolean);
         msg.textContent = 'ממתין לאישור…';
-        const r = await window.GOVAI.ask({ title: 'הערכת ביטול', names, json: true, data: lines.join('\n'),
-            task: 'אתה יועץ ביקורתי ולא חנפן. הפריט למעלה בוטל על ידי המשתמש. הערך האם ההחלטה לבטל הייתה נכונה ומועילה לאור כל הנתונים. זכור: ביטול אינו בהכרח שלילי, ולפעמים ויתור הוא החלטה חכמה; אבל נימוק חלש או הימנעות מקושי הם סימן אזהרה. אל תחנף ואל תמציא עובדות שאין בנתונים; אם חסר מידע, אמור זאת. החזר JSON בלבד במבנה {"rating":מספר 1-5 (1 שגויה ומזיקה, 3 ניטרלית או לא ברור, 5 נכונה ומועילה מאוד),"verdict":"משפט אחד","reasoning":"2-4 משפטים: למה","counter":"הטיעון החזק ביותר נגד הביטול","missing":"איזה מידע היה משנה את ההערכה"}.' });
+        const r = await window.GOVAI.ask({ title: 'הערכת ביטול', names, json: true, data: lines.join('\n') + '\n\n' + systemContext(id),
+            task: 'אתה יועץ ביקורתי ולא חנפן. הפריט למעלה בוטל על ידי המשתמש. הערך האם ההחלטה לבטל הייתה נכונה ומועילה לאור כל הנתונים, ובעיקר לאור התמונה הכללית של המערכת (ציונים ומגמות, עומס, תיקים, ניצול זמן והסחות, סוגיות והבטחות אחרות, ביטולים קודמים והערכתם). אם רואים בתמונה דפוס (למשל ביטולים חוזרים בתיק מסוים, עומס יתר, הימנעות או לעומת זאת התמקדות נכונה), ציין אותו במפורש בנימוק. זכור: ביטול אינו בהכרח שלילי, ולפעמים ויתור הוא החלטה חכמה; אבל נימוק חלש או הימנעות מקושי הם סימן אזהרה. אל תחנף ואל תמציא עובדות שאין בנתונים; אם חסר מידע, אמור זאת. החזר JSON בלבד במבנה {"rating":מספר 1-5 (1 שגויה ומזיקה, 3 ניטרלית או לא ברור, 5 נכונה ומועילה מאוד),"verdict":"משפט אחד","reasoning":"2-4 משפטים: למה","counter":"הטיעון החזק ביותר נגד הביטול","missing":"איזה מידע היה משנה את ההערכה"}.' });
         if (!r.ok) { msg.textContent = r.cancelled ? 'בוטל.' : '⚠️ ' + r.error; return; }
         const j = parse(r.text); if (!j || !(Number(j.rating) >= 1 && Number(j.rating) <= 5)) { msg.textContent = '⚠️ ה-AI לא החזיר הערכה תקינה. נסה שוב.'; return; }
         const note = [j.verdict, j.reasoning, j.counter ? 'הטיעון החזק נגד הביטול: ' + j.counter : '', j.missing ? 'מה חסר: ' + j.missing : ''].filter(Boolean).join('\n');
