@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ארבעת היסודות - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .el-seg { transition: stroke-dasharray .9s cubic-bezier(.2, .8, .2, 1), stroke-width .2s, opacity .2s; cursor: pointer; }
+        .el-poly { transition: all .9s cubic-bezier(.2, .8, .2, 1); }
+        .el-card { cursor: pointer; transition: .15s; border-width: 2px; } .el-card:hover { transform: translateY(-2px); }
+        .el-lk { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+        .el-lk button { padding: 9px 0; border-radius: 10px; border: 1px solid #334155; background: #0f172a; color: #cbd5e1; font-size: 14px; transition: .12s; }
+        .el-lk button:hover { border-color: #fbbf24; } .el-lk button.on { background: #fbbf24; color: #0f172a; border-color: #fbbf24; font-weight: 800; }
+        .el-fade { animation: elf .45s ease both; } @keyframes elf { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+        @media print { header, nav, .no-print { display: none !important; } body { background: #fff; color: #000; } }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+    <script src="gov-core.js?v=0.14.2"></script>
+    <script src="gov-nav.js?v=0.14.2"></script>
+    <script src="gov-elements.js?v=0.14.2"></script>
+    <header class="max-w-5xl mx-auto px-4 pt-6 pb-2 text-center">
+        <h1 class="text-3xl font-black text-white">🔥💧🌍🌬️ ארבעת היסודות</h1>
+        <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">מאגר של 200 היגדים: כמה אחוזים מכל יסוד יש בך, מה היסוד המרכזי, ובאילו היבטים. כלי רפלקציה ומשחק סמלי, <b class="text-amber-300">לא אבחון ובלי תוקף מדעי</b>.</p>
+    </header>
+    <main class="max-w-5xl mx-auto px-4 mt-4"><div id="app"></div></main>
+    <script>
+        const G = window.GOV, E = window.GOV_EL, h = G.esc, $ = id => document.getElementById(id), EK = E.EK, EL = E.EL, PAGE = 8, fmt = d => d.split('-').reverse().join('/');
+        const LK = ['בכלל לא', 'קצת', 'בערך', 'די הרבה', 'מאוד'], CONF = { low: ['ראשונית', '#f87171'], mid: ['סבירה', '#fbbf24'], high: ['גבוהה', '#34d399'] };
+        const KIND = { focused: 'יסוד אחד בולט בבירור', dual: 'שני יסודות מובילים', balanced: 'פרופיל מאוזן', mixed: 'יסוד מוביל עם שילוב' };
+        const seen = new Set(); let sel = (location.hash.match(/^#e=(.+)$/) || [])[1] || null, page = null, selE = null, msg = '', aiMsg = '', view = 'share';
+        const aiStore = () => { const v = G.rd('elemai', {}); return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; };
+        const go = id => { sel = id; page = null; selE = null; msg = ''; history.replaceState(null, '', id ? '#e=' + id : location.pathname); render(); };
+        function render() {
+            const a = sel && E.get(sel); if (sel && !a) sel = null;
+            $('app').innerHTML = !a ? home() : a.done ? result(a) : quiz(a); if (a && a.done) afterResult(a);
+        }
+        function home() {
+            const l = E.all();
+            return `<div class="el-fade grid grid-cols-1 md:grid-cols-2 gap-3"><div class="g-card"><h2 class="font-bold text-white mb-1">⚡ שאלון מהיר</h2><p class="text-xs text-slate-400">40 היגדים (10 מכל יסוד), כ-5 דקות. נותן תוצאה ראשונית, אפשר להרחיב אחר כך.</p><button class="g-btn pri mt-3 w-full" onclick="start('quick')">התחל שאלון מהיר</button></div>
+                <div class="g-card"><h2 class="font-bold text-white mb-1">🎯 שאלון מלא</h2><p class="text-xs text-slate-400">200 היגדים (50 מכל יסוד, 5 היבטים לכל יסוד), כ-20 דקות. אפשר לעצור ולהמשיך בכל רגע, התשובות נשמרות. יותר היגדים = תוצאה יציבה יותר.</p><button class="g-btn pri mt-3 w-full" onclick="start('full')">התחל שאלון מלא</button></div></div>
+                <div class="g-card mt-3 text-xs text-slate-300 leading-relaxed"><b class="text-white">איך זה עובד:</b> לכל היגד בוחרים עד כמה הוא מתאים לך (1-5). לכל יסוד מחושבת <b>עוצמה</b> (0-100: כמה אתה מסכים עם ההיגדים שלו) ו<b>חלק יחסי</b> (כמה אחוזים מהפרופיל שלך הוא מכל יסוד, בסכום 100). החלק היחסי מנטרל נטייה להסכים עם הכול. ההיגדים כוללים גם צד צל של כל יסוד, כדי שהתמונה לא תהיה רק מחמיאה.</div>
+                <div class="mt-4"><h2 class="font-bold text-slate-200 text-sm mb-2">🕘 שאלונים קודמים</h2>${l.length ? `<div class="grid grid-cols-1 md:grid-cols-2 gap-2">${l.map(a => { const s = E.score(a); return `<div class="g-card el-card" style="border-color:${s.dom ? EL[s.dom].c : '#334155'}" onclick="go('${h(a.id)}')"><div class="flex items-center gap-2"><span class="text-2xl">${s.dom ? EL[s.dom].ic : '⏳'}</span><div class="flex-1"><b class="text-white text-sm">${s.dom ? 'מרכזי: ' + EL[s.dom].l + ' ' + s.shares[s.dom] + '%' : 'בתהליך'}</b><div class="text-[10px] text-slate-400">${fmt(a.created)} • ${a.mode === 'quick' ? 'מהיר' : 'מלא'} • ${s.n}/${s.total}${a.done ? ' • נשמר' : ' • לא הושלם'}</div></div></div></div>`; }).join('')}</div>` : '<p class="text-xs text-slate-500">עוד אין. התחל את הראשון.</p>'}</div>`;
+        }
+        function start(m) { const a = E.create(m); go(a.id); }
+        // ---------- מענה ----------
+        function quiz(a) {
+            const s = E.score(a), first = a.order.findIndex(i => a.answers[i] == null), np = Math.ceil(a.order.length / PAGE); if (page == null) page = first < 0 ? np - 1 : Math.floor(first / PAGE); page = Math.max(0, Math.min(np - 1, page));
+            const items = a.order.slice(page * PAGE, page * PAGE + PAGE), allDone = s.n === s.total, pct = Math.round(s.n / s.total * 100);
+            return `<div class="el-fade"><div class="g-card"><div class="flex items-center gap-3"><div class="flex-1"><div class="flex justify-between text-xs text-slate-300 mb-1"><b>${s.n} מתוך ${s.total} נענו (${pct}%)</b><span>עמוד ${page + 1} מתוך ${np}</span></div><div class="g-bar" style="height:10px"><i style="width:${pct}%;background:linear-gradient(90deg,#f97316,#38bdf8,#84cc16,#a78bfa)"></i></div></div><button class="g-btn red no-print" onclick="del('${h(a.id)}')">מחק</button><button class="g-btn" onclick="go(null)">יציאה (נשמר)</button></div>
+                <div class="flex gap-3 mt-2 text-[10px] text-slate-400">${EK.map(e => `<span style="color:${EL[e].c}">${EL[e].ic} ${s.byN[e]}</span>`).join('')}<span class="flex-1"></span><span>1 = בכלל לא מתאים לי, 5 = מתאים לי מאוד</span></div></div>
+                <div class="space-y-3 mt-3">${items.map((id, k) => { const v = a.answers[id]; return `<div class="g-card"><div class="text-sm text-white mb-3"><span class="text-slate-500">${page * PAGE + k + 1}.</span> ${h(E.itemText(id))}</div><div class="el-lk" data-item="${id}">${[1, 2, 3, 4, 5].map(n => `<button class="${v === n ? 'on' : ''}" title="${LK[n - 1]}" onclick="ans('${id}',${n})">${n}<div style="font-size:9px;opacity:.7">${LK[n - 1]}</div></button>`).join('')}</div></div>`; }).join('')}</div>
+                <div class="flex flex-wrap items-center gap-2 mt-4"><button class="g-btn" ${page === 0 ? 'disabled' : ''} onclick="mv(-1)">→ הקודם</button><button class="g-btn" ${page >= np - 1 ? 'disabled' : ''} onclick="mv(1)">הבא ←</button><span class="flex-1"></span>
+                    <button class="g-btn ${s.ready ? 'ok' : ''}" ${s.ready ? '' : 'disabled'} onclick="fin()">${allDone ? '✅ סיים וראה תוצאה' : 'ראה תוצאה עכשיו (' + s.n + ' תשובות)'}</button></div>
+                <p class="text-[11px] ${msg ? 'text-rose-300' : 'text-slate-500'} mt-2">${h(msg) || (s.ready ? 'אפשר לראות תוצאה בכל שלב; ככל שתענה על יותר היגדים היא תהיה יציבה יותר. לאחר "ראה תוצאה" השאלון ננעל, ואפשר להרחיב אותו.' : 'התוצאה נפתחת אחרי 5 תשובות לפחות מכל יסוד (20 בסך הכול).')}</p></div>`;
+        }
+        function ans(id, v) { E.answer(sel, id, v); const y = window.scrollY, a = E.get(sel), idx = a.order.indexOf(id), last = (idx + 1) % PAGE === 0 && idx + 1 < a.order.length; if (last && a.order.slice(page * PAGE, page * PAGE + PAGE).every(i => a.answers[i] != null)) { page++; render(); window.scrollTo(0, 0); } else { render(); window.scrollTo(0, y); } }
+        function mv(d) { page += d; render(); window.scrollTo(0, 0); }
+        function fin() { const r = E.finish(sel); if (!r.ok) { msg = r.error; render(); return; } msg = ''; selE = null; render(); window.scrollTo(0, 0); }
+        function del(id) { if (confirm('למחוק את השאלון ותשובותיו?')) { E.remove(id); go(null); } }
+        function more() { E.extend(sel); page = null; render(); window.scrollTo(0, 0); }
+        // ---------- תוצאה ----------
+        function donut(s) {
+            const R = 92, C = 2 * Math.PI * R, order = s.rank, fin = seen.has(sel); let off = 0, segs = '';
+            order.forEach(e => { const len = s.shares[e] / 100 * C, on = selE === e, gap = s.shares[e] > 0 ? 2 : 0;
+                segs += `<circle class="el-seg" data-e="${e}" data-len="${Math.max(0, len - gap).toFixed(2)}" data-c="${C.toFixed(2)}" cx="130" cy="130" r="${R}" fill="none" stroke="${EL[e].c}" stroke-width="${on ? 42 : 32}" stroke-dasharray="${fin ? Math.max(0, len - gap).toFixed(2) : 0} ${C.toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 130 130)" opacity="${selE && !on ? .35 : 1}" onclick="pickE('${e}')"><title>${EL[e].l}: ${s.shares[e]}%</title></circle>`; off += len; });
+            const d = EL[s.dom];
+            return `<svg viewBox="0 0 260 260" style="width:100%;max-width:300px;height:auto"><circle cx="130" cy="130" r="${R}" fill="none" stroke="#1e293b" stroke-width="32"/>${segs}<text x="130" y="122" text-anchor="middle" font-size="40">${d.ic}</text><text x="130" y="150" text-anchor="middle" fill="#fff" font-size="20" font-weight="800">${d.l}</text><text x="130" y="172" text-anchor="middle" fill="${d.c}" font-size="18" font-weight="800">${s.shares[s.dom]}%</text></svg>`;
+        }
+        function diamond(s) {
+            const c = 150, M = 105, pos = { fire: [0, -1], air: [1, 0], earth: [0, 1], water: [-1, 0] }, pt = (e, v) => (c + pos[e][0] * M * v) + ',' + (c + pos[e][1] * M * v), poly = v => EK.map(e => pt(e, v)).join(' ');
+            return `<svg viewBox="0 0 300 300" style="width:100%;max-width:320px;height:auto" dir="ltr">${[.25, .5, .75, 1].map(v => `<polygon points="${poly(v)}" fill="none" stroke="#334155" stroke-width="1"/>`).join('')}<line x1="${c}" y1="${c - M}" x2="${c}" y2="${c + M}" stroke="#334155"/><line x1="${c - M}" y1="${c}" x2="${c + M}" y2="${c}" stroke="#334155"/>
+                <polygon class="el-poly"  id="elPoly" points="${seen.has(sel) ? EK.map(e => pt(e, s.intensity[e] / 100)).join(' ') : poly(0)}" data-to="${EK.map(e => pt(e, s.intensity[e] / 100)).join(' ')}" fill="rgba(251,191,36,.25)" stroke="#fbbf24" stroke-width="2.5"/>
+                ${EK.map(e => { const x = c + pos[e][0] * (M + 22), y = c + pos[e][1] * (M + 22) + (pos[e][1] ? (pos[e][1] > 0 ? 6 : -2) : 4), on = selE === e; return `<g style="cursor:pointer" onclick="pickE('${e}')"><circle cx="${c + pos[e][0] * M * s.intensity[e] / 100}" cy="${c + pos[e][1] * M * s.intensity[e] / 100}" r="${on ? 8 : 5.5}" fill="${EL[e].c}"><title>${EL[e].l}: עוצמה ${s.intensity[e]}</title></circle><text x="${x}" y="${y}" text-anchor="middle" fill="${EL[e].c}" font-size="13" font-weight="700">${EL[e].ic} ${EL[e].l} ${s.intensity[e]}</text></g>`; }).join('')}</svg>`;
+        }
+        function result(a) {
+            const s = E.score(a), d = EL[s.dom], x = EL[s.second], prev = E.prev(a.id), ai = aiStore()[a.id], cf = CONF[s.confidence];
+            const cards = s.rank.map((e, i) => `<div class="g-card el-card ${selE === e ? '' : ''}" style="border-color:${selE === e ? EL[e].c : '#334155'}" onclick="pickE('${e}')"><div class="flex items-center gap-2"><span class="text-2xl">${EL[e].ic}</span><div class="flex-1"><div class="flex justify-between items-baseline"><b class="text-white">${EL[e].l}${i === 0 ? ' <span class="text-[10px] text-amber-300">מרכזי</span>' : i === 1 ? ' <span class="text-[10px] text-slate-400">שני</span>' : ''}</b><b style="color:${EL[e].c}" class="text-xl">${s.shares[e]}%</b></div>
+                <div class="g-bar mt-1" style="height:9px"><i style="width:${view === 'share' ? s.shares[e] : s.intensity[e]}%;background:${EL[e].c}"></i></div><div class="text-[10px] text-slate-400 mt-1">עוצמה ${s.intensity[e]}/100 • ${s.byN[e]} תשובות${prev ? (() => { const dl = s.shares[e] - E.score(prev).shares[e]; return ` • <span class="${dl >= 0 ? 'text-emerald-300' : 'text-rose-300'}">${dl >= 0 ? '+' : ''}${dl}% מול ${fmt(prev.doneAt || prev.created)}</span>`; })() : ''}</div></div></div></div>`).join('');
+            return `<div class="el-fade"><div class="g-card" style="border:2px solid ${d.c}"><div class="flex flex-wrap items-center gap-4"><div class="flex-none mx-auto">${donut(s)}</div><div class="flex-1 min-w-[16rem]"><div class="text-[11px] text-slate-400">היסוד המרכזי שלך</div><h2 class="text-3xl font-black" style="color:${d.c}">${d.ic} ${d.l} <span class="text-white">${s.shares[s.dom]}%</span></h2><div class="text-sm text-slate-300">${d.tag}</div>
+                <div class="mt-2 flex flex-wrap gap-1.5"><span class="g-chip" style="color:#fbbf24">${KIND[s.kind]}</span><span class="g-chip" style="color:${x.c}">שני: ${x.ic} ${x.l} ${s.shares[s.second]}%</span><span class="g-chip" style="color:${cf[1]}">דיוק: ${cf[0]}</span></div>
+                <p class="text-xs text-slate-200 leading-relaxed mt-3">${h(E.blend(s))}</p></div></div></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3"><div class="g-card text-center"><h3 class="font-bold text-slate-200 text-sm mb-1">⬡ עוצמה מוחלטת של כל יסוד</h3><div class="mx-auto">${diamond(s)}</div><p class="text-[10px] text-slate-500">הצורה מראה כמה אתה מסכים עם כל יסוד (0-100). צורה רחבה בכל הכיוונים = הסכמה גבוהה עם הכול; החלק היחסי משמאל מנטרל זאת.</p></div>
+                    <div><div class="flex items-center gap-2 mb-2"><h3 class="font-bold text-slate-200 text-sm flex-1">📊 הרכב הפרופיל</h3><div class="flex gap-1 text-[11px]"><button class="g-btn ${view === 'share' ? 'pri' : ''}" onclick="setView('share')">חלק יחסי</button><button class="g-btn ${view === 'abs' ? 'pri' : ''}" onclick="setView('abs')">עוצמה</button></div></div><div class="space-y-2">${cards}</div></div></div>
+                <div id="detail" class="mt-3"></div>
+                <div class="g-card mt-3 text-xs"><h3 class="font-bold text-slate-200 text-sm mb-2">🎯 עד כמה לסמוך על התוצאה</h3><div class="flex items-center gap-3"><div class="flex-1"><div class="g-bar" style="height:10px"><i style="width:${Math.round(s.n / s.total * 100)}%;background:${cf[1]}"></i></div></div><b class="text-white">${s.n}/${s.total}</b></div>
+                    <ul class="mt-2 space-y-1 text-slate-300"><li>• דיוק ${cf[0]}: ${s.confidence === 'low' ? 'פחות מ-40 תשובות, התוצאה ראשונית ועלולה להשתנות.' : s.confidence === 'mid' ? 'בין 40 ל-120 תשובות.' : '120 תשובות ומעלה.'}</li><li>• הפער בין המקום הראשון לשני: ${s.margin} נקודות אחוז${s.margin < 4 ? ' (צמוד מאוד, ייתכן שהסדר יתהפך בחזרה על השאלון)' : ''}.</li>
+                    <li>• ${s.consistency == null ? 'עקביות בין שתי מחציות השאלון: אין מספיק תשובות לבדיקה.' : s.consistency ? '✅ עקביות: אותו יסוד מוביל בשתי מחציות השאלון (בלוקים זוגיים ואי-זוגיים).' : '⚠️ חוסר עקביות: יסוד אחר מוביל בכל מחצית. התוצאה לא יציבה, כדאי להמשיך לענות או לחזור על השאלון.'}</li></ul>
+                    <div class="flex flex-wrap gap-2 mt-3 no-print">${s.total < 200 || a.mode === 'quick' ? '<button class="g-btn pri" onclick="more()">➕ הרחב לשאלון מלא (200) לדיוק גבוה יותר</button>' : ''}<button class="g-btn" onclick="start('${a.mode}')">🔁 שאלון חדש (להשוואה בעתיד)</button><button class="g-btn" onclick="window.print()">🖨️ הדפס</button><button class="g-btn" onclick="go(null)">כל השאלונים</button><button class="g-btn red" onclick="del('${h(a.id)}')">מחק</button></div></div>
+                <div class="g-card mt-3 no-print"><button class="g-btn pri" onclick="aiRun()">🤖 ${ai ? 'פרשנות חדשה' : 'פרשנות מ-AI'} (אנונימי, באישור)</button> <span class="text-[11px] text-slate-400" id="aiM">${h(aiMsg)}</span>${ai ? `<div class="mt-2 text-xs text-slate-200 bg-slate-900/60 border border-violet-500/30 rounded-xl p-3 leading-relaxed"><b class="text-violet-300">🤖 פרשנות AI (${fmt(ai.at)}):</b><br>${G.nl(ai.text)}</div>` : ''}</div>
+                <p class="text-[11px] text-amber-300 mt-3 leading-relaxed">⚠️ זהו כלי רפלקציה ומשחק סמלי בהשראת תורת ארבעת היסודות. אין לו תוקף מדעי או פסיכומטרי, והתוצאה משקפת איך הצגת את עצמך באותו יום. אל תשתמש בו לקבלת החלטות חשובות על עצמך או על אחרים.</p></div>`;
+        }
+        function setView(v) { view = v; render(); }
+        function pickE(e) { selE = selE === e ? null : e; const y = window.scrollY; render(); window.scrollTo(0, y); }
+        function afterResult(a) {
+            const s = E.score(a); requestAnimationFrame(() => requestAnimationFrame(() => { document.querySelectorAll('.el-seg').forEach(c => c.setAttribute('stroke-dasharray', c.dataset.len + ' ' + c.dataset.c)); const p = document.getElementById('elPoly'); if (p) p.setAttribute('points', p.dataset.to); seen.add(sel); }));
+            const box = $('detail'); if (!selE) { box.innerHTML = '<div class="text-center text-[11px] text-slate-500">לחץ על יסוד (בעיגול, בצורה או בכרטיס) כדי לראות היבטים, חוזקות, צד צל והצעות.</div>'; return; }
+            const e = selE, d = EL[e], f = s.facets[e], T = d.tips;
+            box.innerHTML = `<div class="g-card el-fade" style="border:2px solid ${d.c}"><h3 class="font-bold text-lg" style="color:${d.c}">${d.ic} ${d.l}: ${s.shares[e]}% מהפרופיל, עוצמה ${s.intensity[e]}</h3><p class="text-xs text-slate-300 mt-1">${h(d.core)}</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3"><div><div class="text-xs font-bold text-slate-200 mb-2">ההיבטים (5 היבטים × 10 היגדים)</div><div class="space-y-2">${f.map((x, i) => `<div><div class="flex justify-between text-[11px]"><span class="${i === 4 ? 'text-amber-200' : 'text-slate-300'}">${h(x.l)}</span><b class="text-white">${x.v == null ? 'לא נענה' : x.v}</b></div><div class="g-bar" style="height:8px"><i style="width:${x.v || 0}%;background:${i === 4 ? '#f59e0b' : d.c}"></i></div><div class="text-[9px] text-slate-500">${x.n} תשובות</div></div>`).join('')}</div></div>
+                    <div class="space-y-3 text-xs"><div><div class="font-bold text-emerald-300 mb-1">💪 חוזקות אופייניות</div><ul class="space-y-0.5 text-slate-300">${d.strengths.map(t => `<li>• ${h(t)}</li>`).join('')}</ul></div><div><div class="font-bold text-amber-300 mb-1">🌓 צד צל, מה כדאי לשים לב אליו</div><ul class="space-y-0.5 text-slate-300">${d.watch.map(t => `<li>• ${h(t)}</li>`).join('')}</ul></div></div></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3 text-xs">${[['💼 בעבודה', T.work], ['❤️ ביחסים', T.rel], ['⚖️ בקבלת החלטות', T.dec], ['🌱 לצמיחה', T.grow]].map(([t, v]) => `<div class="bg-slate-900/60 border border-slate-700 rounded-xl p-2.5"><b class="text-white">${t}</b><div class="text-slate-300 mt-0.5">${h(v)}</div></div>`).join('')}</div>
+                <p class="text-[10px] text-slate-500 mt-2">ההצעות כלליות לכל מי שהיסוד הזה בולט אצלו, ואינן אישיות. ${e === s.dom ? '' : 'היסוד הזה אינו המרכזי שלך, אבל גם הוא חלק מהפרופיל.'}</p></div>`;
+        }
+        async function aiRun() {
+            const a = E.get(sel), names = G.people.all().map(p => p.name).concat(G.treaties.all().map(t => t.party), [G.profile.get().name || '']).filter(Boolean); aiMsg = 'ממתין לאישור…'; $('aiM').textContent = aiMsg;
+            const r = await window.GOVAI.ask({ title: 'פרשנות לשאלון ארבעת היסודות', names, data: E.aiData(a.id), task: 'אתה יועץ ישר ולא חנפן. זהו כלי רפלקציה סמלי בלי תוקף מדעי. פרש את הפרופיל: מה המשמעות המעשית של היסוד המרכזי והמשני, איך הצד הצל שלהם עלול להתבטא (לפי ההיבטים הגבוהים בצד הצל), ו-3 צעדים קטנים לאיזון. אל תנחש מעבר לנתונים, ואם הפרופיל מאוזן או הפער צר אמור זאת. עברית, עד 180 מילים.' });
+            if (!r.ok) { aiMsg = r.cancelled ? 'בוטל.' : '⚠️ ' + r.error; render(); return; } const st = aiStore(); st[a.id] = { text: String(r.text).slice(0, 3000), at: G.localDate() }; G.wr('elemai', st); aiMsg = ''; render();
+        }
+        window.addEventListener('hashchange', () => { sel = (location.hash.match(/^#e=(.+)$/) || [])[1] || null; page = null; selE = null; render(); });
+        render();
+    </script>
+</body>
+</html>

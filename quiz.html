@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>שאלונים - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .qz-item { cursor: pointer; transition: .15s; } .qz-item:hover, .qz-item.on { border-color: #fbbf24; }
+        .qz-sc button { min-width: 34px; padding: 5px 0; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: #cbd5e1; font-size: 13px; }
+        .qz-sc button.on { background: #fbbf24; color: #0f172a; border-color: #fbbf24; font-weight: 800; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+    <script src="gov-core.js?v=0.14.2"></script>
+    <script src="gov-nav.js?v=0.14.2"></script>
+    <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
+        <h1 class="text-3xl font-black text-white">📝 שאלונים</h1>
+        <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">כלי רפלקציה, לא אבחון. שאלון אישיות קצר וקבוע (בלי AI), ושאלוני רפלקציה שה-AI מייצר לפי נושא ולפי מצב המערכת שלך (אנונימי, באישור) ומנתח אחרי שענית.</p>
+    </header>
+    <main class="max-w-6xl mx-auto px-4 mt-4 grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <section class="lg:col-span-2 space-y-3">
+            <div class="g-card"><h2 class="font-bold text-white text-sm mb-2">➕ שאלון חדש</h2>
+                <button class="g-btn pri w-full" onclick="newTipi()">🧬 שאלון אישיות קצר (10 היגדים, בלי AI)</button>
+                <div class="mt-3 text-xs text-slate-300 font-bold">🤖 שאלון רפלקציה מ-AI</div>
+                <select id="nT" class="g-inp mt-1"></select><input id="nC" class="g-inp mt-1" maxlength="160" placeholder="או נושא חופשי (אופציונלי, גובר על הרשימה)">
+                <button class="g-btn mt-2" onclick="newAi()">צור שאלון (אנונימי, באישור)</button><div id="nMsg" class="text-[11px] text-slate-400 mt-1"></div></div>
+            <div id="list" class="space-y-1.5"></div>
+        </section>
+        <section id="detail" class="lg:col-span-3"></section>
+    </main>
+    <script>
+        const G = window.GOV, Q = G.quiz, h = G.esc, $ = id => document.getElementById(id), fmt = d => d.split('-').reverse().join('/');
+        let sel = (location.hash.match(/^#q=(.+)$/) || [])[1] || null, nmsg = '', amsg = '';
+        $('nT').innerHTML = Object.entries(Q.TOPICS).map(([k, v]) => `<option value="${k}">${h(v)}</option>`).join('');
+        function parseJ(t) { try { return JSON.parse(String(t).replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch (e) { const m = String(t).match(/\{[\s\S]*\}/); try { return m ? JSON.parse(m[0]) : null; } catch (e2) { return null; } } }
+        function names() { return G.people.all().map(p => p.name).concat(G.treaties.all().map(t => t.party), [G.profile.get().name || '']).filter(Boolean); }
+        function renderList() { const a = Q.all(); $('list').innerHTML = a.length ? a.map(q => { const p = Q.progress(q.id); return `<div class="g-card qz-item ${q.id === sel ? 'on' : ''}" onclick="pick('${h(q.id)}')"><div class="flex items-center gap-2"><b class="flex-1 text-white text-sm">${q.kind === 'tipi' ? '🧬' : '🤖'} ${h(q.title)}</b><span class="g-chip" style="color:${q.done ? '#34d399' : '#fbbf24'}">${q.done ? 'הושלם' : p.n + '/' + p.total}</span></div><div class="text-[10px] text-slate-500 mt-1">${fmt(q.created)}${q.topic ? ' • ' + h(q.topic) : ''}</div></div>`; }).join('') : '<p class="text-xs text-slate-500">עוד אין שאלונים.</p>'; }
+        function pick(id) { sel = id; amsg = ''; history.replaceState(null, '', '#q=' + id); render(); }
+        function newTipi() { const q = Q.startTipi(); pick(q.id); }
+        async function newAi() {
+            const topic = $('nC').value.trim() || Q.TOPICS[$('nT').value]; $('nMsg').textContent = 'ממתין לאישור…';
+            const ctx = window.GOV_REV ? GOV_REV.systemContext() : '';
+            const r = await window.GOVAI.ask({ title: 'יצירת שאלון רפלקציה', names: names(), json: true, data: 'נושא השאלון: ' + topic + '\n\n' + ctx + '\n\n' + G.caps.aiData(),
+                task: 'אתה פסיכולוג-יועץ ישר ולא חנפן. צור שאלון רפלקציה אישי בעברית בנושא שניתן, שמתבסס על המצב שבנתונים אבל לא חושף מידע אישי בשאלות. 6 עד 10 שאלות: בעיקר שאלות סולם (type "scale", max 5 או 7, עם lo ו-hi קצרים לקצוות) ו-2 שאלות פתוחות (type "text"). שאלות ספציפיות ולא כלליות, בלי שאלות מנחות ובלי להניח תשובה. החזר JSON בלבד: {"title":"...","questions":[{"text":"...","type":"scale","max":5,"lo":"...","hi":"..."}]}' });
+            if (!r.ok) { $('nMsg').textContent = r.cancelled ? 'בוטל.' : '⚠️ ' + r.error; return; }
+            const j = parseJ(r.text), a = j && Q.startAi(j.title || topic, topic, j); if (!a || !a.ok) { $('nMsg').textContent = '⚠️ ' + ((a && a.error) || 'ה-AI לא החזיר שאלון תקין. נסה שוב.'); return; } $('nMsg').textContent = ''; pick(a.id);
+        }
+        function render() {
+            renderList(); const q = sel && Q.get(sel); if (!q) { sel = null; $('detail').innerHTML = '<div class="g-card text-sm text-slate-400">בחר שאלון מהרשימה או צור חדש.</div>'; return; }
+            const p = Q.progress(q.id);
+            if (!q.done) { $('detail').innerHTML = `<div class="g-card"><div class="flex items-center gap-2"><h2 class="font-bold text-white flex-1">${q.kind === 'tipi' ? '🧬' : '🤖'} ${h(q.title)}</h2><button class="g-btn red" onclick="del()">מחק</button></div>
+                <div class="g-bar mt-2"><i style="width:${Math.round(p.n / p.total * 100)}%;background:#fbbf24"></i></div><div class="text-[11px] text-slate-400 mt-1">${p.n} מתוך ${p.total} נענו${q.kind === 'tipi' ? '. דרג עד כמה כל היגד מתאר אותך (1 בכלל לא, 7 מאוד).' : '. אפשר לסיים כשנענו לפחות 70%.'}</div>
+                <div class="space-y-3 mt-3">${q.questions.map((d, i) => `<div class="bg-slate-900/60 border border-slate-700 rounded-xl p-3"><div class="text-sm text-white mb-2">${i + 1}. ${h(d.text)}</div>${d.type === 'scale'
+                    ? `<div class="qz-sc flex flex-wrap items-center gap-1.5">${d.lo ? `<span class="text-[10px] text-slate-500">${h(d.lo)}</span>` : ''}${Array.from({ length: d.max }, (_, k) => k + 1).map(n => `<button class="${q.answers[d.id] === n ? 'on' : ''}" onclick="ans('${d.id}',${n})">${n}</button>`).join('')}${d.hi ? `<span class="text-[10px] text-slate-500">${h(d.hi)}</span>` : ''}</div>`
+                    : `<textarea class="g-inp" rows="2" maxlength="600" onchange="ans('${d.id}',this.value,true)" placeholder="התשובה שלך…">${h(q.answers[d.id] || '')}</textarea>`}</div>`).join('')}</div>
+                <div class="flex flex-wrap items-center gap-2 mt-3"><button class="g-btn pri" onclick="fin()">סיים וקבל תוצאה</button><span class="text-[11px] text-rose-300">${h(amsg)}</span></div></div>`; return; }
+            const prev = q.kind === 'tipi' ? Q.prevTipi(q.id) : null, T = G.caps.TRAITS;
+            const traits = q.traits ? `<div class="mt-3 space-y-2">${Object.keys(T).map(k => { const v = q.traits[k], pv = prev && prev.traits ? prev.traits[k] : null; return `<div><div class="flex justify-between text-xs"><span class="text-slate-200">${h(T[k])}</span><span class="text-white font-bold">${v}${pv != null ? ` <span class="${v >= pv ? 'text-emerald-300' : 'text-rose-300'} text-[10px]">(${v >= pv ? '+' : ''}${v - pv} מול ${fmt(prev.doneAt)})</span>` : ''}</span></div><div class="g-bar" style="height:10px;position:relative"><i style="width:${v}%;background:#a78bfa"></i>${pv != null ? `<span style="position:absolute;top:-2px;bottom:-2px;right:${pv}%;width:2px;background:#fbbf24" title="${fmt(prev.doneAt)}: ${pv}"></span>` : ''}</div></div>`; }).join('')}</div>
+                <div class="flex flex-wrap items-center gap-2 mt-3"><button class="g-btn ${q.applied ? '' : 'pri'}" onclick="apply()">${q.applied ? '✔ הוחל על הכרטיס האישי (החל שוב)' : 'החל על הכרטיס האישי (אישיות ידנית)'}</button></div><p class="text-[10px] text-slate-500 mt-2">10 היגדים בלבד נותנים הערכה גסה מאוד (שניים לכל תכונה). אין כאן תוקף אבחוני; התוצאה תלויה בתחושה שלך ביום המענה. ההחלה דורסת את ערכי התכונות הידניים בכרטיס.</p>` : '';
+            const ans = q.kind === 'ai' ? `<div class="mt-3 space-y-1.5 text-xs">${q.questions.map(d => `<div class="bg-slate-900/60 border border-slate-700 rounded-lg px-2 py-1.5"><div class="text-slate-400">${h(d.text)}</div><div class="text-white">${q.answers[d.id] == null ? '<span class="text-slate-500">לא נענתה</span>' : h(q.answers[d.id]) + (d.type === 'scale' ? ' / ' + d.max : '')}</div></div>`).join('')}</div>` : '';
+            $('detail').innerHTML = `<div class="g-card"><div class="flex items-center gap-2"><h2 class="font-bold text-white flex-1">${q.kind === 'tipi' ? '🧬' : '🤖'} ${h(q.title)} <span class="text-[11px] text-slate-400">${fmt(q.doneAt)}</span></h2><button class="g-btn red" onclick="del()">מחק</button></div>${traits}${ans}
+                <div class="mt-3"><button class="g-btn pri" onclick="analyze()">🤖 ${q.result ? 'נתח שוב' : 'נתח עם AI'} (אנונימי, באישור)</button> <span id="aiMsg" class="text-[11px] text-slate-400">${h(amsg)}</span></div>
+                ${q.result ? `<div class="mt-2 text-xs text-slate-200 bg-slate-900/60 border border-violet-500/30 rounded-xl p-3 leading-relaxed"><b class="text-violet-300">🤖 ניתוח AI (${fmt(q.result.at)}):</b><br>${G.nl(q.result.text)}<div class="text-[10px] text-amber-300 mt-2">זו פרשנות כללית של מודל שפה לתשובות שלך, לא אבחון. התשובות הפתוחות נשלחות ל-Gemini (אחרי החלפת שמות), ולכן אל תכתוב בהן פרטים מזהים.</div></div>` : ''}</div>`;
+        }
+        function ans(qid, v, txt) { Q.answer(sel, qid, txt ? v : Number(v)); const y = window.scrollY; render(); window.scrollTo(0, y); }
+        function fin() { const r = Q.finish(sel); if (!r.ok) { amsg = r.error; render(); return; } amsg = ''; render(); }
+        function apply() { Q.applyTraits(sel); render(); }
+        function del() { if (confirm('למחוק את השאלון ותשובותיו?')) { Q.remove(sel); sel = null; history.replaceState(null, '', location.pathname); render(); } }
+        async function analyze() {
+            const q = Q.get(sel); amsg = 'ממתין לאישור…'; $('aiMsg').textContent = amsg;
+            const r = await window.GOVAI.ask({ title: 'ניתוח שאלון', names: names(), data: Q.aiData(q.id), task: 'אתה פסיכולוג-יועץ ישר ולא חנפן. נתח את תשובות השאלון: 3-5 תובנות עיקריות שנובעות ישירות מהתשובות (ציין על איזו תשובה כל תובנה נשענת), סתירות או נקודות עיוורות אפשריות, ו-3 צעדים מעשיים קטנים. אל תאבחן, אל תנחש מעבר לנתונים, אל תחמיא. אם התשובות מעטות או חלשות, אמור זאת. עברית, עד 200 מילים.' });
+            if (!r.ok) { amsg = r.cancelled ? 'בוטל.' : '⚠️ ' + r.error; render(); return; } Q.setResult(q.id, r.text); amsg = ''; render();
+        }
+        window.addEventListener('hashchange', () => { sel = (location.hash.match(/^#q=(.+)$/) || [])[1] || null; render(); });
+        render();
+    </script>
+</body>
+</html>

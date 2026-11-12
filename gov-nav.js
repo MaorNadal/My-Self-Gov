@@ -13,6 +13,9 @@
         { file: 'operations.html', icon: '🚀', title: 'מבצעים ורפורמות', desc: 'יחידות גדולות עם שלבים, שמאגדות סוגיות והבטחות. משקל כפול בציון.', sections: [['op-add', 'מבצע חדש'], ['op-list', 'המבצעים'], ['op-detail', 'פירוט']] },
         { file: 'player.html', icon: '🪪', title: 'כרטיס אישי וקו"ח', desc: 'דירוג יכולות לכל תחום, אישיות וקורות חיים מתפתחים בציר זמן.', sections: [['pl-hero', 'הכרטיס'], ['pl-domains', 'תחומים'], ['pl-traits', 'אישיות'], ['pl-cv', 'קורות חיים']] },
         { file: 'career.html', icon: '🧭', title: 'סימולטור קריירה', desc: 'מטרה, דרישות, פער מול הכרטיס האישי, מסלול ותאריך משוער.', sections: [['list', 'מטרות'], ['detail', 'סימולציה']] },
+        { file: 'lang.html', icon: '🗣️', title: 'לימוד שפות', desc: 'רמת CEFR לכל מיומנות, יעד, יומן לימוד, רצף, קצב שבועי ותחזית סיום.', sections: [['list', 'שפות'], ['detail', 'פירוט']] },
+        { file: 'quiz.html', icon: '📝', title: 'שאלונים', desc: 'שאלון אישיות קצר, ושאלוני רפלקציה שה-AI מייצר ומנתח.', sections: [['list', 'שאלונים'], ['detail', 'פירוט']] },
+        { file: 'elements.html', icon: '🔥', title: 'ארבעת היסודות', desc: 'שאלון של 200 היגדים: אחוזי אש, מים, אדמה ואוויר, והיסוד המרכזי.', sections: [['app', 'השאלון והתוצאה']] },
         { file: 'cabinet.html', icon: '🏛️', title: 'קבינט', desc: 'החלטות מרכזיות, אפשרויות, השפעה על הבטחות ואמנות, ובדיקת תוצאה בדיעבד.', sections: [['cabinet-new', 'נושא חדש'], ['cabinet-list', 'כל ההחלטות'], ['cabinet-detail', 'דיון'], ['cabinet-insight', 'איכות החלטות']] },
         { file: 'treaties.html', icon: '🤝', title: 'יחסי חוץ', desc: 'אמנות והסכמים עם אנשים, קבוצות וגופים, ומחיר הפרה.', sections: [['treaties-overview', 'תמונת מצב'], ['treaties-form', 'אמנה חדשה'], ['treaties-list', 'לפי צד']] },
         { file: 'people.html', icon: '👥', title: 'יחסים', desc: 'אנשים, יומן יחסים, אינדקס קרבה ואמנות לכל אדם.', sections: [['people-overview', 'תמונת מצב'], ['people-list', 'אנשים'], ['people-detail', 'פירוט']] },
@@ -29,7 +32,7 @@
         { id: 'today', icon: '🗓️', title: 'היום והזמן', files: ['schedule.html', 'tasks.html', 'wish.html'] },
         { id: 'goals', icon: '🎯', title: 'יעדים', files: ['promises.html', 'issues.html', 'operations.html', 'portfolios.html'] },
         { id: 'gov', icon: '🏛️', title: 'ממשל', files: ['cabinet.html', 'treaties.html', 'people.html', 'ministers.html'] },
-        { id: 'me', icon: '🪪', title: 'אני', files: ['player.html', 'career.html'] },
+        { id: 'me', icon: '🪪', title: 'אני', files: ['player.html', 'career.html', 'lang.html', 'quiz.html', 'elements.html'] },
         { id: 'score', files: ['review.html'] }
     ];
     const pg = f => PAGES.find(x => x.file === f);
@@ -76,11 +79,11 @@
     })();
 
     // אם נטען gov-core.js ישן (מטמון, או קובץ שלא הועלה): מציגים הודעה ברורה במקום דף ריק
-    if (!window.GOV || window.GOV.VERSION !== '0.10.0') { window.addEventListener('DOMContentLoaded', () => { document.body.insertAdjacentHTML('afterbegin', '<div style="position:sticky;top:0;z-index:2000;background:#7f1d1d;color:#fff;padding:10px 14px;font:14px Rubik,sans-serif;direction:rtl;text-align:right">⚠️ גרסאות הקבצים לא תואמות (נטען gov-core.js ' + ((window.GOV && window.GOV.VERSION) || 'ישן') + ', נדרש 0.10.0). פתרון: ודא שהעלית את כל הקבצים מה-zip (בעיקר gov-core.js) ל-GitHub, המתן דקה-שתיים, ורענן בלי מטמון (באנדרואיד: הגדרות הדפדפן ← נקה נתוני אתר מטמון בלבד, לא "נתוני אתר" כי זה ימחק את הנתונים!).</div>'); }); }
-    document.write('<script src="gov-vault.js?v=0.10.0"><\/script>');   // כספת המפתחות (נטענת לפני הסנכרון וה-AI)
-    document.write('<script src="gov-sync.js?v=0.10.0"><\/script>');
-    document.write('<script src="gov-ai.js?v=0.10.0"><\/script>');
-    document.write('<script src="gov-review.js?v=0.10.0"><\/script>');    // הערכת ביטול (סוגיות והבטחות)    // שכבת AI משותפת (מפתח Gemini של המשתמש)    // סנכרון לענן: נטען סינכרונית בכל דף, כדי שכל שמירה תופעל אוטומטית
+    if (!window.GOV || window.GOV.VERSION !== '0.14.2') { window.addEventListener('DOMContentLoaded', () => { document.body.insertAdjacentHTML('afterbegin', '<div style="position:sticky;top:0;z-index:2000;background:#7f1d1d;color:#fff;padding:10px 14px;font:14px Rubik,sans-serif;direction:rtl;text-align:right">⚠️ גרסאות הקבצים לא תואמות (נטען gov-core.js ' + ((window.GOV && window.GOV.VERSION) || 'ישן') + ', נדרש 0.14.2). פתרון: ודא שהעלית את כל הקבצים מה-zip (בעיקר gov-core.js) ל-GitHub, המתן דקה-שתיים, ורענן בלי מטמון (באנדרואיד: הגדרות הדפדפן ← נקה נתוני אתר מטמון בלבד, לא "נתוני אתר" כי זה ימחק את הנתונים!).</div>'); }); }
+    document.write('<script src="gov-vault.js?v=0.14.2"><\/script>');   // כספת המפתחות (נטענת לפני הסנכרון וה-AI)
+    document.write('<script src="gov-sync.js?v=0.14.2"><\/script>');
+    document.write('<script src="gov-ai.js?v=0.14.2"><\/script>');
+    document.write('<script src="gov-review.js?v=0.14.2"><\/script>');    // הערכת ביטול (סוגיות והבטחות)    // שכבת AI משותפת (מפתח Gemini של המשתמש)    // סנכרון לענן: נטען סינכרונית בכל דף, כדי שכל שמירה תופעל אוטומטית
 
 
     // מכשיר חדש: קישור חיבור (#setup=...) או gov-config.enc.json. מזינים סיסמה: מפענחים, קובעים אותה כסיסמת כניסה, שומרים את הכתובת והמפתח בכספת ומושכים נתונים.

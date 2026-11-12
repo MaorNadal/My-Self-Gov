@@ -59,7 +59,7 @@
     // תמונה כוללת של המערכת עבור הערכת ה-AI: מצב החודש והציון, הבטחות לפי תיק, סוגיות פעילות, ניצול זמן, ביטולים קודמים והערכותיהם, אמנות. קצר ומדויק (הטקסט המלא מוצג לך באישור לפני שליחה).
     function systemContext(excl) {
         const td = G.localDate(), mk = G.monthOf(td), L = ['--- תמונה כללית של המערכת ---'], T = (f, d) => { try { return f(); } catch (e) { return d; } };
-        T(() => { const sc = G.score(mk), N = { promises: 'הבטחות', daily: 'עקביות יומית', self: 'הערכה עצמית', issues: 'סוגיות ומבצעים' }; L.push(`ציון החודש (${mk}) עד כה: ${sc.total == null ? 'אין עדיין' : sc.total} | רכיבים: ` + sc.parts.map(p => N[p.id] + ' ' + (p.v == null ? '—' : p.v) + ' (משקל ' + p.w + '%)').join(', ')); });
+        T(() => { const sc = G.score(mk), N = { promises: 'הבטחות', daily: 'עקביות יומית', self: 'הערכה עצמית', issues: 'סוגיות ומבצעים', learn: 'יציבות בלימוד שפות' }; L.push(`ציון החודש (${mk}) עד כה: ${sc.total == null ? 'אין עדיין' : sc.total} | רכיבים: ` + sc.parts.map(p => N[p.id] + ' ' + (p.v == null ? '—' : p.v) + ' (משקל ' + p.w + '%)').join(', ')); });
         T(() => { const h = G.history().filter(x => x.closed && x.score != null).slice(-4).map(x => x.mk + ': ' + x.score); if (h.length) L.push('ציונים בחודשים שנסגרו: ' + h.join(', ')); });
         T(() => { const ps = G.promises.all().filter(p => p.month === mk), by = {}; ps.forEach(p => { const n = (G.portfolios.get(p.pid) || { name: 'ללא תיק' }).name, r = by[n] = by[n] || { a: 0, d: 0, x: 0 }; if (p.status === 'dropped') r.x++; else { r.a++; if (p.status === 'done') r.d++; } });
             L.push('הבטחות החודש לפי תיק (פעילות/בוצעו/בוטלו): ' + Object.entries(by).map(([n, r]) => n + ' ' + r.a + '/' + r.d + '/' + r.x).join('; ')); });

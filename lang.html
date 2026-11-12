@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>לימוד שפות - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .lg-item { cursor: pointer; transition: .15s; } .lg-item:hover, .lg-item.on { border-color: #fbbf24; }
+        .lg-cell { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+        .lg-lv button { padding: 2px 7px; border-radius: 6px; font-size: 11px; border: 1px solid #334155; background: #0f172a; color: #cbd5e1; }
+        .lg-lv button.on { background: #fbbf24; color: #0f172a; border-color: #fbbf24; font-weight: 700; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+    <script src="gov-core.js?v=0.14.2"></script>
+    <script src="gov-nav.js?v=0.14.2"></script>
+    <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
+        <h1 class="text-3xl font-black text-white">🗣️ לימוד שפות</h1>
+        <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">רמה לכל מיומנות לפי מסגרת CEFR (A1-C2), יעד, יומן לימוד, רצף, קצב שבועי ותחזית סיום. הרמה היא הערכה שלך; היומן מודד מאמץ. הרמה הכוללת מתעדכנת גם בכרטיס האישי.</p>
+    </header>
+    <main class="max-w-6xl mx-auto px-4 mt-4 grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <section class="lg:col-span-2 space-y-3">
+            <div class="g-card"><h2 class="font-bold text-white text-sm mb-2">➕ שפה חדשה</h2>
+                <input id="nN" class="g-inp" maxlength="60" placeholder="שם השפה (למשל: ספרדית)">
+                <div class="grid grid-cols-2 gap-2 mt-2"><label class="g-lab">יעד שבועי (דקות)<input id="nW" type="number" min="0" max="3000" value="120" class="g-inp"></label><label class="g-lab">תאריך יעד (אופציונלי)<input id="nD" type="date" class="g-inp"></label></div>
+                <input id="nY" class="g-inp mt-2" maxlength="300" placeholder="למה? (אופציונלי)"><button class="g-btn pri mt-2" onclick="addL()">הוסף שפה</button></div>
+            <div id="list" class="space-y-1.5"></div>
+        </section>
+        <section id="detail" class="lg:col-span-3"></section>
+    </main>
+    <script>
+        const G = window.GOV, L = G.langs, h = G.esc, $ = id => document.getElementById(id), NOW = G.localDate(), SK = Object.keys(L.SKILLS), AC = Object.keys(L.ACT), fmt = d => d.split('-').reverse().join('/');
+        let sel = (location.hash.match(/^#l=(.+)$/) || [])[1] || null, msg = '';
+        const COL = { listen: '#38bdf8', speak: '#fbbf24', read: '#34d399', write: '#a78bfa' };
+        const ring = (v, c, txt) => { const r = 40, Lc = 2 * Math.PI * r, p = Math.max(0, Math.min(1, v)); return `<svg viewBox="0 0 100 100" style="width:92px;height:92px;flex:none"><circle cx="50" cy="50" r="${r}" fill="none" stroke="#1e293b" stroke-width="10"/><circle cx="50" cy="50" r="${r}" fill="none" stroke="${c}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${(p * Lc).toFixed(1)} ${Lc.toFixed(1)}" transform="rotate(-90 50 50)"/><text x="50" y="55" text-anchor="middle" fill="#fff" font-size="17" font-weight="800">${txt}</text></svg>`; };
+        function renderList() {
+            const a = L.all(); $('list').innerHTML = a.length ? a.map(c => { const s = L.stats(c.id); return `<div class="g-card lg-item ${c.id === sel ? 'on' : ''} ${c.archived ? 'opacity-60' : ''}" onclick="pick('${h(c.id)}')"><div class="flex items-center gap-2"><b class="flex-1 text-white">${h(c.name)}${c.archived ? ' (בארכיון)' : ''}</b><span class="g-chip" style="color:#fbbf24">${L.CEFR[s.overallLv]}</span><span class="text-[11px] text-slate-400">🔥 ${s.streak}</span></div>
+                <div class="g-bar mt-1.5"><i style="width:${c.weeklyMins ? Math.min(100, Math.round(s.thisWeek / c.weeklyMins * 100)) : 0}%;background:#34d399"></i></div><div class="text-[10px] text-slate-500 mt-1">השבוע ${s.thisWeek} מתוך ${c.weeklyMins} דקות</div></div>`; }).join('') : '<p class="text-xs text-slate-500">עוד אין שפות. הוסף את הראשונה.</p>';
+        }
+        function pick(id) { sel = id; history.replaceState(null, '', '#l=' + id); render(); }
+        function addL() { const r = L.save({ name: $('nN').value.trim(), weeklyMins: $('nW').value, target: $('nD').value, why: $('nY').value }); if (!r) { alert('השם קצר מדי או קיים כבר, או שתאריך היעד אינו עתידי.'); return; } $('nN').value = ''; sel = r.id; history.replaceState(null, '', '#l=' + r.id); render(); }
+        function render() {
+            renderList(); const c = sel && L.get(sel); if (!c) { sel = null; $('detail').innerHTML = '<div class="g-card text-sm text-slate-400">בחר שפה מהרשימה או הוסף חדשה.</div>'; return; }
+            const s = L.stats(c.id), pct = c.weeklyMins ? s.thisWeek / c.weeklyMins : 0, lvBtns = (k, kind) => [0, 1, 2, 3, 4, 5, 6].map(n => `<button class="${c[kind][k] === n ? 'on' : ''}" onclick="setLv('${k}','${kind}',${n})">${L.CEFR[n]}</button>`).join('');
+            const etaTxt = s.remHours === 0 ? '<div class="text-emerald-300 font-bold">🎉 הגעת ליעד הרמות שהגדרת.</div>' : s.eta == null ? '<div class="text-slate-300">אין קצב (לא תועד לימוד ולא הוגדר יעד שבועי), ולכן אין תחזית.</div>'
+                : `<div class="text-slate-200">נשארו כ-<b>${s.remHours}</b> שעות לפי כלל אצבע. בקצב ${s.basis === 'actual' ? 'שלך בפועל' : 'המתוכנן'} (${s.basis === 'actual' ? s.avgWeek : c.weeklyMins} דקות בשבוע): כ-${s.etaWeeks} שבועות, בערך ב-<b>${fmt(s.eta)}</b>.</div>${s.feasible === null ? '' : s.feasible ? `<div class="text-emerald-300 mt-1">✅ לפני תאריך היעד (${fmt(c.target)}).</div>` : `<div class="text-rose-300 mt-1">⚠️ אחרי תאריך היעד (${fmt(c.target)}). כדי לעמוד בו: כ-<b>${s.neededWeek}</b> דקות בשבוע.</div>`}`;
+            $('detail').innerHTML = `<div class="g-card"><div class="flex flex-wrap items-center gap-3">${ring(pct, pct >= 1 ? '#34d399' : '#fbbf24', Math.round(pct * 100) + '%')}<div class="flex-1 min-w-[10rem]"><h2 class="text-xl font-black text-white">${h(c.name)}</h2><div class="text-xs text-slate-400">${h(c.why) || ''}</div>
+                <div class="mt-1 text-sm"><span class="g-chip" style="color:#fbbf24">${L.CEFR[s.overallLv]}</span> ← יעד <span class="g-chip" style="color:#34d399">${L.CEFR[s.goalLv]}</span></div><div class="text-[11px] text-slate-400 mt-1">השבוע: ${s.thisWeek} מתוך ${c.weeklyMins} דקות</div></div>
+                <div class="text-center"><div class="text-3xl">🔥</div><b class="text-white text-lg">${s.streak}</b><div class="text-[10px] text-slate-400">ימים ברצף (שיא ${s.longest})</div></div><div class="text-center"><b class="text-white text-lg">${s.hours}</b><div class="text-[10px] text-slate-400">שעות סה"כ</div></div></div></div>
+                <div class="g-card mt-3"><h3 class="font-bold text-slate-200 text-sm mb-2">🎚️ רמות לפי מיומנות (הערכה עצמית)</h3><div class="space-y-2">${SK.map(k => `<div class="bg-slate-900/60 border border-slate-700 rounded-xl p-2 text-xs"><div class="flex items-center gap-2"><b class="w-14 text-white">${L.SKILLS[k]}</b><div class="flex-1 g-bar" style="height:10px"><i style="width:${Math.round(c.cur[k] / 6 * 100)}%;background:${COL[k]}"></i></div><span class="w-20 text-left text-slate-300">${L.CEFR[c.cur[k]]} ← ${L.CEFR[c.goal[k]]}</span></div>
+                    <div class="lg-lv flex flex-wrap items-center gap-1 mt-1.5"><span class="text-[10px] text-slate-500 w-10">עכשיו</span>${lvBtns(k, 'cur')}</div><div class="lg-lv flex flex-wrap items-center gap-1 mt-1"><span class="text-[10px] text-slate-500 w-10">יעד</span>${lvBtns(k, 'goal')}</div></div>`).join('')}</div>
+                <p class="text-[10px] text-slate-500 mt-2">A1 מתחיל • A2 בסיסי • B1 שיחה יומיומית • B2 שוטף ועצמאי • C1 מתקדם • C2 כמעט שפת אם. אל תנפח: הרמה נכנסת לכרטיס האישי ולסימולטור הקריירה.</p></div>
+                <div class="g-card mt-3"><h3 class="font-bold text-slate-200 text-sm mb-2">📝 תיעוד לימוד</h3><div class="grid grid-cols-2 md:grid-cols-4 gap-2"><label class="g-lab">תאריך<input id="lD" type="date" class="g-inp" value="${NOW}" max="${NOW}"></label><label class="g-lab">דקות<input id="lM" type="number" min="1" max="1440" class="g-inp" value="20"></label><label class="g-lab col-span-2">פעילות<select id="lA" class="g-inp">${AC.map(k => `<option value="${k}"${k === 'mixed' ? ' selected' : ''}>${L.ACT[k]}</option>`).join('')}</select></label></div>
+                <input id="lN" class="g-inp mt-1" maxlength="200" placeholder="הערה (אופציונלי, לא נשלחת ל-AI)"><div class="flex flex-wrap gap-2 items-center mt-2"><button class="g-btn pri" onclick="addLog()">הוסף</button><span id="lMsg" class="text-[11px] text-slate-400">${h(msg)}</span></div></div>
+                <div class="g-card mt-3"><h3 class="font-bold text-slate-200 text-sm mb-2">📊 8 שבועות אחרונים</h3><div id="wk"></div><h3 class="font-bold text-slate-200 text-sm mt-4 mb-2">🗓️ 12 שבועות (כל ריבוע = יום)</h3><div id="heat" class="flex gap-[3px] overflow-x-auto" dir="ltr"></div><div id="act" class="mt-3 space-y-1"></div></div>
+                <div class="g-card mt-3"><h3 class="font-bold text-slate-200 text-sm mb-2">⏳ תחזית</h3><div class="text-xs">${etaTxt}</div><p class="text-[10px] text-slate-500 mt-2">כלל אצבע: ${L.CUM_HRS.slice(1).map((v, i) => L.CEFR[i + 1] + ' ' + v).join(' • ')} שעות מצטברות לרמה. השעות מתחלקות שווה בין 4 המיומנויות. הרמות שהצהרת עליהן כבר כוללות את מה שלמדת, לכן הלימוד שביומן לא מופחת מהשעות הנותרות. זו הערכה גסה: קצב הלמידה האמיתי משתנה מאוד בין אנשים.</p></div>
+                <div class="g-card mt-3"><div class="flex flex-wrap gap-2 items-center"><button class="g-btn pri" onclick="aiAdv()">🤖 עצה מ-AI לתוכנית (אנונימי, באישור)</button><label class="text-xs text-slate-300 flex items-center gap-1"><input type="checkbox" ${c.sync ? 'checked' : ''} onchange="togSync(this.checked)"> עדכן את הכרטיס האישי אוטומטית</label><button class="g-btn" onclick="arch()">${c.archived ? 'שחזר מהארכיון' : 'העבר לארכיון'}</button><button class="g-btn red" onclick="delL()">מחק שפה</button></div><div id="aiOut" class="mt-2 text-xs text-slate-200 leading-relaxed"></div></div>
+                <div class="g-card mt-3"><h3 class="font-bold text-slate-200 text-sm mb-2">🕘 היסטוריה</h3><div id="logs" class="space-y-1 text-xs"></div><div id="hist" class="text-[11px] text-slate-400 mt-3"></div></div>`;
+            drawWeeks(s); drawHeat(s); drawAct(s); drawLogs(c);
+        }
+        function drawWeeks(s) {
+            const W = 520, H = 130, mx = Math.max(s.lang.weeklyMins, ...s.weeks.map(w => w.mins), 1), bw = 44, gap = (W - 8 * bw) / 9, y = v => H - 20 - v / mx * (H - 34);
+            $('wk').innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:560px;height:auto" dir="ltr">${s.weeks.map((w, i) => { const x = gap + i * (bw + gap); return `<g><title>שבוע מ-${fmt(w.start)}: ${w.mins} דקות${w.hit ? ' (עמדת ביעד)' : ''}</title><rect x="${x}" y="${y(w.mins)}" width="${bw}" height="${Math.max(1, H - 20 - y(w.mins))}" rx="4" fill="${w.hit ? '#34d399' : '#fbbf24'}" opacity="${i === 7 ? 1 : .8}"/><text x="${x + bw / 2}" y="${H - 6}" text-anchor="middle" fill="#94a3b8" font-size="9">${w.start.slice(8)}/${w.start.slice(5, 7)}</text><text x="${x + bw / 2}" y="${y(w.mins) - 3}" text-anchor="middle" fill="#e2e8f0" font-size="9">${w.mins || ''}</text></g>`; }).join('')}
+                ${s.lang.weeklyMins ? `<line x1="0" x2="${W}" y1="${y(s.lang.weeklyMins)}" y2="${y(s.lang.weeklyMins)}" stroke="#f87171" stroke-dasharray="4 3"/><text x="${W - 2}" y="${y(s.lang.weeklyMins) - 3}" text-anchor="end" fill="#f87171" font-size="9">יעד ${s.lang.weeklyMins}</text>` : ''}</svg>`;
+        }
+        function drawHeat(s) {
+            const cols = []; for (let i = 0; i < s.heat.length; i += 7) cols.push(s.heat.slice(i, i + 7)), 0; const col = m => m == null ? 'transparent' : m === 0 ? '#1e293b' : m < 15 ? '#92400e' : m < 30 ? '#d97706' : m < 60 ? '#fbbf24' : '#fde68a';
+            $('heat').innerHTML = cols.map(w => `<div class="flex flex-col gap-[3px]">${w.map(d => `<span class="lg-cell" style="background:${col(d.mins)}" title="${fmt(d.date)}${d.mins == null ? '' : ': ' + d.mins + ' דקות'}"></span>`).join('')}</div>`).join('');
+        }
+        function drawAct(s) { const e = Object.entries(s.byAct).sort((a, b) => b[1] - a[1]), t = e.reduce((a, x) => a + x[1], 0); $('act').innerHTML = e.length ? '<div class="text-[11px] text-slate-400 mb-1">חלוקת הזמן לפי פעילות</div>' + e.map(([k, v]) => `<div class="flex items-center gap-2 text-[11px]"><span class="w-20 text-slate-300">${L.ACT[k]}</span><div class="flex-1 g-bar"><i style="width:${Math.round(v / t * 100)}%;background:${COL[k] || '#94a3b8'}"></i></div><span class="w-16 text-slate-400">${v} דק׳ (${Math.round(v / t * 100)}%)</span></div>`).join('') : ''; }
+        function drawLogs(c) {
+            const l = L.log.all(c.id).slice(0, 15); $('logs').innerHTML = l.length ? l.map(x => `<div class="flex items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-lg px-2 py-1"><span class="text-slate-400 w-20">${fmt(x.date)}</span><span class="text-white w-14">${x.mins} דק׳</span><span class="text-slate-300 w-20">${L.ACT[x.act]}</span><span class="flex-1 text-slate-400">${h(x.note)}</span><button class="text-rose-300" onclick="delLog('${h(x.id)}')">✕</button></div>`).join('') : '<p class="text-slate-500">עוד לא תועד לימוד.</p>';
+            $('hist').innerHTML = c.hist.length ? '<b class="text-slate-300">שינויי רמה:</b> ' + c.hist.slice(-12).map(x => `${fmt(x.date)} ${L.SKILLS[x.skill]} ${L.CEFR[x.level]}`).join(' • ') : '';
+        }
+        function setLv(k, kind, n) { const c = L.get(sel), o = Object.assign({}, c); o[kind] = Object.assign({}, c[kind], { [k]: n }); L.save(o); render(); }
+        function addLog() { const r = L.log.add({ langId: sel, date: $('lD').value, mins: $('lM').value, act: $('lA').value, note: $('lN').value }); msg = r ? 'נוסף.' : '⚠️ בדוק תאריך (לא עתידי) ודקות (1-1440).'; render(); }
+        function delLog(id) { L.log.remove(id); render(); }
+        function togSync(v) { const c = L.get(sel); L.save(Object.assign({}, c, { sync: v })); render(); }
+        function arch() { const c = L.get(sel); L.save(Object.assign({}, c, { archived: !c.archived })); render(); }
+        function delL() { if (confirm('למחוק את השפה ואת כל יומן הלימוד שלה? רשומת הכרטיס האישי תישאר.')) { L.remove(sel); sel = null; history.replaceState(null, '', location.pathname); render(); } }
+        async function aiAdv() {
+            const c = L.get(sel), names = G.people.all().map(p => p.name).concat(G.treaties.all().map(t => t.party), [G.profile.get().name || '']).filter(Boolean);
+            $('aiOut').textContent = 'ממתין לאישור…';
+            const r = await window.GOVAI.ask({ title: 'עצה לתוכנית לימוד שפה', names, data: L.aiData(c.id), task: 'אתה מורה לשפות ישר ולא חנפן. לפי הנתונים: הערך בקצרה אם הקצב מספיק ליעד, איזו מיומנות מוזנחת לפי חלוקת הזמן, והצע תוכנית שבועית קונקרטית (3-5 נקודות). אל תמציא נתונים שלא קיבלת. עברית, עד 150 מילים.' });
+            if (!r.ok) { $('aiOut').textContent = r.cancelled ? 'בוטל.' : '⚠️ ' + r.error; return; } $('aiOut').innerHTML = '<b class="text-violet-300">🤖 עצת AI (הערכה כללית, לא ודאות):</b><br>' + G.nl(r.text);
+        }
+        window.addEventListener('hashchange', () => { sel = (location.hash.match(/^#l=(.+)$/) || [])[1] || null; render(); });
+        render();
+    </script>
+</body>
+</html>

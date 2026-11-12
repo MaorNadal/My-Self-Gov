@@ -6,7 +6,7 @@
     const HEB_MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
     const DATE_RE = /^\d{4}-\d{2}-\d{2}$/, MONTH_RE = /^\d{4}-\d{2}$/;
     const MIN_PROMISES = 3, MIN_DAILY_DAYS = 5;                 // ספי נתונים מינימליים לפני שניתן ציון
-    const W = { promises: 60, daily: 25, self: 15 }, ISSUES_SHARE = 20, OPS_WEIGHT = 2;   // כשיש סוגיות ארוכות טווח הן 20% מהציון והשאר שומרים על היחס ביניהם (48/20/12/20); בלעדיהן 60/25/15. תמיד סכום 100
+    const W = { promises: 60, daily: 25, self: 15 }, ISSUES_SHARE = 20, LEARN_SHARE = 10, OPS_WEIGHT = 2;   // כשיש סוגיות ארוכות טווח הן 20% מהציון והשאר שומרים על היחס ביניהם (48/20/12/20); בלעדיהן 60/25/15. תמיד סכום 100
     const SECRET_KEYS = [PREFIX + 'lock', PREFIX + 'sync', PREFIX + 'ai', PREFIX + 'vault'];   // לעולם לא מיוצאים, לא מיובאים ולא מסונכרנים (נעילה, הגדרות ענן, מפתח Gemini)            // משקלי הציון החודשי
 
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -442,8 +442,8 @@
         }
         const dl = days >= MIN_DAILY_DAYS ? ratio / days * 100 : null;
         const rv = review.get(mk), self = rv.selfScore;
-        const iv = issuesScore(mk), k = iv != null ? (100 - ISSUES_SHARE) / 100 : 1;
-        const nominal = [{ id: 'promises', w: W.promises * k, v: pr }, { id: 'daily', w: W.daily * k, v: dl }, { id: 'self', w: W.self * k, v: self }, { id: 'issues', w: iv != null ? ISSUES_SHARE : 0, v: iv }];
+        const iv = issuesScore(mk), lv = learnScore(mk), k = (100 - (iv != null ? ISSUES_SHARE : 0) - (lv != null ? LEARN_SHARE : 0)) / 100;
+        const nominal = [{ id: 'promises', w: W.promises * k, v: pr }, { id: 'daily', w: W.daily * k, v: dl }, { id: 'self', w: W.self * k, v: self }, { id: 'issues', w: iv != null ? ISSUES_SHARE : 0, v: iv }].concat(lv != null ? [{ id: 'learn', w: LEARN_SHARE, v: lv }] : []);
         const have = nominal.filter(p => p.v != null), tW = have.reduce((a, p) => a + p.w, 0);   // רכיב חסר מוסר והמשקלים מנורמלים מחדש ל-100
         const parts = nominal.map(p => ({ id: p.id, v: p.v, w: p.v != null && tW ? Math.round(p.w / tW * 100) : (p.id === 'issues' ? ISSUES_SHARE : Math.round(p.w)) }));
         const total = have.some(p => p.id !== 'self') && tW ? Math.round(have.reduce((a, p) => a + p.w * p.v, 0) / tW) : null;
@@ -830,40 +830,164 @@
     };
 
     // ---------- סימולטור קריירה ולימודים: מטרה = רשימת דרישות (תחום + שם + רמה נדרשת); הסימולטור משווה לפרופיל היכולות ומחשב מוכנות, פערים ומסלול ----------
-    // הערכות הזמן הן היוריסטיקה גסה (שעות לרמה לפי תחום), לא תחזית. המשתמש קובע שעות פנויות בשבוע ורואה כמה זמן ייקח ואם היעד ריאלי.
+    // v0.11: כמה מסלולים (תרחישים) למטרה עם השוואה ומסלול מרכזי; עלות לכל דרישה, נתוני שוק (שהמשתמש מזין או הערכת AI) ותשואה על ההשקעה.
+    // הערכות הזמן הן היוריסטיקה גסה (שעות לרמה לפי תחום), לא תחזית. נתוני השוק הם קלט של המשתמש או הערכה כללית של מודל, לא נתון חי.
     const CAREER_KINDS = { career: 'קריירה / תפקיד', study: 'לימודים / תואר', job: 'משרה ספציפית', skill: 'מיומנות / שפה' };
     const HRS_PER_LEVEL = { skills: 120, experience: 300, education: 400, courses: 40, languages: 180, certs: 60, soft: 80, community: 50, achievements: 100, physical: 60 };
-    const cleanReq = v => (Array.isArray(v) ? v : []).slice(0, 25).map(x => { const o = base(x); return { id: str(o.id, 40) || uid(), domain: CAP_DOMAINS[o.domain] ? o.domain : 'skills', title: str(o.title, 120), need: clampInt(o.need, 1, 5, 3), weight: clampInt(o.weight, 1, 3, 2) }; }).filter(r => r.title.length >= 2);
-    const careersCol = collection('careers', p => { const o = base(p); return { id: str(o.id, 40) || uid(), title: str(o.title, 160), kind: CAREER_KINDS[o.kind] ? o.kind : 'career', why: str(o.why, 400), target: dateOr(o.target, ''), reqs: cleanReq(o.reqs), opId: str(o.opId, 40), created: dateOr(o.created, localDate()), ai: str(o.ai, 900) }; });
+    const cleanReq = v => (Array.isArray(v) ? v : []).slice(0, 25).map(x => { const o = base(x); return { id: str(o.id, 40) || uid(), domain: CAP_DOMAINS[o.domain] ? o.domain : 'skills', title: str(o.title, 120), need: clampInt(o.need, 1, 5, 3), weight: clampInt(o.weight, 1, 3, 2), cost: clampInt(o.cost, 0, 10000000, 0) }; }).filter(r => r.title.length >= 2);
+    const cleanScen = v => (Array.isArray(v) ? v : []).slice(0, 6).map(x => { const o = base(x); return { id: str(o.id, 40) || uid(), name: str(o.name, 60), hpw: clampInt(o.hpw, 1, 60, 5), order: o.order === 'easy' ? 'easy' : 'important', skip: idList(o.skip, 25), note: str(o.note, 300) }; }).filter(x => x.name.length >= 2);
+    const cleanMarket = v => { const o = base(v), n = (x, lo, hi) => { const q = numOrNull(x); return q == null || q < lo || q > hi ? null : Math.round(q); };
+        return { demand: n(o.demand, 1, 5), salaryNow: n(o.salaryNow, 0, 10000000), salaryTarget: n(o.salaryTarget, 0, 10000000), note: str(o.note, 400), source: str(o.source, 160), at: dateOr(o.at, '') }; };
+    const cleanMarketAi = v => { const o = base(v); if (!Object.keys(o).length) return null; const n = (x, lo, hi) => { const q = numOrNull(x); return q == null || q < lo || q > hi ? null : Math.round(q); };
+        return { demand: n(o.demand, 1, 5), salaryLow: n(o.salaryLow, 0, 10000000), salaryHigh: n(o.salaryHigh, 0, 10000000), skills: (Array.isArray(o.skills) ? o.skills : []).slice(0, 8).map(x => str(x, 60)).filter(Boolean), risks: str(o.risks, 400), paths: str(o.paths, 400), note: str(o.note, 500), at: dateOr(o.at, localDate()) }; };
+    const careersCol = collection('careers', p => { const o = base(p); return { id: str(o.id, 40) || uid(), title: str(o.title, 160), kind: CAREER_KINDS[o.kind] ? o.kind : 'career', why: str(o.why, 400), target: dateOr(o.target, ''), reqs: cleanReq(o.reqs), opId: str(o.opId, 40), created: dateOr(o.created, localDate()), ai: str(o.ai, 900),
+        scenarios: cleanScen(o.scenarios), mainId: str(o.mainId, 40), market: cleanMarket(o.market), marketAi: cleanMarketAi(o.marketAi) }; });
     function careerMatch(r) {   // הרשומה הטובה ביותר בתחום שהשם שלה תואם (הכלה דו-כיוונית, בלי רגישות לאותיות)
         const t = r.title.toLowerCase().trim(), td = localDate();
         const hit = capsCol.all().filter(e => e.domain === r.domain && e.title.trim() && (e.title.toLowerCase().includes(t) || t.includes(e.title.toLowerCase().trim()))).map(e => ({ e, v: capEff(e, td) })).sort((a, b) => b.v - a.v)[0];
         return hit && hit.v > 0 ? { id: hit.e.id, title: hit.e.title, level: Math.round(hit.v * 10) / 10 } : null;
     }
-    function careerSim(id, hpw, order) {
-        const c = careersCol.get(id); if (!c) return null; hpw = Math.max(1, Math.min(60, Number(hpw) || 5)); order = order === 'easy' ? 'easy' : 'important';
-        const rows = c.reqs.map(r => { const m = careerMatch(r), cur = m ? m.level : 0, gap = Math.max(0, r.need - cur), hours = Math.round(gap * HRS_PER_LEVEL[r.domain]); return { req: r, match: m, cur, gap, hours, met: gap === 0, ratio: Math.min(1, cur / r.need) }; });
-        const tw = rows.reduce((a, x) => a + x.req.weight, 0), ready = tw ? Math.round(rows.reduce((a, x) => a + x.req.weight * x.ratio, 0) / tw * 100) : null;
-        const steps = rows.filter(x => !x.met).sort((a, b) => order === 'easy' ? a.hours - b.hours : b.req.weight - a.req.weight || a.hours - b.hours);
-        let acc = 0; steps.forEach(x => { acc += x.hours; x.cumHours = acc; x.eta = addDays(localDate(), Math.ceil(acc / hpw * 7)); });
-        const total = acc, td = localDate(), etaAll = steps.length ? steps[steps.length - 1].eta : td, wk = c.target ? Math.max(0, dayDiff(c.target, td)) / 7 : null;
-        return { career: c, rows, ready, steps, totalHours: total, hpw, eta: etaAll, weeks: Math.round(total / hpw * 10) / 10, feasible: c.target ? etaAll <= c.target : null, neededHpw: c.target && wk > 0 ? Math.ceil(total / wk * 10) / 10 : null, strongest: rows.filter(x => x.match).sort((a, b) => b.ratio * b.req.weight - a.ratio * a.req.weight).slice(0, 3) };
+    function careerSim(id, hpw, order, skip) {
+        const c = careersCol.get(id); if (!c) return null; hpw = Math.max(1, Math.min(60, Number(hpw) || 5)); order = order === 'easy' ? 'easy' : 'important'; skip = Array.isArray(skip) ? skip : [];
+        const rows = c.reqs.map(r => { const m = careerMatch(r), cur = m ? m.level : 0, gap = Math.max(0, r.need - cur), hours = Math.round(gap * HRS_PER_LEVEL[r.domain]); return { req: r, match: m, cur, gap, hours, met: gap === 0, ratio: Math.min(1, cur / r.need), skipped: skip.includes(r.id) && gap > 0 }; });
+        const tw = rows.reduce((a, x) => a + x.req.weight, 0), ratioOf = (x, after) => after && !x.skipped ? 1 : x.ratio, ready = tw ? Math.round(rows.reduce((a, x) => a + x.req.weight * x.ratio, 0) / tw * 100) : null, readyAfter = tw ? Math.round(rows.reduce((a, x) => a + x.req.weight * ratioOf(x, true), 0) / tw * 100) : null;
+        const steps = rows.filter(x => !x.met && !x.skipped).sort((a, b) => order === 'easy' ? a.hours - b.hours : b.req.weight - a.req.weight || a.hours - b.hours);
+        let acc = 0, cost = 0; steps.forEach(x => { acc += x.hours; cost += x.req.cost; x.cumHours = acc; x.eta = addDays(localDate(), Math.ceil(acc / hpw * 7)); });
+        const total = acc, td = localDate(), etaAll = steps.length ? steps[steps.length - 1].eta : td, wk = c.target ? Math.max(0, dayDiff(c.target, td)) / 7 : null, mk = c.market, up = mk.salaryNow != null && mk.salaryTarget != null ? mk.salaryTarget - mk.salaryNow : null;
+        return { career: c, rows, ready, readyAfter, steps, totalHours: total, cost, hpw, order, skip, eta: etaAll, weeks: Math.round(total / hpw * 10) / 10, feasible: c.target ? etaAll <= c.target : null, neededHpw: c.target && wk > 0 ? Math.ceil(total / wk * 10) / 10 : null,
+            uplift: up, payback: up != null && up > 0 && cost > 0 ? Math.round(cost / up * 10) / 10 : null, strongest: rows.filter(x => x.match).sort((a, b) => b.ratio * b.req.weight - a.ratio * a.req.weight).slice(0, 3) };
     }
     const careers = {
         KINDS: CAREER_KINDS, HRS: HRS_PER_LEVEL, all: careersCol.all, get: careersCol.get, remove: careersCol.remove, sim: careerSim, match: careerMatch,
         save(item) { const c = base(item); if (str(c.title, 160).length < 3) return null; const ex = c.id ? careersCol.get(c.id) : null; if (c.target && !(DATE_RE.test(c.target) && c.target > localDate())) return null; return careersCol.save(Object.assign({}, ex || {}, c)); },
+        mainOpts(id) { const c = careersCol.get(id); if (!c) return null; const m = c.scenarios.find(x => x.id === c.mainId); return m ? { hpw: m.hpw, order: m.order, skip: m.skip, name: m.name } : null; },
+        addScenario(id, o) {   // שומר תרחיש (שעות בשבוע, סדר, דרישות שמוותרים עליהן). התרחיש הראשון הופך למרכזי
+            const c = careersCol.get(id); o = base(o); if (!c) return ERR0('המטרה לא נמצאה.'); if (c.scenarios.length >= 6) return ERR0('עד 6 מסלולים למטרה.'); if (str(o.name, 60).length < 2) return ERR0('תן למסלול שם (לפחות 2 תווים).');
+            if (c.scenarios.some(x => x.name === str(o.name, 60))) return ERR0('כבר יש מסלול בשם הזה.'); const sc = cleanScen([o])[0]; c.scenarios = c.scenarios.concat([sc]); if (!c.mainId) c.mainId = sc.id; return careersCol.save(c) ? { ok: true, id: sc.id } : ERR0('השמירה נכשלה.');
+        },
+        removeScenario(id, sid) { const c = careersCol.get(id); if (!c) return false; c.scenarios = c.scenarios.filter(x => x.id !== sid); if (c.mainId === sid) c.mainId = c.scenarios.length ? c.scenarios[0].id : ''; return !!careersCol.save(c); },
+        setMain(id, sid) { const c = careersCol.get(id); if (!c || !c.scenarios.some(x => x.id === sid)) return false; c.mainId = sid; return !!careersCol.save(c); },
+        compare(id) {   // כל התרחישים השמורים, זה לצד זה, עם תגיות "הכי מהיר / זול / מוכן" (עובדות, לא המלצה)
+            const c = careersCol.get(id); if (!c) return null; const rows = c.scenarios.map(sc => ({ sc, main: sc.id === c.mainId, sim: careerSim(id, sc.hpw, sc.order, sc.skip) })); if (!rows.length) return { rows, tags: {} };
+            const best = (f, lo) => { const v = rows.map(r => f(r.sim)).filter(x => x != null); if (v.length < 2) return null; const t = v.reduce((x, y) => (lo ? y < x : y > x) ? y : x); return rows.filter(r => f(r.sim) === t).map(r => r.sc.id); };
+            return { rows, tags: { fastest: best(r => r.eta, true), cheapest: best(r => r.cost, true), readiest: best(r => r.readyAfter, false), shortest: best(r => r.totalHours, true) } };
+        },
+        setMarket(id, m) { const c = careersCol.get(id); if (!c) return false; const x = cleanMarket(Object.assign({}, m, { at: localDate() })); c.market = x; return !!careersCol.save(c); },
+        applyAiMarket(id, j) { const c = careersCol.get(id), m = cleanMarketAi(Object.assign({}, base(j), { at: localDate() })); if (!c || !m || (m.demand == null && !m.skills.length && !m.note)) return { ok: false }; c.marketAi = m; return careersCol.save(c) ? { ok: true } : { ok: false }; },
         applyAiReqs(id, j) {   // j: { reqs:[{domain,title,need,weight}], note }
             const c = careersCol.get(id), o = base(j); if (!c) return { ok: false }; const add = cleanReq(o.reqs).filter(r => !c.reqs.some(q => q.domain === r.domain && q.title.toLowerCase() === r.title.toLowerCase())); if (!add.length) return { ok: false };
             c.reqs = c.reqs.concat(add).slice(0, 25); if (str(o.note, 900)) c.ai = str(o.note, 900); return careersCol.save(c) ? { ok: true, n: add.length } : { ok: false };
         },
-        toOperation(id, hpw, order) {   // הופך את המסלול למבצע עם שלבים (שלב לכל פער) ויעד אחרי התאריך המשוער
-            const s = careerSim(id, hpw, order); if (!s) return ERR0('המטרה לא נמצאה.'); const c = s.career;
+        toOperation(id, hpw, order, skip) {   // הופך את המסלול (בהגדרות שניתנו, או במסלול המרכזי אם לא ניתנו) למבצע עם שלב לכל פער
+            const mo = hpw == null ? careers.mainOpts(id) : null, s = mo ? careerSim(id, mo.hpw, mo.order, mo.skip) : careerSim(id, hpw, order, skip); if (!s) return ERR0('המטרה לא נמצאה.'); const c = s.career;
             if (c.opId && ops.get(c.opId) && ops.get(c.opId).status === 'active') return ERR0('כבר קיים מבצע פעיל למטרה הזו.');
             if (s.steps.length < 2) return ERR0('נדרשים לפחות 2 פערים כדי לבנות מבצע (אחרת זו משימה או סוגיה).');
-            const o = ops.save({ title: 'מסלול: ' + c.title, importance: 2, why: 'נבנה מסימולטור הקריירה. ' + s.totalHours + ' שעות משוערות בקצב ' + s.hpw + ' שעות בשבוע.', target: c.target && c.target > s.eta ? c.target : (s.eta > localDate() ? s.eta : ''),
-                stages: s.steps.map(x => ({ text: (x.req.domain === 'languages' ? 'שפה: ' : '') + x.req.title + ': מרמה ' + x.cur + ' ל-' + x.req.need + ' (כ-' + x.hours + ' שעות)', due: x.eta })) });
+            const o = ops.save({ title: 'מסלול: ' + c.title + (mo ? ' (' + mo.name + ')' : ''), importance: 2, why: 'נבנה מסימולטור הקריירה. ' + s.totalHours + ' שעות משוערות בקצב ' + s.hpw + ' שעות בשבוע.', target: c.target && c.target > s.eta ? c.target : (s.eta > localDate() ? s.eta : ''),
+                stages: s.steps.map(x => ({ text: x.req.title + ': מרמה ' + x.cur + ' ל-' + x.req.need + ' (כ-' + x.hours + ' שעות)', due: x.eta })) });
             if (!o) return ERR0('יצירת המבצע נכשלה.'); c.opId = o.id; careersCol.save(c); return { ok: true, opId: o.id };
         }
+    };
+
+    // ---------- ניהול לימוד שפות (v0.12): רמת CEFR לכל מיומנות (הערכה עצמית), יעד, יומן לימוד, רצף, גרף שבועי, תחזית סיום וסנכרון לכרטיס האישי ----------
+    // הרמות מוצהרות על ידי המשתמש (לא נמדדות). שעות הלימוד ביומן משמשות לקצב ולרצף, לא להעלאת רמה אוטומטית.
+    // השעות להגעה לכל רמה הן כלל אצבע מקורב מהוראת שפות כללית, ומשתנות מאוד בין אנשים ושפות (שפה רחוקה לדובר שלה גם דורשת יותר).
+    const CEFR = ['—', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'], CEFR_CUM_HRS = [0, 90, 190, 340, 540, 740, 990], CEFR_CAP = [0, 1, 2, 3, 4, 4, 5];
+    const LANG_SKILLS = { listen: 'האזנה', speak: 'דיבור', read: 'קריאה', write: 'כתיבה' };
+    const LANG_ACT = Object.assign({}, LANG_SKILLS, { vocab: 'אוצר מילים', grammar: 'דקדוק', mixed: 'שילוב' });
+    const lvMap = (v, d) => { const o = base(v), r = {}; Object.keys(LANG_SKILLS).forEach(k => { r[k] = clampInt(o[k], 0, 6, d); }); return r; };
+    const cleanLang = p => { const o = base(p); return { id: str(o.id, 40) || uid(), name: str(o.name, 60), why: str(o.why, 300), target: dateOr(o.target, ''), weeklyMins: clampInt(o.weeklyMins, 0, 3000, 120),
+        cur: lvMap(o.cur, 0), goal: lvMap(o.goal, 4), sync: o.sync !== false, capId: str(o.capId, 40), created: dateOr(o.created, localDate()), archived: o.archived === true,
+        hist: (Array.isArray(o.hist) ? o.hist : []).slice(-300).map(x => { const q = base(x); return { date: dateOr(q.date, localDate()), skill: LANG_SKILLS[q.skill] ? q.skill : 'listen', level: clampInt(q.level, 0, 6, 0) }; }) }; };
+    const langsCol = collection('langs', cleanLang);
+    const langLogCol = collection('langlog', p => { const o = base(p); return { id: str(o.id, 40) || uid(), langId: str(o.langId, 40), date: dateOr(o.date, localDate()), mins: clampInt(o.mins, 1, 1440, 1), act: LANG_ACT[o.act] ? o.act : 'mixed', note: str(o.note, 200) }; });
+    const dowSun = d => new Date(d + 'T00:00:00').getDay(), weekStartOf = d => addDays(d, -dowSun(d));
+    const langOverall = c => { const v = Object.values(c.cur); return v.reduce((a, b) => a + b, 0) / v.length; };
+    function langStats(id, asOf) {
+        const c = langsCol.get(id); if (!c) return null; const td = asOf || localDate(), logs = langLogCol.all().filter(l => l.langId === id && l.date <= td), byDay = {}, byAct = {};
+        logs.forEach(l => { byDay[l.date] = (byDay[l.date] || 0) + l.mins; byAct[l.act] = (byAct[l.act] || 0) + l.mins; });
+        const total = logs.reduce((a, l) => a + l.mins, 0), days = Object.keys(byDay).sort(), first = days[0] || null, ws = weekStartOf(td);
+        const weeks = []; for (let i = 7; i >= 0; i--) { const s = addDays(ws, -7 * i); let m = 0; for (let k = 0; k < 7; k++) m += byDay[addDays(s, k)] || 0; weeks.push({ start: s, mins: m, hit: c.weeklyMins > 0 && m >= c.weeklyMins }); }
+        let streak = 0, d = byDay[td] ? td : addDays(td, -1); while (byDay[d]) { streak++; d = addDays(d, -1); }
+        let longest = 0, run = 0, prev = null; days.forEach(x => { run = prev && dayDiff(x, prev) === 1 ? run + 1 : 1; prev = x; if (run > longest) longest = run; });
+        const heat = []; for (let w = 11; w >= 0; w--) for (let k = 0; k < 7; k++) { const dt = addDays(ws, -7 * w + k); heat.push({ date: dt, mins: dt > td ? null : (byDay[dt] || 0) }); }
+        const span = first ? Math.min(28, Math.max(7, dayDiff(td, first) + 1)) : 7, last28 = logs.filter(l => dayDiff(td, l.date) < 28).reduce((a, l) => a + l.mins, 0), avgWeek = Math.round(last28 / (span / 7));
+        const remH = Object.keys(LANG_SKILLS).reduce((a, k) => a + Math.max(0, CEFR_CUM_HRS[c.goal[k]] - CEFR_CUM_HRS[c.cur[k]]) / 4, 0), basis = avgWeek > 0 ? 'actual' : 'planned', wm = avgWeek > 0 ? avgWeek : c.weeklyMins;
+        const wks = remH > 0 && wm > 0 ? remH * 60 / wm : null, eta = remH === 0 ? td : wks == null ? null : addDays(td, Math.ceil(wks * 7)), left = c.target ? dayDiff(c.target, td) / 7 : null;
+        return { lang: c, total, hours: Math.round(total / 6) / 10, byAct, weeks, thisWeek: weeks[7].mins, streak, longest, heat, avgWeek, basis, remHours: Math.round(remH), etaWeeks: wks == null ? null : Math.round(wks * 10) / 10, eta,
+            feasible: c.target && eta ? eta <= c.target : null, neededWeek: c.target && left > 0 && remH > 0 ? Math.ceil(remH * 60 / left) : null, overall: langOverall(c), overallLv: Math.round(langOverall(c)), goalLv: Math.round(langOverall({ cur: c.goal })), today: byDay[td] || 0, first, loggedDays: days.length };
+    }
+    const langs = {
+        CEFR, CUM_HRS: CEFR_CUM_HRS, SKILLS: LANG_SKILLS, ACT: LANG_ACT, all: () => langsCol.all().sort((a, b) => Number(a.archived) - Number(b.archived) || a.name.localeCompare(b.name, 'he')), get: langsCol.get, stats: langStats, overall: langOverall,
+        save(item) {
+            const o = base(item), name = str(o.name, 60); if (name.length < 2) return null; const ex = o.id ? langsCol.get(o.id) : null;
+            if (langsCol.all().some(x => x.name.toLowerCase() === name.toLowerCase() && x.id !== (ex && ex.id))) return null;
+            if (o.target && !(DATE_RE.test(o.target) && ((ex && ex.target === o.target) || o.target > localDate()))) return null;
+            const c = cleanLang(Object.assign({}, ex || {}, o, { name, hist: ex ? ex.hist : [], capId: ex ? ex.capId : '', created: ex ? ex.created : localDate() })), td = localDate();
+            Object.keys(LANG_SKILLS).forEach(k => { if (ex ? c.cur[k] !== ex.cur[k] : c.cur[k] > 0) c.hist.push({ date: td, skill: k, level: c.cur[k] }); }); c.hist = c.hist.slice(-300);
+            const s = langsCol.save(c); if (!s) return null; langs.syncCaps(s.id); return langsCol.get(s.id);
+        },
+        setLevel(id, skill, lv) { const c = langsCol.get(id); if (!c || !LANG_SKILLS[skill] || !Number.isInteger(Number(lv)) || lv < 0 || lv > 6) return false; return !!langs.save(Object.assign({}, c, { cur: Object.assign({}, c.cur, { [skill]: Number(lv) }) })); },
+        remove(id) { langLogCol.all().filter(l => l.langId === id).forEach(l => langLogCol.remove(l.id)); return langsCol.remove(id); },   // רשומת הכרטיס האישי נשארת (היסטוריה); אפשר למחוק אותה שם
+        syncCaps(id) {   // רמה כוללת (ממוצע 4 המיומנויות, מעוגל) -> רשומה אחת בתחום "שפות" בכרטיס האישי. לא נוצרת רשומה כל עוד אין רמה בכלל
+            const c = langsCol.get(id); if (!c || !c.sync) return null; const lv = CEFR_CAP[Math.round(langOverall(c))]; if (!lv) return null; const ex = c.capId ? caps.get(c.capId) : null, hrs = Math.round(langLogCol.all().filter(l => l.langId === id).reduce((a, l) => a + l.mins, 0) / 60);
+            const e = caps.save(Object.assign({ start: c.created, org: '' }, ex || {}, { domain: 'languages', title: c.name, level: lv, current: true, hours: hrs, detail: 'מתעדכן אוטומטית ממודול לימוד השפות. רמה כוללת ' + CEFR[Math.round(langOverall(c))] + ' (הערכה עצמית).' }));
+            if (e && e.id !== c.capId) { c.capId = e.id; langsCol.save(c); } return e || null;
+        },
+        log: {
+            all: id => langLogCol.all().filter(l => !id || l.langId === id).sort((a, b) => b.date.localeCompare(a.date)),
+            add(o) { o = base(o); if (!langsCol.get(o.langId)) return null; const m = Number(o.mins); if (!Number.isFinite(m) || m < 1 || m > 1440) return null; const d = dateOr(o.date, localDate()); if (d > localDate()) return null;
+                const r = langLogCol.save({ langId: o.langId, date: d, mins: Math.round(m), act: o.act, note: o.note }); if (r) langs.syncCaps(o.langId); return r; },
+            remove(id) { const l = langLogCol.get(id); const r = langLogCol.remove(id); if (l) langs.syncCaps(l.langId); return r; }
+        },
+        aiData(id) {   // בלי הערות חופשיות מהיומן (עלולות לכלול פרטים אישיים)
+            const s = langStats(id); if (!s) return ''; const c = s.lang, ln = x => Object.keys(LANG_SKILLS).map(k => LANG_SKILLS[k] + ' ' + CEFR[x[k]]).join(', ');
+            return 'שפה: ' + c.name + '\nרמה נוכחית (הערכה עצמית): ' + ln(c.cur) + '\nיעד: ' + ln(c.goal) + (c.target ? '\nתאריך יעד: ' + c.target : '') + '\nיעד שבועי: ' + c.weeklyMins + ' דקות; בפועל בממוצע 4 שבועות: ' + s.avgWeek + ' דקות בשבוע; רצף נוכחי: ' + s.streak + ' ימים; סך הכול ' + s.hours + ' שעות ב-' + s.loggedDays + ' ימי לימוד\nחלוקת זמן לפי פעילות (דקות): ' + (Object.entries(s.byAct).map(([k, v]) => LANG_ACT[k] + ' ' + v).join(', ') || 'אין'); }
+    };
+
+    // יציבות לימוד שפות לציון (v0.13): רק עקביות לאורך זמן נספרת. חלון של 8 שבועות מלאים (ראשון-שבת) שמסתיים בשבוע האחרון שהושלם עד סוף החודש.
+    // שפה נכנסת רק אם מהשבוע הראשון שבו תועד לימוד עברו לפחות 6 שבועות בחלון, ולפחות 5 מהם עם לימוד כלשהו. הערך = ממוצע (מוגבל ל-100%) של מה שנלמד מול היעד השבועי.
+    // רצף ימים לא נספר (קל לנפח אותו בדקה ביום). בלי שפה שעומדת בתנאים הרכיב לא קיים והמשקלים נשארים כמקודם.
+    const LEARN_MIN_WEEKS = 6, LEARN_MIN_ACTIVE = 5;
+    function learnScore(mk) {
+        try {
+            const td = localDate(), end = mk + '-' + pad(daysInMonth(mk)), cut = end < td ? end : td, w0 = weekStartOf(cut), last = addDays(w0, 6) <= cut ? w0 : addDays(w0, -7); let sum = 0, n = 0;
+            langsCol.all().filter(c => !c.archived && c.weeklyMins > 0).forEach(c => {
+                const by = {}; langLogCol.all().filter(l => l.langId === c.id && l.date <= cut).forEach(l => { const w = weekStartOf(l.date); by[w] = (by[w] || 0) + l.mins; }); const first = Object.keys(by).sort()[0]; if (!first) return;
+                const win = []; for (let i = 7; i >= 0; i--) win.push(addDays(last, -7 * i)); const cnt = win.filter(w => w >= first && w <= last);
+                if (cnt.length < LEARN_MIN_WEEKS || cnt.filter(w => by[w] > 0).length < LEARN_MIN_ACTIVE) return;
+                sum += cnt.reduce((a, w) => a + Math.min(1, (by[w] || 0) / c.weeklyMins), 0) / cnt.length * 100; n++;
+            });
+            return n ? Math.round(sum / n) : null;
+        } catch (e) { return null; }
+    }
+
+    // ---------- שאלונים (v0.13): (1) שאלון אישיות קצר וקבוע, בנוסח TIPI (10 היגדים, סולם 1-7), בלי AI; (2) שאלוני רפלקציה שה-AI מייצר לפי נושא והקשר המערכת ומנתח אחרי המענה ----------
+    // כלי רפלקציה, לא אבחון. שאלון קצר מאוד פחות אמין משאלונים ארוכים, ותשובות עצמיות מוטות. התכונות מוחלות על הכרטיס האישי רק בלחיצה מפורשת.
+    const TIPI = [['אני מוחצן/ת ונלהב/ת', 'e', 0], ['אני ביקורתי/ת ונוטה לריב', 'a', 1], ['אני אמין/ה ומשמעתי/ת', 'c', 0], ['אני נלחץ/ת או נסער/ת בקלות', 's', 1], ['אני פתוח/ה לחוויות חדשות ולרעיונות מורכבים', 'o', 0],
+        ['אני מסוגר/ת ושקט/ה', 'e', 1], ['אני אמפתי/ת וחם/ה', 'a', 0], ['אני מבולגן/ת ופזור/ה', 'c', 1], ['אני רגוע/ה ויציב/ה רגשית', 's', 0], ['אני שמרן/ית ולא יצירתי/ת', 'o', 1]];
+    const QUIZ_TOPICS = { month: 'רפלקציה על החודש האחרון', values: 'ערכים ועדיפויות בחיים', balance: 'איזון בין עבודה, משפחה ומנוחה', habits: 'הרגלים, ריכוז וניהול זמן', direction: 'כיוון מקצועי ולמידה' };
+    const cleanQs = v => { const seen = new Set(); return (Array.isArray(v) ? v : []).slice(0, 12).map((x, i) => { const o = base(x), type = o.type === 'text' ? 'text' : 'scale', max = type === 'scale' ? (clampInt(o.max, 5, 7, 5)) : 0;
+        return { id: str(o.id, 20) || 'q' + (i + 1), text: str(o.text, 220), type, min: type === 'scale' ? 1 : 0, max, lo: str(o.lo, 40), hi: str(o.hi, 40) }; }).filter(q => q.text.length >= 6 && !seen.has(q.text) && seen.add(q.text)).map((q, i) => Object.assign(q, { id: 'q' + (i + 1) })); };
+    const quizCol = collection('quizzes', p => { const o = base(p), qs = cleanQs(o.questions), ans = {}, a = base(o.answers); qs.forEach(q => { const x = a[q.id]; if (q.type === 'text') { if (typeof x === 'string' && x.trim()) ans[q.id] = str(x, 600); } else if (Number.isInteger(Number(x)) && x !== '' && x !== null && Number(x) >= q.min && Number(x) <= q.max) ans[q.id] = Number(x); });
+        const tr = base(o.traits), traits = {}; Object.keys(CAP_TRAITS).forEach(k => { const n = numOrNull(tr[k]); if (n != null && n >= 0 && n <= 100) traits[k] = Math.round(n); }); const r = base(o.result);
+        return { id: str(o.id, 40) || uid(), kind: o.kind === 'tipi' ? 'tipi' : 'ai', title: str(o.title, 100), topic: str(o.topic, 160), created: dateOr(o.created, localDate()), questions: qs, answers: ans, done: o.done === true, doneAt: dateOr(o.doneAt, ''),
+            traits: Object.keys(traits).length ? traits : null, applied: o.applied === true, result: str(r.text, 3000) ? { text: str(r.text, 3000), at: dateOr(r.at, localDate()) } : null }; });
+    function tipiScore(ans) { const r = {}, by = {}; TIPI.forEach((t, i) => { const v = Number(ans['q' + (i + 1)]); if (!Number.isFinite(v)) return; (by[t[1]] = by[t[1]] || []).push(t[2] ? 8 - v : v); });
+        Object.keys(by).forEach(k => { if (by[k].length === 2) r[k] = Math.round(((by[k][0] + by[k][1]) / 2 - 1) / 6 * 100); }); return r; }
+    const quiz = {
+        TIPI, TOPICS: QUIZ_TOPICS, all: () => quizCol.all().sort((a, b) => (b.created + b.id).localeCompare(a.created + a.id)), get: quizCol.get, remove: quizCol.remove, tipiScore,
+        startTipi() { return quizCol.save({ kind: 'tipi', title: 'שאלון אישיות קצר', questions: TIPI.map(t => ({ text: t[0], type: 'scale', max: 7, lo: 'בכלל לא מתאים', hi: 'מתאים מאוד' })) }); },
+        startAi(title, topic, j) { const qs = cleanQs(base(j).questions); if (qs.length < 4) return { ok: false, error: 'ה-AI לא החזיר לפחות 4 שאלות תקינות.' }; const q = quizCol.save({ kind: 'ai', title: str(title, 100) || 'שאלון רפלקציה', topic: str(topic, 160), questions: qs }); return q ? { ok: true, id: q.id, n: qs.length } : { ok: false, error: 'השמירה נכשלה.' }; },
+        answer(id, qid, val) { const q = quizCol.get(id); if (!q || q.done) return false; const d = q.questions.find(x => x.id === qid); if (!d) return false;
+            if (d.type === 'text') { if (typeof val !== 'string') return false; if (val.trim()) q.answers[qid] = val.trim(); else delete q.answers[qid]; } else { const n = Number(val); if (!Number.isInteger(n) || n < d.min || n > d.max) return false; q.answers[qid] = n; } return !!quizCol.save(q); },
+        progress(id) { const q = quizCol.get(id); return q ? { n: Object.keys(q.answers).length, total: q.questions.length } : null; },
+        finish(id) { const q = quizCol.get(id); if (!q || q.done) return { ok: false, error: 'השאלון לא נמצא או כבר הושלם.' }; const p = quiz.progress(id);
+            if (q.kind === 'tipi' ? p.n < p.total : p.n < Math.ceil(p.total * 0.7)) return { ok: false, error: q.kind === 'tipi' ? 'צריך לענות על כל 10 ההיגדים.' : 'ענה לפחות על 70% מהשאלות.' };
+            q.done = true; q.doneAt = localDate(); if (q.kind === 'tipi') q.traits = tipiScore(q.answers); return quizCol.save(q) ? { ok: true } : { ok: false, error: 'השמירה נכשלה.' }; },
+        applyTraits(id) { const q = quizCol.get(id); if (!q || q.kind !== 'tipi' || !q.done || !q.traits) return false; Object.keys(q.traits).forEach(k => caps.setTrait(k, q.traits[k])); q.applied = true; return !!quizCol.save(q); },
+        prevTipi(id) { const l = quiz.all().filter(x => x.kind === 'tipi' && x.done && x.id !== id); const q = quizCol.get(id); return l.filter(x => !q || x.doneAt <= (q.doneAt || '9999'))[0] || null; },
+        setResult(id, text) { const q = quizCol.get(id); if (!q || !q.done || !str(text, 3000)) return false; q.result = { text: str(text, 3000), at: localDate() }; return !!quizCol.save(q); },
+        aiData(id) { const q = quizCol.get(id); if (!q) return ''; return 'שאלון: ' + q.title + (q.topic ? ' (נושא: ' + q.topic + ')' : '') + '\n' + q.questions.map(d => '- ' + d.text + (d.type === 'scale' ? ' [סולם ' + d.min + '-' + d.max + (d.lo ? ', ' + d.min + '=' + d.lo + ', ' + d.max + '=' + d.hi : '') + ']' : '') + ': ' + (q.answers[d.id] == null ? '(לא נענתה)' : q.answers[d.id])).join('\n') + (q.traits ? '\nציוני תכונות מחושבים (0-100): ' + Object.keys(q.traits).map(k => CAP_TRAITS[k] + ' ' + q.traits[k]).join(', ') : ''); }
     };
 
     // ---------- "במה התקדמתי": סיכום עובדתי של מה שקרה בטווח (לא ציון). מקור אחד גם לדף הסיכום וגם ל-AI ----------
@@ -940,5 +1064,5 @@
             + `<text x="50%" y="${o.label ? '47%' : '50%'}" text-anchor="middle" dominant-baseline="central" fill="#f8fafc" font-weight="800" font-size="${fs}" font-family="Rubik,sans-serif">${p}<tspan font-size="${Math.round(fs * 0.6)}">%</tspan></text>`
             + (o.label ? `<text x="50%" y="70%" text-anchor="middle" dominant-baseline="central" fill="#94a3b8" font-size="${Math.round(size * 0.13)}" font-family="Rubik,sans-serif">${esc(o.label)}</text>` : '') + `</svg>`;
     }
-    window.GOV = { VERSION: '0.10.0', esc, uid, pad, localDate, monthOf, addDays, addMonths, monthLabel, daysInMonth, HEB_MONTHS, DATE_RE, MONTH_RE, STATUS, PRIORITY, gradeFor, portfolios: Object.assign({}, portfolios, { save(p) { const r = portfolios.save(p); ministers.ensure(); return r; }, remove(id) { const r = portfolios.remove(id); ministers.ensure(); return r; } }), promises, ideas, daily, term, review, profile, score, lock, exportAll, importAll, rd, wr, TREATY_STATUS, PARTY_KIND, LEVEL, DECISION_STATUS, treaties, decisions, impactItem, optionImpact, nl, gauge, critStatus, wish, DROP_SCALE, dropStats, HORIZON, historyItems, pmProfile, tasks, routines, dayItems, issues: issues, ISSUE_STATUS, events, timelog, ministers, difficulty, history, METHODS, DOW, dowOf, cleanDays, people, relEvents, REL, closeness, contactStatus, relationAlerts, treatyTimeline, SECRET_KEYS, ops, caps, careers, DROP_CATS, DROP_MIN, progressRange, progressSummary };
+    window.GOV = { VERSION: '0.14.2', esc, uid, pad, localDate, monthOf, addDays, addMonths, monthLabel, daysInMonth, HEB_MONTHS, DATE_RE, MONTH_RE, STATUS, PRIORITY, gradeFor, portfolios: Object.assign({}, portfolios, { save(p) { const r = portfolios.save(p); ministers.ensure(); return r; }, remove(id) { const r = portfolios.remove(id); ministers.ensure(); return r; } }), promises, ideas, daily, term, review, profile, score, lock, exportAll, importAll, rd, wr, TREATY_STATUS, PARTY_KIND, LEVEL, DECISION_STATUS, treaties, decisions, impactItem, optionImpact, nl, gauge, critStatus, wish, DROP_SCALE, dropStats, HORIZON, historyItems, pmProfile, tasks, routines, dayItems, issues: issues, ISSUE_STATUS, events, timelog, ministers, difficulty, history, METHODS, DOW, dowOf, cleanDays, people, relEvents, REL, closeness, contactStatus, relationAlerts, treatyTimeline, SECRET_KEYS, ops, caps, careers, langs, quiz, learnScore, LEARN_SHARE, DROP_CATS, DROP_MIN, progressRange, progressSummary };
 })();

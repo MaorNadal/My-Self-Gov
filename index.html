@@ -12,8 +12,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.10.0"></script>
-    <script src="gov-nav.js?v=0.10.0"></script>
+    <script src="gov-core.js?v=0.14.2"></script>
+    <script src="gov-nav.js?v=0.14.2"></script>
 
     <header class="max-w-6xl mx-auto px-4 pt-8 pb-4">
         <div class="text-[11px] font-bold text-amber-400 tracking-wider">☀️ לוח הבקרה של הממשלה</div>
@@ -291,7 +291,7 @@
         window.addEventListener('gov:sync', () => { if (!document.activeElement || !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) renderCloud(); });
 
         function renderScore() {
-            const sc = G.score(MK), names = { promises: 'הבטחות', daily: 'עקביות יומית', self: 'הערכה עצמית', issues: 'סוגיות ומבצעים' };
+            const sc = G.score(MK), names = { promises: 'הבטחות', daily: 'עקביות יומית', self: 'הערכה עצמית', issues: 'סוגיות ומבצעים', learn: 'יציבות בלימוד שפות' };
             const g = sc.total != null ? G.gradeFor(sc.total) : null, day = Number(TODAY.slice(8)), dim = G.daysInMonth(MK);
             $('scoreBox').innerHTML = `<div class="flex items-center justify-between mb-3"><h2 class="font-bold text-white text-sm">📊 ציון הממשלה (עד כה)</h2><a href="review.html" class="text-[11px] text-amber-400 hover:underline">פירוט ←</a></div>
                 <div class="text-center mb-3">${g ? ring(sc.total, g) + `<div class="text-xs text-slate-400 -mt-1">${sc.total} מתוך 100</div>` : '<div class="text-sm text-slate-400 py-3">אין עדיין מספיק נתונים לציון</div>'}</div>

@@ -12,8 +12,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.10.0"></script>
-    <script src="gov-nav.js?v=0.10.0"></script>
+    <script src="gov-core.js?v=0.14.2"></script>
+    <script src="gov-nav.js?v=0.14.2"></script>
 
     <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
         <h1 class="text-3xl font-black text-white">📊 ציון הממשלה</h1>
@@ -35,7 +35,7 @@
         const G = window.GOV, h = G.esc, $ = id => document.getElementById(id);
         const NOW = G.localDate(), NOW_MK = G.monthOf(NOW);
         let mk = NOW_MK, chart = null;
-        const NAMES = { promises: 'ביצוע הבטחות', daily: 'עקביות יומית', self: 'הערכה עצמית', issues: 'סוגיות ומבצעים' };
+        const NAMES = { promises: 'ביצוע הבטחות', daily: 'עקביות יומית', self: 'הערכה עצמית', issues: 'סוגיות ומבצעים', learn: 'יציבות בלימוד שפות' };
         const bar = (pct, color) => `<div class="g-bar"><i style="width:${Math.max(0, Math.min(100, pct))}%;background:${color}"></i></div>`;
         const pIcon = id => (G.portfolios.get(id) || { icon: '📁' }).icon;
         function shift(n) { mk = G.addMonths(mk, n); render(); }
