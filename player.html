@@ -29,9 +29,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.14.2"></script>
-    <script src="gov-nav.js?v=0.14.2"></script>
-    <script src="gov-elements.js?v=0.14.2"></script>
+    <script src="gov-core.js?v=0.19.0"></script>
+    <script src="gov-nav.js?v=0.19.0"></script>
+    <script src="gov-scen.js?v=0.19.0"></script>
+    <script src="gov-elements.js?v=0.19.0"></script>
     <div id="tip"></div>
     <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
         <h1 class="text-3xl font-black text-white">🪪 כרטיס אישי וקורות חיים</h1>
@@ -77,13 +78,13 @@
         }
 
         // ---------- כרטיס ראשי ----------
-        // תג היסוד המרכזי (v0.14.2): מהשאלון האחרון שהושלם ויש בו תוצאה. לא משפיע על הדירוג ועל שום חישוב אחר.
+        // תג היסוד המרכזי (v0.19.0): מהשאלון האחרון שהושלם ויש בו תוצאה. לא משפיע על הדירוג ועל שום חישוב אחר.
         function elTag() {
             const E = window.GOV_EL; if (!E) return ''; let a = null, s = null;
-            try { a = E.all().find(x => x.done && E.score(x).ready) || null; s = a && E.score(a); } catch (e) { a = null; }
-            if (!a) return '<div class="mt-2"><a href="elements.html" class="text-[11px] text-slate-500 underline">🔥💧🌍🌬️ עוד אין יסוד מרכזי: ענה על שאלון ארבעת היסודות</a></div>';
+            let cb = null; try { cb = E.combined(); a = cb ? cb.scen : E.all().find(x => E.usable(x)) || null; s = cb || (a && E.score(a)); } catch (e) { a = null; }
+            if (!a) return '<div class="mt-2"><a href="elements.html" class="text-[11px] text-slate-500 underline">🔥💧🪨💨 עוד אין יסוד מרכזי: ענה על שאלון ארבעת היסודות</a></div>';
             const d = E.EL[s.dom];
-            return `<div class="mt-2"><a href="elements.html#e=${h(a.id)}" id="elTag" class="g-chip" style="color:${d.c};border-color:${d.c}" title="כלי רפלקציה סמלי, לא מדעי. לא משפיע על הדירוג. שאלון מ-${a.doneAt || a.created}, ${s.n} תשובות">${d.ic} יסוד מרכזי: ${d.l} ${s.shares[s.dom]}%</a></div>`;
+            return `<div class="mt-2"><a href="elements.html#e=${cb ? 'combined' : h(a.id)}" id="elTag" class="g-chip" style="color:${d.c};border-color:${d.c}" title="כלי רפלקציה סמלי, לא מדעי. לא משפיע על הדירוג. ${cb ? 'פרופיל משולב של שתי שיטות' : 'שאלון מ-' + (a.doneAt || a.created) + ', ' + s.n + ' תשובות'}">${d.ic} יסוד מרכזי: ${d.l} ${s.shares[s.dom]}%</a></div>`;
         }
         function renderHero() {
             const rows = DK.map(k => { const e = C.effective(k); return { k, l: C.DOMAINS[k].l, ic: C.DOMAINS[k].ic, c: C.DOMAINS[k].c, v: e.v, src: e.src }; }), ov = C.overall(), tier = ov == null ? { l: 'עוד אין מספיק נתונים', c: '#94a3b8' } : C.tier(ov), st = C.stats(), nm = G.profile.get().name;

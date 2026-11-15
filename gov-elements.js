@@ -17,22 +17,22 @@
             strengths: ['אמפתיה וקשב לאחרים', 'אינטואיציה ורגישות לרמזים עדינים', 'גמישות והסתגלות לשינוי', 'יצירתיות ועומק פנימי'],
             watch: ['מצבי רוח משתנים והצפה רגשית', 'הימנעות מעימות וקושי להציב גבולות', 'סגירות כשקשה', 'נטייה להיבלע ברגשות של אחרים'],
             tips: { work: 'סביבות תומכות, עבודה עם אנשים או יצירה. דאג לזמן שקט לעיבוד.', rel: 'אמור "לא" ואמור מה אתה צריך בקול, ואל תחכה שיבינו לבד.', dec: 'בדוק את תחושת הבטן מול עובדות: מה אני מרגיש, ומה אני יודע.', grow: 'תרגל גבולות ופעולה גם כשלא נעים. תנועה גופנית וכתיבה עוזרות לפרוק הצפה.' } },
-        earth: { l: 'אדמה', ic: '🌍', c: '#84cc16', c2: '#d9f99d', opp: 'air', tag: 'יציבות, עשייה והתמדה',
+        earth: { l: 'אדמה', ic: '🪨', c: '#84cc16', c2: '#d9f99d', opp: 'air', tag: 'יציבות, עשייה והתמדה',
             core: 'יציבות, פרקטיות והתמדה. אתה אמין, בונה בצעדים עקביים ומעדיף דברים מוחשיים שעובדים.', plus: 'יציבות, פרקטיות ואמינות',
             strengths: ['אמינות ועמידה בהתחייבויות', 'סבלנות והתמדה לאורך זמן', 'חשיבה מעשית וסדר', 'עוגן יציב לאחרים'],
             watch: ['קשיחות וקושי לשנות הרגל או דעה', 'עבודה מוגזמת על חשבון מנוחה', 'חשדנות כלפי רעיונות חדשים', 'התמקדות בסיכונים לפני הזדמנויות'],
             tips: { work: 'תפקידים עם מבנה, בנייה ארוכת טווח ותוצר מוחשי. תכנן לוחות זמנים ממשיים.', rel: 'שתף גם רגשות ולא רק עובדות ופתרונות. גם נוכחות פשוטה נחשבת.', dec: 'בדוק אם אתה מסרב לשינוי כי הוא באמת רע או כי הוא חדש.', grow: 'נסה משהו חדש אחד בחודש בלי תוכנית מפורטת, ותכנן זמן ריק ביומן.' } },
-        air: { l: 'אוויר', ic: '🌬️', c: '#a78bfa', c2: '#ddd6fe', opp: 'earth', tag: 'מחשבה, תקשורת וחופש',
-            core: 'סקרנות, מחשבה ותקשורת. אתה אוהב רעיונות, שיחה, ניתוח וחופש בחירה.', plus: 'סקרנות, חשיבה וקלות תקשורתית',
-            strengths: ['סקרנות ולמידה מהירה', 'ניסוח והעברת רעיונות', 'חשיבה אנליטית והיגיון', 'עצמאות וראייה רחבה'],
-            watch: ['פיזור וקפיצה בין רעיונות', 'ריחוק או התנתקות רגשית', 'ניתוח יתר והססנות', 'שכחת פרטים מעשיים'],
+        air: { l: 'אוויר', ic: '💨', c: '#a78bfa', c2: '#ddd6fe', opp: 'earth', tag: 'חופש, קלילות ומחשבה',
+            core: 'חופש, קלילות ומחשבה. אתה זורם בקלות, לא נתקע בכבדות, אוהב הומור, רעיונות ושיחה, ומחפש חופש בחירה ומרחב. חלק מהגישה היא גם שכל צלול וראייה "מלמעלה".', plus: 'חופש, קלילות וסקרנות',
+            strengths: ['קלילות, הומור והיכולת לשחרר', 'סקרנות ולמידה מהירה', 'גמישות, חופש ועצמאות', 'ניסוח וחשיבה צלולה, וראייה רחבה'],
+            watch: ['קלות ראש: לקחת דברים חשובים קל מדי', 'פיזור וקפיצה בין רעיונות', 'ריחוק או התנתקות רגשית, ובריחה מהתחייבות', 'שכחת פרטים מעשיים'],
             tips: { work: 'תפקידים עם מגוון, למידה ותקשורת. הוסף מבנה קבוע לפרטים מעשיים.', rel: 'עצור והרגש לצד ההסבר: לפעמים אדם צריך הקשבה ולא ניתוח.', dec: 'הגדר מראש מועד סופי להחלטה, כדי שהניתוח לא יחליף את הפעולה.', grow: 'בחר דבר אחד לסיים לפני שמתחילים אחר, ותרגל להישאר ברגש בלי לפרש אותו.' } }
     };
     const FACETS = {
         fire: ['יוזמה ומרץ', 'תשוקה והתלהבות', 'אומץ ונטילת סיכונים', 'מנהיגות ונחישות', 'עוצמה וחוסר סבלנות (צד צל)'],
         water: ['אמפתיה ורגישות', 'אינטואיציה ועומק רגשי', 'זרימה והסתגלות', 'התבוננות פנימית ויצירתיות', 'הצפה והימנעות (צד צל)'],
         earth: ['אמינות ומשמעת', 'פרקטיות ועשייה', 'סבלנות והתמדה', 'יציבות וביטחון', 'קשיחות וחשש משינוי (צד צל)'],
-        air: ['סקרנות ורעיונות', 'תקשורת וחברותיות', 'חשיבה אנליטית והיגיון', 'חופש ועצמאות', 'פיזור וריחוק (צד צל)']
+        air: ['סקרנות ורעיונות', 'תקשורת וחברותיות', 'קלילות, הומור והיגיון', 'חופש ועצמאות', 'פיזור וריחוק (צד צל)']
     };
     const ITEMS = {
         fire: [
@@ -59,9 +59,9 @@
         air: [
             ['אני סקרן/ית ללמוד על הרבה תחומים שונים.', 'אני נהנה/ית לחשוב על רעיונות חדשים ועל תיאוריות.', 'אני קורא/ת או צופה בהרבה תכנים שמרחיבים את הדעת.', 'אני נוטה לשאול "למה?" ו"מה אם?".', 'אני נהנה/ית מחידות, ממשחקי חשיבה ומפתרון בעיות מופשטות.', 'רעיון מעניין יכול להסעיר אותי יותר מאירוע חברתי.', 'אני אוהב/ת לקשור בין תחומים שונים.', 'קל לי להתעניין בנושא חדש תוך דקות.', 'אני מתעניין/ת במה שיהיה בעתיד: טכנולוגיה, חברה, מדע.', 'אני אוהב/ת להסביר רעיון מורכב בצורה פשוטה.'],
             ['קל לי לפתוח שיחה עם אדם זר.', 'אני נהנה/ית משיחות ארוכות על כל מיני נושאים.', 'אני אוהב/ת להכיר אנשים חדשים ולהרחיב את מעגל המכרים.', 'קל לי לנסח דברים במילים, בעל פה ובכתב.', 'אני נוטה להיות מי שמחבר/ת בין אנשים.', 'אני מרגיש/ה הכי חי/ה כשיש סביבי שיחה וחילופי דעות.', 'אני אוהב/ת הומור וחידוד מילולי.', 'קל לי להסביר את עצמי ולהעביר מסר.', 'אני נוטה להתעדכן בחדשות ובמה שקורה בחברה.', 'חברים ממעגלים שונים: זה משהו שאני אוהב/ת.'],
-            ['אני מעדיף/ה להחליט לפי נימוקים ולא לפי רגש.', 'אני נוטה לבדוק טיעון לפני שאני מאמין/ה לו.', 'קל לי לראות תמונה כוללת ולנתח אותה למרכיבים.', 'אני אוהב/ת להשוות אפשרויות ולשקלל יתרונות וחסרונות.', 'אני שומר/ת על קור רוח בשיחות מתוחות ומנסה לנתח את המצב.', 'אני רוצה להבין איך דברים עובדים.', 'אני מבחין/ה מהר בסתירות ובחוסר עקביות בדברי אחרים.', 'אני מעדיף/ה שיחה עניינית על פני שיחה רגשית.', 'אני אוהב/ת מערכות, מודלים ודפוסים.', 'אני אוהב/ת לנסח לעצמי עקרונות וכללי חשיבה.'],
+            ['אני לוקח/ת דברים בקלות ולא נתקע/ת על כל פרט.', 'אני מחייך/ת או צוחק/ת גם ברגעים שמתחילים להיות כבדים.', 'קל לי לשחרר ולהמשיך הלאה אחרי מצב לא נעים.', 'אני מעדיף/ה לזרום ולשנות תוכניות ברגע האחרון מאשר להיצמד ללוח זמנים.', 'אני אוהב/ת לשחק ולהתבדח, ולא לקחת את עצמי ברצינות יתר.', 'כשיש מתח אני נוטה להפיג אותו בבדיחה או בגישה קלילה.', 'אני מרגיש/ה הכי קל וטוב כשאין עליי יותר מדי מחויבויות.', 'אני נוטה לבדוק טיעון לפני שאני מאמין/ה לו.', 'קל לי לראות תמונה כוללת ולנתח אותה למרכיבים.', 'אני רוצה להבין איך דברים עובדים.'],
             ['חשוב לי מאוד שיהיה לי חופש לבחור איך לחיות.', 'אני מרגיש/ה חנוק/ה כשמגבילים אותי.', 'אני אוהב/ת לחשוב בצורה עצמאית, גם אם זה שונה ממה שרוב האנשים חושבים.', 'אני מעדיף/ה לעבוד לבד או עם חופש פעולה רחב.', 'אני זקוק/ה למרחב אישי.', 'אני לא נוטה להידבק לקבוצה או לדעת הרוב.', 'התחייבות ארוכת טווח מעוררת בי היסוס.', 'אני נוטה לראות מצבים "מלמעלה", מרחוק.', 'נסיעות והיכרות עם תרבויות אחרות מושכות אותי.', 'אני נהנה/ית להיות לא צפוי/ה ושונה.'],
-            ['אני קופץ/ת מרעיון לרעיון ולא תמיד מסיים/ת.', 'קשה לי להתרכז בדבר אחד לאורך זמן.', 'אני נוטה להתנתק רגשית כשיש מצב מעורר רגשות.', 'אני נוטה לדבר על רגשות במקום להרגיש אותם.', 'אני נוטה לנתח יתר על המידה ולהתקשות להחליט.', 'אנשים אומרים לי שאני יותר "בראש" ופחות "ברגש".', 'קורה לי לדבר ולתכנן הרבה במקום לפעול.', 'משימות שגרתיות ומשעממות גורמות לי להתפזר.', 'קשה לי להתחייב עד הסוף לדבר אחד.', 'אני נוטה לשכוח פרטים מעשיים (מפתחות, תשלומים, תורים).']
+            ['אני קופץ/ת מרעיון לרעיון ולא תמיד מסיים/ת.', 'קשה לי להתרכז בדבר אחד לאורך זמן.', 'אני נוטה להתנתק רגשית כשיש מצב מעורר רגשות.', 'אני נוטה לדבר על רגשות במקום להרגיש אותם.', 'אני נוטה לנתח יתר על המידה ולהתקשות להחליט.', 'אנשים אומרים לי שאני יותר "בראש" ופחות "ברגש".', 'קורה לי לדבר ולתכנן הרבה במקום לפעול.', 'משימות שגרתיות ומשעממות גורמות לי להתפזר.', 'קורה שאני לוקח/ת דברים קל מדי, וגם דברים שחשובים לאחרים.', 'אני נוטה לשכוח פרטים מעשיים (מפתחות, תשלומים, תורים).']
         ]
     };
     const PAIR_NOTE = {
@@ -97,7 +97,9 @@
     const KEY = 'elem', clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
     const clean = p => { const o = p && typeof p === 'object' ? p : {}, ord = (Array.isArray(o.order) ? o.order : []).filter(x => typeof x === 'string' && META[x]).filter((x, i, a) => a.indexOf(x) === i), ans = {}, a = o.answers && typeof o.answers === 'object' ? o.answers : {};
         ord.forEach(i => { const v = Number(a[i]); if (Number.isInteger(v) && v >= 1 && v <= 5) ans[i] = v; });
-        return { id: String(o.id || G.uid()).slice(0, 40), created: /^\d{4}-\d{2}-\d{2}$/.test(o.created) ? o.created : G.localDate(), mode: o.mode === 'quick' ? 'quick' : 'full', order: ord, answers: ans, done: o.done === true, doneAt: /^\d{4}-\d{2}-\d{2}$/.test(o.doneAt) ? o.doneAt : '' }; };
+        const SC = window.GOV_SCEN, sids = SC ? new Set(SC.ITEMS.map(x => x.id)) : null, sord = (Array.isArray(o.sorder) ? o.sorder : []).filter((x, i, a) => typeof x === 'string' && (!sids || sids.has(x)) && a.indexOf(x) === i), sa = o.scen && typeof o.scen === 'object' ? o.scen : {}, scen = {};
+        sord.forEach(i => { const x = sa[i], m = x && Number(x.m), l = x && x.l != null ? Number(x.l) : null; if (x && Number.isInteger(m) && m >= 0 && m <= 3) scen[i] = { m, l: Number.isInteger(l) && l >= 0 && l <= 3 && l !== m ? l : null }; });
+        return { id: String(o.id || G.uid()).slice(0, 40), created: /^\d{4}-\d{2}-\d{2}$/.test(o.created) ? o.created : G.localDate(), mode: o.mode === 'scen' ? 'scen' : o.mode === 'quick' ? 'quick' : 'full', order: ord, answers: ans, sorder: sord, scen, done: o.done === true, doneAt: /^\d{4}-\d{2}-\d{2}$/.test(o.doneAt) ? o.doneAt : '', hist: (Array.isArray(o.hist) ? o.hist : []).filter(h => h && Number.isInteger(h.n) && h.n > 0 && EK.includes(h.d) && Array.isArray(h.sh) && h.sh.length === 4 && h.sh.every(v => Number.isFinite(v))).slice(-12).map(h => ({ n: h.n, d: h.d, sh: h.sh.map(v => Math.max(0, Math.min(100, Math.round(v)))), at: /^\d{4}-\d{2}-\d{2}$/.test(h.at) ? h.at : '' })) }; };
     const all = () => { const v = G.rd(KEY, []); return (Array.isArray(v) ? v : []).filter(x => x && typeof x === 'object').map(clean); };
     const saveAll = l => G.wr(KEY, l);
     const get = id => all().find(x => x.id === id) || null;
@@ -113,13 +115,27 @@
         a.order.forEach((id, idx) => { const v = a.answers[id]; if (v == null || (filt && !filt(idx))) return; const m = META[id], x = (v - 1) / 4; by[m.e].n++; by[m.e].s += x; fa[m.e][m.f].n++; fa[m.e][m.f].s += x; }); return { by, fa };
     }
     const domOf = (means, byN) => EK.slice().sort((x, y) => means[y] - means[x] || byN[y] - byN[x] || EK.indexOf(x) - EK.indexOf(y))[0];
+    const SCI = () => (window.GOV_SCEN ? window.GOV_SCEN.ITEMS : []), SCD = () => (window.GOV_SCEN ? window.GOV_SCEN.DOMAINS : []), SMIN = 20;
+    function scenTally(a, filt) {   // "הכי דומה לי" = נקודה ליסוד; "הכי פחות" = שליש נקודה לכל שלושת היסודות האחרים. סכום הנקודות קבוע, ולכן אי אפשר "להסכים עם הכול"
+        const pts = [0, 0, 0, 0], m = [0, 0, 0, 0]; let nm = 0, nl = 0; a.sorder.forEach((id, idx) => { const x = a.scen[id]; if (!x || (filt && !filt(idx))) return; nm++; pts[x.m] += 1; m[x.m]++; if (x.l != null) { nl++; [0, 1, 2, 3].forEach(k => { if (k !== x.l) pts[k] += 1 / 3; }); } }); return { pts, m, nm, nl };
+    }
+    function scenScore(a) {
+        const T = scenTally(a), means = {}, intensity = {}, den = T.nm + T.nl / 3 || 1; EK.forEach((e, i) => { means[e] = T.pts[i]; intensity[e] = Math.min(100, Math.round(T.pts[i] / den * 100)); });
+        const ready = T.nm >= SMIN, sh = shares(means), rank = EK.slice().sort((x, y) => sh[y] - sh[x] || means[y] - means[x] || EK.indexOf(x) - EK.indexOf(y)), dom = ready ? rank[0] : null, second = ready ? rank[1] : null, margin = ready ? sh[rank[0]] - sh[rank[1]] : null;
+        const items = SCI(), dom2 = SCD().map((d, di) => { const t = scenTally({ sorder: a.sorder.filter(id => items.find(x => x.id === id).d === di), scen: a.scen }), mm = {}; EK.forEach((e, i) => { mm[e] = t.pts[i]; }); const s = shares(mm); return { k: d.k, l: d.l, ic: d.ic, n: t.nm, shares: s, top: t.nm >= 3 ? EK.slice().sort((x, y) => s[y] - s[x] || EK.indexOf(x) - EK.indexOf(y))[0] : null }; });
+        const part = f => { const t = scenTally({ sorder: a.sorder.filter(id => f(SCD()[items.find(x => x.id === id).d])), scen: a.scen }), mm = {}; EK.forEach((e, i) => { mm[e] = t.pts[i]; }); return t.nm >= 10 ? EK.slice().sort((x, y) => mm[y] - mm[x] || EK.indexOf(x) - EK.indexOf(y))[0] : null; };
+        const calm = part(d => !d.stress), stress = part(d => d.stress);
+        let consistency = null; if (T.nm >= 40 && ready) { const t1 = scenTally(a, i => i % 2 === 0), t2 = scenTally(a, i => i % 2 === 1), top = t => EK[t.pts.indexOf(Math.max(...t.pts))]; consistency = top(t1) === top(t2); }
+        const kind = !ready ? null : sh[rank[0]] >= 40 ? 'focused' : margin < 4 ? 'dual' : sh[rank[0]] < 30 ? 'balanced' : 'mixed';
+        return { method: 'scen', n: T.nm, nLeast: T.nl, total: a.sorder.length, byN: EK.reduce((o, e, i) => { o[e] = T.m[i]; return o; }, {}), intensity, shares: sh, rank, dom, second, margin, kind, ready, domains: dom2, calm, stress, nStress: a.sorder.filter(id => a.scen[id] && (SCD()[SCI().find(x => x.id === id).d] || {}).stress).length, nCalm: a.sorder.filter(id => a.scen[id] && !(SCD()[SCI().find(x => x.id === id).d] || {}).stress).length, shift: ready && calm && stress ? calm !== stress : null, facets: null, consistency, confidence: T.nm < 60 ? 'low' : T.nm < 120 ? 'mid' : 'high', done: a.done };
+    }
     function score(id) {
-        const a = typeof id === 'string' ? get(id) : id; if (!a) return null; const T = tally(a), n = Object.keys(a.answers).length, means = {}, intensity = {}; EK.forEach(e => { means[e] = T.by[e].n ? T.by[e].s / T.by[e].n : 0; intensity[e] = Math.round(means[e] * 100); });
+        const a = typeof id === 'string' ? get(id) : id; if (!a) return null; if (a.mode === 'scen') return scenScore(a); const T = tally(a), n = Object.keys(a.answers).length, means = {}, intensity = {}; EK.forEach(e => { means[e] = T.by[e].n ? T.by[e].s / T.by[e].n : 0; intensity[e] = Math.round(means[e] * 100); });
         const ready = EK.every(e => T.by[e].n >= 5), sh = shares(means), rank = EK.slice().sort((x, y) => sh[y] - sh[x] || means[y] - means[x] || EK.indexOf(x) - EK.indexOf(y)), dom = ready ? rank[0] : null, second = ready ? rank[1] : null, margin = ready ? sh[rank[0]] - sh[rank[1]] : null;
         const facets = {}; EK.forEach(e => { facets[e] = T.fa[e].map((x, i) => ({ l: FACETS[e][i], n: x.n, v: x.n ? Math.round(x.s / x.n * 100) : null })); });
         let consistency = null; if (n >= 40 && ready) { const h1 = tally(a, i => Math.floor(i / 4) % 2 === 0), h2 = tally(a, i => Math.floor(i / 4) % 2 === 1), mm = h => { const m = {}, c = {}; EK.forEach(e => { m[e] = h.by[e].n ? h.by[e].s / h.by[e].n : 0; c[e] = h.by[e].n; }); return EK.every(e => c[e] >= 3) ? domOf(m, c) : null; }, d1 = mm(h1), d2 = mm(h2); consistency = d1 && d2 ? d1 === d2 : null; }
         const kind = !ready ? null : sh[rank[0]] >= 40 ? 'focused' : margin < 4 ? 'dual' : sh[rank[0]] < 30 ? 'balanced' : 'mixed';
-        return { n, total: a.order.length, byN: EK.reduce((o, e) => { o[e] = T.by[e].n; return o; }, {}), intensity, shares: sh, rank, dom, second, margin, kind, ready, facets, consistency, confidence: n < 40 ? 'low' : n < 120 ? 'mid' : 'high', done: a.done };
+        return { method: 'likert', n, total: a.order.length, byN: EK.reduce((o, e) => { o[e] = T.by[e].n; return o; }, {}), intensity, shares: sh, rank, dom, second, margin, kind, ready, facets, consistency, confidence: n < 40 ? 'low' : n < 120 ? 'mid' : 'high', done: a.done };
     }
     function blend(s) { if (!s || !s.ready) return ''; const d = EL[s.dom], x = EL[s.second]; let t = d.core + ' במקום השני: ' + x.l + ', ' + x.plus + '.';
         if (s.kind === 'dual') t += ' שני היסודות כמעט שווים, ולכן קשה לקבוע "יסוד אחד מרכזי".'; else if (s.kind === 'balanced') t += ' הפרופיל מאוזן: אין יסוד שבולט בבירור.'; return t + ' ' + (PAIR_NOTE[pairKey(s.dom, s.second)] || ''); }
@@ -127,14 +143,27 @@
     const api = {
         EK, EL, FACETS, ITEMS, ALL, META, itemText, PAIR_NOTE, MIN_READY: 20, QUICK_N: 40, FULL_N: 200,
         all: () => all().sort((a, b) => (b.created + b.id).localeCompare(a.created + a.id)), get, score, blend, shares, buildOrder,
-        create(mode) { const id = G.uid(), m = mode === 'quick' ? 'quick' : 'full'; return put({ id, mode: m, order: buildOrder(id, m), answers: {}, created: G.localDate() }); },
+        create(mode) { const id = G.uid(); if (mode === 'scen') return put({ id, mode: 'scen', order: [], answers: {}, sorder: shuffle(SCI().map(x => x.id), rng(hash(id))), scen: {}, created: G.localDate() }); const m = mode === 'quick' ? 'quick' : 'full'; return put({ id, mode: m, order: buildOrder(id, m), answers: {}, created: G.localDate() }); },
+        optOrder(id, sid) { return shuffle([0, 1, 2, 3], rng(hash(id + sid))); },   // סדר הצגת התשובות (אינדקס יסוד) לכל שאלה, קבוע
+        pick(id, sid, kind, idx) { const a = get(id); if (!a || a.done || a.mode !== 'scen' || !a.sorder.includes(sid)) return false; idx = Number(idx); if (!Number.isInteger(idx) || idx < 0 || idx > 3) return false; const x = a.scen[sid] || { m: null, l: null };
+            if (kind === 'm') { x.m = x.m === idx ? null : idx; if (x.l === x.m) x.l = null; } else if (kind === 'l') { if (x.m == null || x.m === idx) return false; x.l = x.l === idx ? null : idx; } else return false;
+            if (x.m == null) delete a.scen[sid]; else a.scen[sid] = x; return !!put(a); },
         answer(id, itemId, v) { const a = get(id); if (!a || a.done || !a.order.includes(itemId)) return false; v = Number(v); if (!Number.isInteger(v) || v < 1 || v > 5) return false; a.answers[itemId] = v; return !!put(a); },
         clearAnswer(id, itemId) { const a = get(id); if (!a || a.done) return false; delete a.answers[itemId]; return !!put(a); },
-        finish(id) { const a = get(id); if (!a || a.done) return { ok: false, error: 'השאלון לא נמצא או כבר נעול.' }; const s = score(a); if (!s.ready) return { ok: false, error: 'צריך לפחות 5 תשובות מכל יסוד (20 סך הכול).' }; a.done = true; a.doneAt = G.localDate(); return put(a) ? { ok: true } : { ok: false, error: 'השמירה נכשלה.' }; },
-        extend(id) { const a = get(id); if (!a) return false; if (a.mode === 'full' && a.order.length >= 200 && !a.done) return true; a.mode = 'full'; a.order = a.order.concat(buildOrder(id + ':x', 'full', a.order)); a.done = false; a.doneAt = ''; return !!put(a); },
+        finish(id) { const a = get(id); if (!a || a.done) return { ok: false, error: 'השאלון לא נמצא או כבר נעול.' }; const s = score(a); if (!s.ready) return { ok: false, error: a.mode === 'scen' ? 'צריך לענות על לפחות 20 תרחישים.' : 'צריך לפחות 5 תשובות מכל יסוד (20 סך הכול).' }; a.done = true; a.doneAt = G.localDate(); a.hist = (a.hist || []).filter(h => h.n !== s.n).concat([{ n: s.n, d: s.dom, sh: EK.map(e => s.shares[e]), at: a.doneAt }]); return put(a) ? { ok: true } : { ok: false, error: 'השמירה נכשלה.' }; },
+        extend(id) { const a = get(id); if (!a || a.mode === 'scen') return false; if (a.mode === 'full' && a.order.length >= 200 && !a.done) return true; a.mode = 'full'; a.order = a.order.concat(buildOrder(id + ':x', 'full', a.order)); a.done = false; return !!put(a); },
+        usable: x => !!x && (x.done || !!x.doneAt) && score(x).ready,   // שאלון סגור (או שנפתח שוב להמשך אחרי שכבר נסגר פעם) עם תוצאה תקפה
+        canResume(id) { const a = get(id); if (!a || a.mode !== 'scen') return false; const have = new Set(a.sorder); return SCI().some(x => !have.has(x.id)) || a.sorder.some(i => !a.scen[i]); },
+        resume(id) {   // חזרה לשאלון תרחישים סגור: פותח אותו מחדש, ומוסיף בסוף תרחישים שנוספו למאגר מאז שנוצר (בסדר מעורבב קבוע)
+            const a = get(id); if (!a || a.mode !== 'scen') return false; const have = new Set(a.sorder), miss = SCI().map(x => x.id).filter(i => !have.has(i)); if (miss.length) a.sorder = a.sorder.concat(shuffle(miss, rng(hash(id + ':r' + a.sorder.length)))); if (!a.sorder.some(i => !a.scen[i])) return false; a.done = false; return !!put(a); },
         remove(id) { return saveAll(all().filter(x => x.id !== id)); },
-        prev(id) { const a = get(id); if (!a) return null; return api.all().filter(x => x.id !== id && x.done && (x.doneAt || x.created) <= (a.doneAt || G.localDate()) && score(x).ready)[0] || null; },
-        aiData(id) { const s = score(id); if (!s || !s.ready) return ''; return 'שאלון ארבעת היסודות (כלי רפלקציה, לא אבחון). נענו ' + s.n + ' מתוך ' + s.total + ' שאלות.\nחלקים יחסיים: ' + EK.map(e => EL[e].l + ' ' + s.shares[e] + '%').join(', ') + '\nעוצמה מוחלטת (0-100): ' + EK.map(e => EL[e].l + ' ' + s.intensity[e]).join(', ') + '\nיסוד מרכזי: ' + EL[s.dom].l + ', שני: ' + EL[s.second].l + '\nהיבטים:\n' + EK.map(e => EL[e].l + ': ' + s.facets[e].map(f => f.l + ' ' + (f.v == null ? '-' : f.v)).join(', ')).join('\n'); }
+        prev(id) { const a = get(id); if (!a) return null; return api.all().filter(x => x.id !== id && api.usable(x) && (x.doneAt || x.created) <= (a.doneAt || G.localDate()) && score(x).method === score(a).method)[0] || null; },
+        combined() {   // פרופיל משולב: השאלון האחרון מכל שיטה (הסכמה על 200 היגדים + תרחישים בחירה כפויה), ממוצע חלקים יחסיים ועוצמות
+            const l = api.all().filter(x => api.usable(x) && x.mode !== 'scen')[0], sc = api.all().filter(x => api.usable(x) && x.mode === 'scen')[0]; if (!l || !sc) return null;
+            const a = score(l), b = score(sc), m = {}, int = {}; EK.forEach(e => { m[e] = (a.shares[e] + b.shares[e]) / 2; int[e] = Math.round((a.intensity[e] + b.intensity[e]) / 2); }); const sh = shares(m), rank = EK.slice().sort((x, y) => sh[y] - sh[x] || m[y] - m[x] || EK.indexOf(x) - EK.indexOf(y));
+            return { likert: l, scen: sc, a, b, shares: sh, intensity: int, rank, dom: rank[0], second: rank[1], margin: sh[rank[0]] - sh[rank[1]], agree: a.dom === b.dom, kind: sh[rank[0]] >= 40 ? 'focused' : sh[rank[0]] - sh[rank[1]] < 4 ? 'dual' : sh[rank[0]] < 30 ? 'balanced' : 'mixed', n: a.n + b.n, ready: true, method: 'combined' };
+        },
+        aiData(id) { const s = score(id); if (!s || !s.ready) return ''; if (s.method === 'scen') return 'שאלון תרחישים של ארבעת היסודות (בחירה כפויה, כלי רפלקציה לא אבחון). נענו ' + s.n + ' מתוך ' + s.total + ' תרחישים.\nחלקים יחסיים: ' + EK.map(e => EL[e].l + ' ' + s.shares[e] + '%').join(', ') + '\nיסוד מרכזי: ' + EL[s.dom].l + ', שני: ' + EL[s.second].l + (s.shift ? '\nבלחץ ובעימות היסוד המוביל משתנה: רגיל ' + EL[s.calm].l + ', בלחץ ' + EL[s.stress].l : '') + '\nלפי תחום חיים (יסוד מוביל): ' + s.domains.map(d => d.l + ' ' + (d.top ? EL[d.top].l : '-')).join(', '); return 'שאלון ארבעת היסודות (כלי רפלקציה, לא אבחון). נענו ' + s.n + ' מתוך ' + s.total + ' שאלות.\nחלקים יחסיים: ' + EK.map(e => EL[e].l + ' ' + s.shares[e] + '%').join(', ') + '\nעוצמה מוחלטת (0-100): ' + EK.map(e => EL[e].l + ' ' + s.intensity[e]).join(', ') + '\nיסוד מרכזי: ' + EL[s.dom].l + ', שני: ' + EL[s.second].l + '\nהיבטים:\n' + EK.map(e => EL[e].l + ': ' + s.facets[e].map(f => f.l + ' ' + (f.v == null ? '-' : f.v)).join(', ')).join('\n'); }
     };
     window.GOV_EL = api;
 })();

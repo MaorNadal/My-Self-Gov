@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>פורטוגזית - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; }
+        .vq-wrap { max-width: 860px; margin: 0 auto; padding: 0 14px 48px; }
+        .vq-head { text-align: center; padding: 22px 0 4px; } .vq-head h1 { font-size: 30px; font-weight: 900; margin: 0; } .vq-head p { color: #94a3b8; font-size: 13px; margin: 6px auto 0; max-width: 640px; }
+        .vq-tabs { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin: 14px 0; }
+        .vq-tab { background: #1e293b; border: 1px solid #475569; color: #cbd5e1; border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+        .vq-tab.on { background: #fbbf24; color: #0f172a; border-color: #fbbf24; }
+        .vq-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+        .vq-stat { text-align: center; } .vq-stat b { display: block; font-size: 28px; color: #fff; } .vq-stat span { font-size: 11px; color: #94a3b8; }
+        .vq-big { font-size: 34px; font-weight: 800; text-align: center; margin: 14px 0 4px; word-break: break-word; }
+        .vq-sub { text-align: center; color: #94a3b8; font-size: 13px; }
+        .vq-opt { display: block; width: 100%; text-align: start; padding: 13px 14px; margin-top: 8px; border-radius: 12px; border: 1px solid #475569; background: #0f172a; color: #f1f5f9; font-size: 17px; cursor: pointer; font-family: inherit; }
+        .vq-opt:hover:not(:disabled) { border-color: #fbbf24; } .vq-opt.ok { border-color: #34d399; background: #064e3b; } .vq-opt.bad { border-color: #f87171; background: #7f1d1d; } .vq-opt.dim { opacity: .55; }
+        .vq-opt kbd { display: inline-block; min-width: 18px; text-align: center; font-size: 11px; border: 1px solid #475569; border-radius: 5px; margin-inline-end: 8px; color: #94a3b8; }
+        .vq-say { background: #1e293b; border: 1px solid #475569; border-radius: 999px; color: #fbbf24; cursor: pointer; padding: 4px 11px; font-size: 14px; font-family: inherit; }
+        .vq-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: center; margin-top: 12px; }
+        .vq-ta { width: 100%; min-height: 72px; background: #020617; border: 1px solid #475569; border-radius: 12px; color: #fff; padding: 10px 12px; font-size: 17px; font-family: inherit; box-sizing: border-box; resize: vertical; }
+        .vq-ta:focus { outline: none; border-color: #fbbf24; }
+        .vq-chip { display: inline-block; margin: 3px; padding: 5px 11px; border-radius: 999px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; cursor: pointer; font-size: 15px; font-family: inherit; }
+        .vq-fb { margin-top: 12px; padding: 11px 13px; border-radius: 12px; font-size: 14px; line-height: 1.6; } .vq-fb.ok { background: #064e3b; border: 1px solid #34d399; } .vq-fb.bad { background: #7f1d1d; border: 1px solid #f87171; } .vq-fb.mid { background: #78350f; border: 1px solid #fbbf24; }
+        .vq-cat { cursor: pointer; } .vq-cat:hover { border-color: #fbbf24; }
+        .vq-prog { height: 8px; border-radius: 999px; background: #0f172a; overflow: hidden; margin-top: 6px; } .vq-prog > i { display: block; height: 100%; background: #34d399; }
+        .vq-note { font-size: 11px; color: #94a3b8; line-height: 1.7; margin-top: 8px; }
+        .vq-tbl { width: 100%; border-collapse: collapse; font-size: 14px; } .vq-tbl td { padding: 7px 6px; border-bottom: 1px solid #1e293b; vertical-align: middle; }
+        select.g-inp, input.g-inp { max-width: 100%; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+    <script src="gov-core.js?v=0.19.0"></script>
+    <script src="gov-nav.js?v=0.19.0"></script>
+    <script src="gov-vocab-data.js?v=0.19.0"></script>
+    <script src="gov-vocab-more.js?v=0.19.0"></script>
+    <script src="gov-vocab.js?v=0.19.0"></script>
+    <div class="vq-wrap">
+        <header class="vq-head">
+            <h1>🇧🇷 פורטוגזית לטיול</h1>
+            <p>למידת מילים עם הקראה, מבחן אחרי כל קבוצה, מרכז תרגול רציף של כל המילים, ותרגום משפטים בכתיבה בשני הכיוונים. ההתקדמות נשמרת ועוברת עם שאר הנתונים.</p>
+        </header>
+        <div id="tabs" class="vq-tabs"></div>
+        <div id="app"></div>
+    </div>
+    <script>
+        const G = window.GOV, V = window.GOV_VOCAB, h = G.esc, $ = id => document.getElementById(id);
+        const P = t => '<bdi dir="ltr" lang="pt">' + h(t) + '</bdi>';
+        const CAT = V.CATS, DIRQ = { pt2he: 'מה פירוש המילה?', he2pt: 'איך אומרים בפורטוגזית?', listen: 'מה פירוש המילה ששמעת?' };
+        const TABS = [['home', '🏠 ראשי'], ['learn', '📖 למידה'], ['practice', '♾️ תרגול רציף'], ['sents', '✍️ משפטים'], ['words', '📚 המילים']];
+        let view = 'home', msg = '', LS = null, PS = null, SS = null, endInfo = null, logged = false, wf = { cat: '', q: '' };
+        const sayBtn = (t, slow) => `<button class="vq-say" data-say="${h(t)}" ${slow ? 'data-slow="1"' : ''} title="${slow ? 'הקראה לאט' : 'הקראה'}">${slow ? '🐢' : '🔊'}</button>`;
+        const auto = t => { if (V.cfg().auto && t) V.speak(t, false); };
+        const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+        function go(v) { if (V.hasSession()) V.endSession(); view = v; msg = ''; endInfo = null; if (v === 'learn') { LS = null; } if (v === 'practice') { PS = null; } if (v === 'sents') { SS = null; } render(); window.scrollTo(0, 0); }
+        function tabs() { $('tabs').innerHTML = TABS.map(t => `<button class="vq-tab ${view === t[0] || (view === 'end' && t[0] === 'home') ? 'on' : ''}" onclick="go('${t[0]}')">${t[1]}</button>`).join(''); }
+        function render() {
+            tabs(); const f = { home, learn: learnV, practice: practiceV, sents: sentsV, words: wordsV, end: endV }[view] || home; $('app').innerHTML = (msg && view !== 'home' && view !== 'words' ? `<div class="vq-fb mid">${h(msg)}</div>` : '') + f();
+            const i = $('vqIn'); if (i && !i.disabled) i.focus();
+        }
+
+        // ---------- ראשי ----------
+        function home() {
+            const s = V.summary(), c = V.cfg(), pct = s.total ? Math.round(s.learned / s.total * 100) : 0;
+            const tts = !V.ttsOK() ? '❌ הדפדפן הזה לא תומך בהקראה. אפשר לתרגל גם בלי קול.' : V.hasVoice() ? '✅ נמצא קול בפורטוגזית במכשיר.' : '⚠️ לא נמצא קול בפורטוגזית במכשיר. ההקראה עלולה להישמע בלהג לא נכון. בהגדרות הקול של המכשיר אפשר להוריד קול בפורטוגזית.';
+            return `${msg ? `<div class="vq-fb mid">${h(msg)}</div>` : ''}
+            <div class="g-card"><div class="vq-grid"><div class="vq-stat"><b>${s.learned}/${s.total}</b><span>מילים שנלמדו (${pct}%)</span></div><div class="vq-stat"><b>${s.mastered}</b><span>מילים שאתה שולט בהן</span></div><div class="vq-stat"><b>${s.due}</b><span>מילים לחזרה היום</span></div><div class="vq-stat"><b>${s.todayMins}</b><span>דקות תרגול היום</span></div></div>
+                <div class="vq-prog"><i style="width:${pct}%"></i></div></div>
+            <div class="vq-grid" style="margin-top:12px">
+                <div class="g-card"><h2 class="font-bold text-white mb-1">📖 למד מילים חדשות</h2><p class="vq-note" style="margin:0 0 8px">${c.batch} מילים חדשות כל פעם: כרטיסיות עם הקראה, ואחריהן מבחן על אותן מילים.</p><button class="g-btn pri" style="width:100%" onclick="startLearn('')" ${s.learned >= s.total ? 'disabled' : ''}>התחל (${c.batch} מילים)</button></div>
+                <div class="g-card"><h2 class="font-bold text-white mb-1">♾️ מרכז תרגול רציף</h2><p class="vq-note" style="margin:0 0 8px">שאלה אחרי שאלה בלי הפסקה, מכל המילים שנלמדו, עם דגש על מה שחלש או הגיע זמנו לחזרה.</p><button class="g-btn pri" style="width:100%" onclick="startPractice()">התחל תרגול</button></div>
+                <div class="g-card"><h2 class="font-bold text-white mb-1">✍️ תרגום משפטים</h2><p class="vq-note" style="margin:0 0 8px">${c.sent} משפטים בכל סבב, תרגום בכתיבה: מעברית לפורטוגזית ומפורטוגזית לעברית (${s.sentSeen}/${s.sentTotal} נראו).</p><button class="g-btn pri" style="width:100%" onclick="startSents()">התחל סבב</button></div></div>
+            <div class="g-card" style="margin-top:12px"><h2 class="font-bold text-white text-sm mb-2">🗂️ לפי נושא (לחיצה מתחילה למידה בנושא)</h2><div class="vq-grid">${s.byCat.map(b => { const k = CAT[b.cat], p = b.total ? Math.round(b.learned / b.total * 100) : 0; return `<div class="g-card vq-cat" onclick="startLearn('${b.cat}')" style="padding:10px"><div style="font-size:13px;font-weight:700">${k.ic} ${h(k.l)}</div><div class="vq-note" style="margin:2px 0 0">${b.learned}/${b.total} נלמדו • ${b.mastered} נשלטות</div><div class="vq-prog"><i style="width:${p}%"></i></div></div>`; }).join('')}</div></div>
+            <div class="g-card" style="margin-top:12px"><h2 class="font-bold text-white text-sm mb-2">⚙️ הגדרות</h2>
+                <div class="vq-grid">
+                    <div class="g-lab">מבטא ומילים<div class="g-inp" style="opacity:.85">ברזילאית (pt-BR) בלבד</div></div>
+                    <label class="g-lab">מילים בכל קבוצת למידה<select class="g-inp" onchange="cfg({batch:Number(this.value)})">${[10, 11, 12, 13, 14, 15].map(n => `<option ${c.batch === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+                    <label class="g-lab">משפטים בסבב<select class="g-inp" onchange="cfg({sent:Number(this.value)})">${[5, 8, 10, 12, 15].map(n => `<option ${c.sent === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+                    <label class="g-lab">כיוון משפטים<select class="g-inp" onchange="cfg({dir:this.value})"><option value="mix" ${c.dir === 'mix' ? 'selected' : ''}>מעורב</option><option value="he2pt" ${c.dir === 'he2pt' ? 'selected' : ''}>עברית ← פורטוגזית</option><option value="pt2he" ${c.dir === 'pt2he' ? 'selected' : ''}>פורטוגזית ← עברית</option></select></label>
+                    <label class="g-lab">מהירות הקראה<select class="g-inp" onchange="cfg({rate:Number(this.value)})">${[[0.6, 'איטית מאוד'], [0.8, 'איטית'], [0.9, 'רגילה'], [1, 'מהירה']].map(r => `<option value="${r[0]}" ${c.rate === r[0] ? 'selected' : ''}>${r[1]}</option>`).join('')}</select></label>
+                </div>
+                <label class="g-lab" style="margin-top:8px"><input type="checkbox" ${c.auto ? 'checked' : ''} onchange="cfg({auto:this.checked})"> הקראה אוטומטית של מילה כשהיא מוצגת</label>
+                <label class="g-lab" style="margin-top:4px"><input type="checkbox" ${c.unlearned ? 'checked' : ''} onchange="cfg({unlearned:this.checked})"> בתרגול הרציף לכלול גם מילים שעוד לא למדתי (כל המאגר)</label>
+                <p class="vq-note">${tts}</p>
+                <p class="vq-note">⚠️ המאגר (${s.total} מילים, ${s.sentTotal} משפטים) נכתב על ידי Claude ולא נבדק על ידי דובר שפת אם. ברירת המחדל היא פורטוגזית ברזילאית. ההקראה נעשית בקול של הדפדפן או המכשיר שלך ואינה שמורה באפליקציה.</p>
+                <button class="g-btn red" style="margin-top:8px" onclick="resetAll()">איפוס ההתקדמות</button></div>`;
+        }
+        function cfg(p) { V.setCfg(p); render(); }
+        function resetAll() { if (confirm('לאפס את כל ההתקדמות (המילים שנלמדו והציונים)? המילים שהוספת בעצמך יישארו.')) { V.reset(); msg = 'ההתקדמות אופסה.'; render(); } }
+
+        // ---------- למידה ----------
+        function startLearn(cat) {
+            const ids = V.nextBatch(V.cfg().batch, cat); if (!ids.length) { msg = cat ? 'כל המילים בנושא הזה כבר נלמדו.' : 'למדת את כל המילים במאגר.'; view = 'home'; render(); return; }
+            if (V.hasSession()) V.endSession(); V.startSession('learn'); LS = { ids, i: 0, phase: 'cards', queue: [], first: {}, wrong: [], retry: false, q: null, answered: null, n: 0 }; view = 'learn'; logged = false; render(); window.scrollTo(0, 0); auto(V.ptOf(V.byId(ids[0])));
+        }
+        function learnV() {
+            if (!LS) { return `<div class="g-card"><p class="vq-sub">בחר ב"ראשי" נושא או לחץ "למד מילים חדשות".</p><div class="vq-row"><button class="g-btn pri" onclick="startLearn('')">📖 התחל קבוצה חדשה (${V.cfg().batch} מילים)</button></div></div>`; }
+            if (LS.phase === 'cards') {
+                const w = V.byId(LS.ids[LS.i]), k = CAT[w.cat], last = LS.i === LS.ids.length - 1;
+                return `<div class="g-card"><div style="display:flex;justify-content:space-between;font-size:12px;color:#94a3b8"><span>כרטיסייה ${LS.i + 1} מתוך ${LS.ids.length}</span><span>${k.ic} ${h(k.l)}</span></div><div class="vq-prog"><i style="width:${Math.round((LS.i + 1) / LS.ids.length * 100)}%"></i></div>
+                    <div class="vq-big" style="font-size:40px">${P(V.ptOf(w))}</div><div class="vq-row" style="margin-top:0">${sayBtn(V.ptOf(w))}${sayBtn(V.ptOf(w), true)}</div>
+                    <div class="vq-big" style="font-size:26px;color:#fbbf24">${h(w.he)}</div>
+                    <div class="vq-row"><button class="g-btn" ${LS.i === 0 ? 'disabled' : ''} onclick="lcard(-1)">→ הקודמת</button><button class="g-btn" onclick="know()" title="אני כבר מכיר את המילה">✓ כבר מכיר</button>${last ? '<button class="g-btn ok" id="vqNext" onclick="startTest()">התחל מבחן ←</button>' : '<button class="g-btn pri" id="vqNext" onclick="lcard(1)">הבאה ←</button>'}</div></div>
+                    <p class="vq-note">לחץ על הרמקול לשמיעה, ועל הצב לשמיעה לאט. בסוף הקבוצה יהיה מבחן על ${LS.ids.length} המילים האלה. מקשים: Enter להמשך.</p>`;
+            }
+            if (LS.phase === 'test') return qView(LS, 'learn');
+            return doneV();
+        }
+        function lcard(d) { V.touch(); LS.i = Math.max(0, Math.min(LS.ids.length - 1, LS.i + d)); render(); auto(V.ptOf(V.byId(LS.ids[LS.i]))); }
+        function know() { V.touch(); V.markKnown(LS.ids[LS.i]); msg = ''; if (LS.i < LS.ids.length - 1) lcard(1); else render(); }
+        function startTest() { V.touch(); LS.phase = 'test'; LS.queue = shuffle(LS.ids); LS.q = null; nextQ(); }
+        function nextQ() {
+            if (!LS.queue.length) { if (LS.wrong.length && !LS.retry) { LS.retry = true; LS.queue = shuffle(LS.wrong); LS.wrong = []; msg = 'סבב תיקון: המילים שנכשלו חוזרות פעם אחת.'; } else { finishLearn(); return; } }
+            const id = LS.queue[0], dirs = V.ttsOK() ? ['pt2he', 'he2pt', 'listen'] : ['pt2he', 'he2pt']; LS.q = V.mc(id, dirs[Math.floor(Math.random() * dirs.length)]); LS.answered = null; render();
+            if (LS.q.dir !== 'he2pt') auto(LS.q.say);
+        }
+        function finishLearn() { const r = V.endSession(); const f = Object.keys(LS.first), okN = f.filter(id => LS.first[id]).length; endInfo = Object.assign({}, r, { okFirst: okN, total: f.length, missed: f.filter(id => !LS.first[id]), kind: 'learn' }); LS.phase = 'done'; logged = false; render(); window.scrollTo(0, 0); }
+        function doneV() { return endBlock('📖 סיימת קבוצת למידה'); }
+
+        // ---------- תצוגה משותפת של שאלת בחירה (למידה ותרגול) ----------
+        function qView(S, kind) {
+            const q = S.q, a = S.answered; if (!q) return '';
+            const head = kind === 'learn' ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:#94a3b8"><span>מבחן: נשארו ${S.queue.length} מילים${S.retry ? ' (סבב תיקון)' : ''}</span><span>${S.ids.length} מילים בקבוצה</span></div><div class="vq-prog"><i style="width:${Math.round((S.ids.length - S.queue.length) / S.ids.length * 100)}%"></i></div>`
+                : `<div style="display:flex;justify-content:space-between;font-size:12px;color:#94a3b8;flex-wrap:wrap;gap:6px"><span>שאלה ${S.n + (a ? 0 : 1)}</span><span>נכון: ${S.ok}/${S.n}${S.n ? ' (' + Math.round(S.ok / S.n * 100) + '%)' : ''}</span><span>רצף: ${S.streak} • שיא: ${S.best}</span></div>`;
+            const w = V.byId(q.id);
+            if (q.kind === 'type') return `<div class="g-card">${head}<div class="vq-sub" style="margin-top:12px">איך אומרים בפורטוגזית (בכתיבה)?</div><div class="vq-big">${h(q.prompt)}</div>
+                <input id="vqIn" class="g-inp" style="font-size:18px;text-align:left" dir="ltr" lang="pt" autocomplete="off" autocapitalize="off" spellcheck="false" ${a ? 'disabled' : ''} value="${a ? h(a.text) : ''}">
+                ${a ? `<div class="vq-fb ${a.ok ? 'ok' : a.res === 'close' ? 'mid' : 'bad'}">${a.ok ? (a.res === 'accent' ? '✅ נכון, שים לב להטעמות ולאיות: ' + P(q.accept[0]) : '✅ נכון!') : a.res === 'close' ? '⚠️ כמעט: ' + P(q.accept[0]) : '❌ התשובה: ' + P(q.accept[0])} ${sayBtn(q.say)}</div><div class="vq-row"><button class="g-btn pri" id="vqNext" onclick="${kind === 'learn' ? 'lnext()' : 'pnext()'}">הבא ←</button></div>` : `<div class="vq-row"><button class="g-btn ok" id="vqCheck" onclick="ptype()">בדוק</button></div>`}</div>`;
+            const lead = q.dir === 'listen' ? `<div class="vq-big" style="font-size:44px">🔊</div><div class="vq-row" style="margin-top:0">${sayBtn(q.say)}${sayBtn(q.say, true)}</div>` : `<div class="vq-big">${q.dir === 'pt2he' ? P(q.prompt) : h(q.prompt)}</div>${q.dir === 'pt2he' ? `<div class="vq-row" style="margin-top:0">${sayBtn(q.say)}</div>` : ''}`;
+            return `<div class="g-card">${head}<div class="vq-sub" style="margin-top:12px">${DIRQ[q.dir]}</div>${lead}
+                ${q.options.map((o, i) => { const cls = a ? (i === q.correct ? 'ok' : i === a.idx ? 'bad' : 'dim') : ''; return `<button class="vq-opt ${cls}" data-opt="${i}" ${a ? 'disabled' : ''} onclick="${kind === 'learn' ? 'lans' : 'pans'}(${i})"><kbd>${i + 1}</kbd>${q.dir === 'he2pt' ? P(o.text) : h(o.text)}</button>`; }).join('')}
+                ${a ? `<div class="vq-fb ${a.ok ? 'ok' : 'bad'}">${a.ok ? '✅ נכון!' : '❌ לא נכון.'} ${P(V.ptOf(w))} = ${h(w.he)} ${sayBtn(V.ptOf(w))}</div><div class="vq-row"><button class="g-btn pri" id="vqNext" onclick="${kind === 'learn' ? 'lnext()' : 'pnext()'}">הבא ←</button>${kind === 'practice' ? '' : ''}</div>` : ''}</div>`;
+        }
+        function lans(i) { const S = LS; if (S.answered) return; V.touch(); const ok = i === S.q.correct; V.answerWord(S.q.id, ok); S.n++; if (!S.retry) { S.first[S.q.id] = ok; if (!ok) S.wrong.push(S.q.id); } S.answered = { idx: i, ok }; render(); if (S.q.dir === 'he2pt') auto(S.q.say); }
+        function lnext() { LS.queue.shift(); msg = ''; nextQ(); }
+
+        // ---------- תרגול רציף ----------
+        function startPractice() {
+            if (V.hasSession()) V.endSession(); V.startSession('practice'); PS = { n: 0, ok: 0, streak: 0, best: 0, recent: [], q: null, answered: null, count: 0 }; view = 'practice'; logged = false; msg = ''; pnextQ(); window.scrollTo(0, 0);
+        }
+        function pnextQ() {
+            PS.count++; let q; if (PS.sentMix && PS.count % 6 === 0) { const ids = V.pickSents(1, PS.recentS || []); if (ids.length) { q = V.sentQ(ids[0]); (PS.recentS = PS.recentS || []).push(ids[0]); PS.recentS = PS.recentS.slice(-8); } }
+            if (!q) { const id = V.pickPractice(PS.recent); if (!id) { msg = 'אין מילים לתרגול.'; view = 'home'; render(); return; } PS.recent.push(id); PS.recent = PS.recent.slice(-6); q = V.practiceQ(id, { tts: V.ttsOK() }); }
+            PS.q = q; PS.answered = null; render(); if (q.kind === 'mc' && q.dir !== 'he2pt') auto(q.say);
+        }
+        function practiceV() {
+            if (!PS) return `<div class="g-card"><p class="vq-sub">תרגול רציף של כל המילים, ללא הפסקה.</p><div class="vq-row"><button class="g-btn pri" onclick="startPractice()">♾️ התחל תרגול</button></div></div>`;
+            const tools = `<div class="vq-row" style="justify-content:space-between"><label class="g-lab"><input type="checkbox" ${PS.sentMix ? 'checked' : ''} onchange="PS.sentMix=this.checked"> שלב גם משפטים (אחת לשש שאלות)</label><button class="g-btn red" onclick="stopPractice()">⏹ עצור וסכם</button></div>`;
+            if (PS.q.kind === 'sent') return sentCard(PS, 'practice') + tools;
+            return qView(PS, 'practice') + tools;
+        }
+        function pans(i) { const S = PS; if (S.answered) return; V.touch(); const ok = i === S.q.correct; V.answerWord(S.q.id, ok); pfin(ok); S.answered = { idx: i, ok }; render(); if (S.q.dir === 'he2pt') auto(S.q.say); }
+        function pfin(ok) { PS.n++; if (ok) { PS.ok++; PS.streak++; PS.best = Math.max(PS.best, PS.streak); } else PS.streak = 0; }
+        function pnext() { pnextQ(); }
+        function stopPractice() { const r = V.endSession(); endInfo = Object.assign({}, r, { kind: 'practice', okFirst: PS ? PS.ok : 0, total: PS ? PS.n : 0, missed: [], best: PS ? PS.best : 0 }); view = 'end'; logged = false; render(); window.scrollTo(0, 0); }
+        // תשובה כתובה למילה (תרגול ולמידה)
+        function ptype() {
+            const S = view === 'learn' ? LS : PS, q = S.q, text = $('vqIn').value; if (!text.trim()) return; V.touch(); const r = V.check(text, q.accept, 'pt'), ok = r.res === 'exact' || r.res === 'accent';
+            if (r.res !== 'close') V.answerWord(q.id, ok); if (view === 'practice') pfin(ok); S.answered = { text, ok, res: r.res }; render();
+        }
+
+        // ---------- משפטים ----------
+        function startSents() {
+            const ids = V.pickSents(V.cfg().sent); if (V.hasSession()) V.endSession(); V.startSession('sent'); SS = { ids, i: 0, q: null, answered: null, bank: false, res: [], n: 0, ok: 0 }; view = 'sents'; logged = false; msg = ''; snextQ(); window.scrollTo(0, 0);
+        }
+        function snextQ() { if (SS.i >= SS.ids.length) { finishSents(); return; } SS.q = V.sentQ(SS.ids[SS.i]); SS.answered = null; SS.bank = false; render(); }
+        function sentsV() {
+            if (!SS) return `<div class="g-card"><p class="vq-sub">סבב משפטים: ${V.cfg().sent} משפטים לתרגום בכתיבה, בשני הכיוונים.</p><div class="vq-row"><button class="g-btn pri" onclick="startSents()">✍️ התחל סבב</button></div></div>`;
+            if (SS.done) return endBlock('✍️ סיימת סבב משפטים');
+            return sentCard(SS, 'sents');
+        }
+        function sentCard(S, kind) {
+            const q = S.q, a = S.answered, he = q.dir === 'he2pt';
+            const head = kind === 'sents' ? `<div style="display:flex;justify-content:space-between;font-size:12px;color:#94a3b8"><span>משפט ${S.i + 1} מתוך ${S.ids.length}</span><span>נכון עד כה: ${S.ok}/${S.n}</span></div><div class="vq-prog"><i style="width:${Math.round(S.i / S.ids.length * 100)}%"></i></div>`
+                : `<div style="display:flex;justify-content:space-between;font-size:12px;color:#94a3b8;flex-wrap:wrap;gap:6px"><span>שאלה ${S.n + (a ? 0 : 1)} (משפט)</span><span>נכון: ${S.ok}/${S.n}</span><span>רצף: ${S.streak} • שיא: ${S.best}</span></div>`;
+            const next = kind === 'sents' ? 'snext()' : 'sfin()';
+            const fb = a ? (() => { const cls = a.final ? 'ok' : a.res === 'close' ? 'mid' : 'bad', txt = a.final ? (a.override ? '✅ סימנת כנכון.' : a.res === 'accent' ? '✅ נכון, שים לב לאיות ולהטעמות.' : '✅ נכון!') : a.res === 'close' ? '⚠️ כמעט, יש טעות קטנה.' : '❌ לא מדויק.'; return `<div class="vq-fb ${cls}">${txt}<div style="margin-top:6px">תשובה לדוגמה: ${he ? P(q.model) : h(q.model)} ${sayBtn(q.say)}${sayBtn(q.say, true)}</div>${q.more.length ? `<div class="vq-note" style="margin:4px 0 0">אפשר גם: ${q.more.map(m => he ? P(m) : h(m)).join(' • ')}</div>` : ''}${!a.final ? `<div class="vq-row" style="justify-content:flex-start"><button class="g-btn" onclick="soverride()" title="ניסוח אחר שלך שהוא תרגום נכון">סמן כנכון (ניסוח אחר שלי נכון)</button></div>` : ''}</div><div class="vq-row"><button class="g-btn pri" id="vqNext" onclick="${next}">${kind === 'sents' && S.i === S.ids.length - 1 ? 'סיום' : 'הבא'} ←</button></div>`; })() : `<div class="vq-row"><button class="g-btn ok" id="vqCheck" onclick="scheck()">בדוק</button>${he ? `<button class="g-btn" onclick="sbank()">💡 בנק מילים</button>` : ''}</div>${S.bank ? `<div style="margin-top:8px;direction:ltr;text-align:center">${q.bank.map(w => `<button class="vq-chip" onclick="schip(this.textContent)">${h(w)}</button>`).join('')}</div>` : ''}`;
+            return `<div class="g-card">${head}<div class="vq-sub" style="margin-top:12px">${he ? 'תרגם לפורטוגזית (כתיבה):' : 'תרגם לעברית (כתיבה):'}</div><div class="vq-big" style="font-size:26px">${he ? h(q.prompt) : P(q.prompt)}</div>${!he ? `<div class="vq-row" style="margin-top:0">${sayBtn(q.say)}${sayBtn(q.say, true)}</div>` : ''}
+                <textarea id="vqIn" class="vq-ta" ${he ? 'dir="ltr" lang="pt" autocapitalize="off" spellcheck="false"' : 'dir="rtl" lang="he"'} ${a ? 'disabled' : ''} placeholder="${he ? 'Escreva aqui...' : 'כתוב כאן...'}">${a ? h(a.text) : ''}</textarea>${fb}</div>
+                ${kind === 'sents' ? '<div class="vq-row"><button class="g-btn" onclick="go(\'home\')">יציאה</button></div>' : ''}
+                <p class="vq-note">הבדיקה משווה לכמה ניסוחים מקובלים: היא אינה מכירה כל תרגום תקין, ולכן אם תרגמת נכון בניסוח אחר אפשר ללחוץ "סמן כנכון". סימני הטעמה ואותיות גדולות לא פוגעים בציון.</p>`;
+        }
+        function sbank() { V.touch(); const S = view === 'sents' ? SS : PS, v = $('vqIn').value; S.bank = true; render(); $('vqIn').value = v; }
+        function schip(t) { const i = $('vqIn'); i.value = (i.value.trim() ? i.value.trim() + ' ' : '') + t; i.focus(); }
+        function scheck() {
+            const S = view === 'sents' ? SS : PS, q = S.q, text = $('vqIn').value; if (!text.trim()) return; V.touch(); const r = V.check(text, q.accept, q.dir === 'he2pt' ? 'pt' : 'he'), final = r.res === 'exact' || r.res === 'accent';
+            S.answered = { text, res: r.res, final, override: false }; if (view === 'practice') { /* ממתין להמשך כדי לאפשר סימון ידני */ } render();
+        }
+        function soverride() { const S = view === 'sents' ? SS : PS; S.answered.final = true; S.answered.override = true; render(); }
+        function settle(S) { const a = S.answered, q = S.q; if (!a) return; if (a.final) V.answerSent(q.id, true); else if (a.res !== 'close') V.answerSent(q.id, false); S.n++; if (a.final) { S.ok++; if (S.streak != null) { S.streak++; S.best = Math.max(S.best, S.streak); } } else if (S.streak != null) S.streak = 0; }
+        function snext() { settle(SS); SS.i++; msg = ''; snextQ(); }
+        function sfin() { settle(PS); pnextQ(); }
+        function finishSents() { const r = V.endSession(); SS.done = true; endInfo = Object.assign({}, r, { kind: 'sent', okFirst: SS.ok, total: SS.n, missed: [] }); logged = false; render(); window.scrollTo(0, 0); }
+
+        // ---------- סיכום ----------
+        function endBlock(title) {
+            const e = endInfo || { n: 0, mins: 0, secs: 0, okFirst: 0, total: 0, missed: [] }, again = e.kind === 'learn' ? `<button class="g-btn pri" onclick="startLearn('')">📖 עוד ${V.cfg().batch} מילים</button>` : e.kind === 'sent' ? '<button class="g-btn pri" onclick="startSents()">✍️ סבב נוסף</button>' : '<button class="g-btn pri" onclick="startPractice()">♾️ המשך לתרגל</button>';
+            return `<div class="g-card"><h2 class="font-bold text-white" style="text-align:center">${title}</h2><div class="vq-grid" style="margin-top:10px"><div class="vq-stat"><b>${e.okFirst}/${e.total}</b><span>${e.kind === 'learn' ? 'נכון בניסיון ראשון' : 'תשובות נכונות'}</span></div><div class="vq-stat"><b>${e.mins || (e.secs ? '<1' : 0)}</b><span>דקות פעילות</span></div>${e.best != null ? `<div class="vq-stat"><b>${e.best}</b><span>רצף נכון הארוך ביותר</span></div>` : ''}</div>
+                ${e.missed && e.missed.length ? `<div style="margin-top:12px"><div style="font-size:13px;font-weight:700;margin-bottom:6px">מילים לחזור עליהן:</div>${e.missed.map(id => { const w = V.byId(id); return `<div style="display:flex;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid #1e293b">${sayBtn(V.ptOf(w))}<span style="flex:1">${P(V.ptOf(w))}</span><span style="color:#fbbf24">${h(w.he)}</span></div>`; }).join('')}</div>` : ''}
+                <div class="vq-row">${again}<button class="g-btn" onclick="go('home')">לראשי</button></div>
+                <div class="vq-row">${(e.mins || 0) >= 1 ? `<button class="g-btn ok" id="vqLog" ${logged ? 'disabled' : ''} onclick="logIt(${e.mins || 0})">${logged ? '✅ נוסף ליומן' : '➕ הוסף ' + e.mins + ' דקות ליומן הלימוד של פורטוגזית'}</button>` : ''}</div>
+                <p class="vq-note" style="text-align:center">ההוספה ליומן הלימוד (במודול "לימוד שפות") נעשית רק בלחיצה שלך, כדי שזמן תרגול לא יוזן לציון בלי שתחליט. הזמן שנספר הוא זמן פעילות בלבד.</p></div>`;
+        }
+        function endV() { return endBlock(endInfo && endInfo.kind === 'practice' ? '♾️ סיכום תרגול' : 'סיכום'); }
+        function logIt(m) { const r = V.logTime(m); if (r) { logged = true; msg = ''; } else msg = 'ההוספה ליומן נכשלה.'; render(); }
+
+        // ---------- המילים ----------
+        function wordsV() {
+            const st = V.state(), ws = V.words().filter(w => (!wf.cat || w.cat === wf.cat) && (!wf.q || w.he.includes(wf.q) || V.ptOf(w).toLowerCase().includes(wf.q.toLowerCase())));
+            return `${msg ? `<div class="vq-fb mid">${h(msg)}</div>` : ''}<div class="g-card"><h2 class="font-bold text-white text-sm mb-2">➕ הוסף מילה משלך</h2><div class="vq-grid"><label class="g-lab">עברית<input id="cHe" class="g-inp" maxlength="80"></label><label class="g-lab">פורטוגזית<input id="cPt" class="g-inp" dir="ltr" lang="pt" maxlength="80"></label></div><button class="g-btn pri" style="margin-top:8px" onclick="addW()">הוסף למאגר</button></div>
+                <div class="g-card" style="margin-top:12px"><div class="vq-grid" style="margin-bottom:8px"><label class="g-lab">נושא<select class="g-inp" onchange="wf.cat=this.value;render()"><option value="">הכול</option>${Object.keys(CAT).map(c => `<option value="${c}" ${wf.cat === c ? 'selected' : ''}>${CAT[c].l}</option>`).join('')}</select></label><label class="g-lab">חיפוש<input class="g-inp" value="${h(wf.q)}" onchange="wf.q=this.value;render()"></label></div>
+                <table class="vq-tbl"><tbody>${ws.map(w => { const s = st.w[w.id], lv = s && s.at ? (s.b >= 4 ? '🟢' : s.b >= 2 ? '🟡' : '🟠') : '⚪'; return `<tr><td style="width:34px">${sayBtn(V.ptOf(w))}</td><td>${P(V.ptOf(w))}</td><td style="color:#fbbf24">${h(w.he)}</td><td style="width:26px" title="${s && s.at ? 'קופסה ' + s.b : 'עוד לא נלמדה'}">${lv}</td>${w.custom ? `<td style="width:26px"><button class="g-btn red" style="padding:2px 7px" onclick="delW('${w.id}')">✕</button></td>` : '<td></td>'}</tr>`; }).join('')}</tbody></table>
+                <p class="vq-note">⚪ עוד לא נלמדה • 🟠 בלמידה • 🟡 מתקדמת • 🟢 נשלטת. ${ws.length} מילים מוצגות.</p></div>`;
+        }
+        function addW() { const id = V.addCustom($('cHe').value, $('cPt').value); msg = id ? 'המילה נוספה, ותופיע בקבוצת הלמידה הבאה ובתרגול.' : 'לא נוספה: בדוק ששני השדות מלאים ושהמילה לא קיימת כבר.'; render(); }
+        function delW(id) { if (confirm('למחוק את המילה?')) { V.removeCustom(id); render(); } }
+
+        document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-say]'); if (b) { V.touch(); if (!V.speak(b.dataset.say, b.dataset.slow === '1')) { msg = 'ההקראה לא זמינה בדפדפן הזה.'; } } });
+        document.addEventListener('keydown', e => {
+            const t = e.target, tag = t && t.tagName;
+            if (tag === 'TEXTAREA' || (tag === 'INPUT' && t.id === 'vqIn')) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); const n = $('vqNext') || $('vqCheck'); n && n.click(); } return; }
+            if (tag === 'INPUT' || tag === 'SELECT') return;
+            if (/^[1-4]$/.test(e.key)) { const b = document.querySelector('[data-opt="' + (Number(e.key) - 1) + '"]'); b && !b.disabled && b.click(); } else if (e.key === 'Enter') { const n = $('vqNext'); n && n.click(); }
+        });
+        if ('speechSynthesis' in window) { try { speechSynthesis.onvoiceschanged = () => { if (view === 'home') render(); }; } catch (e) { } }
+        if (V.hasSession()) V.endSession();
+        render();
+    </script>
+</body>
+</html>
