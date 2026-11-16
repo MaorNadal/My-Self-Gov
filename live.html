@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>דשבורד חי - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        :root { --bg: #0b1220; --card: #111c2f; --card2: #15233a; --line: #243452; --tx: #f1f5f9; --mut: #8da2c0; --acc: #fbbf24; --ok: #22c55e; --bad: #f87171; --info: #38bdf8; }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: 'Rubik', sans-serif; color: var(--tx); background: radial-gradient(1100px 520px at 85% -8%, #1c2c4d 0%, transparent 60%), radial-gradient(900px 500px at 5% 105%, #1b2a2a 0%, transparent 55%), var(--bg); min-height: 100vh; }
+        a { color: inherit; text-decoration: none; }
+        .lv-wrap { max-width: 1320px; margin: 0 auto; padding: 14px 16px 48px; }
+        .lv-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+        .lv-top h1 { margin: 0; font-size: 26px; font-weight: 900; letter-spacing: -.3px; }
+        .lv-sub { display: flex; align-items: center; gap: 8px; color: var(--mut); font-size: 12px; margin-top: 3px; flex-wrap: wrap; }
+        .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); display: inline-block; animation: pl 1.8s infinite; } .pulse.off { background: #64748b; animation: none; }
+        @keyframes pl { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, .55); } 100% { box-shadow: 0 0 0 9px rgba(34, 197, 94, 0); } }
+        .bt { background: var(--card2); color: #dbe5f5; border: 1px solid var(--line); border-radius: 10px; padding: 7px 12px; font-size: 12px; cursor: pointer; font-family: inherit; transition: .15s; } .bt:hover { border-color: var(--acc); color: #fff; } .bt.on { background: var(--acc); color: #111827; border-color: var(--acc); font-weight: 700; }
+        .row-btn { display: flex; gap: 6px; flex-wrap: wrap; }
+        /* KPI */
+        .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 12px; }
+        .kpi { position: relative; overflow: hidden; background: linear-gradient(160deg, var(--card2), var(--card)); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; display: block; transition: transform .15s, border-color .15s; }
+        .kpi:hover { transform: translateY(-2px); border-color: var(--c, var(--acc)); }
+        .kpi::before { content: ''; position: absolute; inset-inline-start: 0; top: 0; bottom: 0; width: 3px; background: var(--c, var(--acc)); }
+        .kpi .l { font-size: 11px; color: var(--mut); display: flex; justify-content: space-between; gap: 4px; } .kpi .v { font-size: 30px; font-weight: 900; line-height: 1.1; margin-top: 4px; color: var(--c, #fff); } .kpi .s { font-size: 11px; color: var(--mut); margin-top: 3px; min-height: 14px; }
+        .kpi .sp { margin-top: 4px; height: 26px; opacity: .9; }
+        /* גריד */
+        .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; }
+        .c3 { grid-column: span 3; } .c4 { grid-column: span 4; } .c5 { grid-column: span 5; } .c6 { grid-column: span 6; } .c8 { grid-column: span 8; } .c7 { grid-column: span 7; }
+        .pn { background: linear-gradient(170deg, var(--card2), var(--card)); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; min-width: 0; position: relative; }
+        .pn h2 { margin: 0 0 10px; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .pn h2 .t { display: flex; align-items: center; gap: 7px; } .pn h2 .ic { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: color-mix(in srgb, var(--c, var(--acc)) 20%, transparent); font-size: 14px; }
+        .pn h2 a { font-size: 11px; font-weight: 500; color: var(--acc); opacity: .85; } .pn h2 a:hover { opacity: 1; text-decoration: underline; }
+        .mut { color: var(--mut); } .sm { font-size: 11px; } .center { text-align: center; } .flexc { display: flex; justify-content: center; }
+        .chip { display: inline-block; font-size: 11px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line); color: #cbd5e1; background: rgba(255, 255, 255, .03); }
+        .big { font-size: 30px; font-weight: 900; line-height: 1.1; }
+        .split { display: flex; gap: 12px; align-items: center; } .split > :last-child { flex: 1; min-width: 0; }
+        .empty { color: var(--mut); font-size: 12px; text-align: center; padding: 18px 6px; }
+        /* משימות */
+        .tk { display: flex; align-items: center; gap: 9px; background: rgba(255, 255, 255, .03); border: 1px solid var(--line); border-radius: 11px; padding: 7px 10px; margin-bottom: 5px; font-size: 12.5px; transition: .15s; } .tk:hover { border-color: #3b4f78; }
+        .tk input { width: 17px; height: 17px; accent-color: var(--ok); cursor: pointer; flex: none; } .tk .tt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .tk.over { border-color: rgba(248, 113, 113, .55); background: rgba(248, 113, 113, .06); } .tk .d { font-size: 10.5px; color: var(--mut); flex: none; } .tk.over .d { color: var(--bad); }
+        .pr { width: 7px; height: 22px; border-radius: 4px; flex: none; }
+        /* ברים */
+        .bar { height: 8px; border-radius: 6px; background: #1b2a45; overflow: hidden; } .bar > i { display: block; height: 100%; border-radius: 6px; transition: width .8s cubic-bezier(.2, .8, .2, 1); }
+        .bl { display: flex; justify-content: space-between; font-size: 11px; color: #cbd5e1; margin-bottom: 3px; } .mb6 { margin-bottom: 8px; }
+        /* הגדרות */
+        .cfg { display: none; background: var(--card2); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; } .cfg.on { display: block; }
+        .cfg label { display: inline-flex; align-items: center; gap: 6px; margin: 3px 12px 3px 0; font-size: 12px; cursor: pointer; } .cfg input[type=checkbox] { accent-color: var(--acc); }
+        /* מסך מלא */
+        .tv .lv-wrap { max-width: none; padding: 22px 28px; } .tv .kpi .v { font-size: 44px; } .tv .pn { font-size: 112%; } .tv .nav-hide, .tv header#govNav, .tv nav { display: none !important; }
+        @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(3, 1fr); } .c3, .c4 { grid-column: span 6; } .c5, .c6, .c7, .c8 { grid-column: span 12; } }
+        @media (max-width: 640px) { .kpis { grid-template-columns: repeat(2, 1fr); } .grid > * { grid-column: span 12 !important; } .lv-top h1 { font-size: 22px; } .kpi .v { font-size: 25px; } }
+        .fade { animation: fd .35s ease both; } @keyframes fd { from { opacity: .5; } to { opacity: 1; } }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <script src="gov-core.js?v=0.20.0"></script>
+    <script src="gov-nav.js?v=0.20.0"></script>
+    <script src="gov-viz.js?v=0.20.0"></script>
+    <script src="gov-money.js?v=0.20.0"></script>
+    <script src="gov-scen.js?v=0.20.0"></script>
+    <script src="gov-cq-data.js?v=0.20.0"></script>
+    <script src="gov-cq.js?v=0.20.0"></script>
+    <script src="gov-vocab-data.js?v=0.20.0"></script>
+    <script src="gov-vocab-more.js?v=0.20.0"></script>
+    <script src="gov-vocab.js?v=0.20.0"></script>
+    <div class="lv-wrap">
+        <div class="lv-top">
+            <div><h1>📡 מרכז שליטה חי</h1><div class="lv-sub"><span class="pulse" id="pulse"></span><span id="clock"></span><span>·</span><span id="upd"></span></div></div>
+            <div class="row-btn"><button class="bt" id="bPause" onclick="togglePause()">⏸ השהה</button><button class="bt" onclick="render()">🔄 רענן</button><button class="bt" id="bCfg" onclick="toggleCfg()">⚙️ התאם</button><button class="bt" onclick="kiosk()">🖥️ מסך מלא</button></div>
+        </div>
+        <div class="cfg" id="cfg"></div>
+        <div id="app"></div>
+    </div>
+    <script>
+        const G = GOV, V = GOV_VIZ, MM = GOV_MONEY, esc = G.esc, $ = id => document.getElementById(id), fmt = n => Math.round(n).toLocaleString('he-IL'), EC = { fire: '#f97316', water: '#38bdf8', earth: '#84cc16', air: '#a78bfa' };
+        const SAFE = (f, d) => { try { return f(); } catch (e) { return d; } };
+        const PANELS = [['score', 'ציון הממשלה'], ['trend', 'מגמת הציון'], ['promises', 'הבטחות'], ['today', 'משימות להיום'], ['time', 'זמן היום'], ['events', 'אירועים'], ['money', 'הוצאות'], ['trip', 'נסיעה'], ['wins', 'הישגים'], ['lang', 'פורטוגזית ושפות'], ['elem', 'היסודות'], ['issues', 'סוגיות']];
+        const PARTS = { promises: 'הבטחות', daily: 'עקביות יומית', self: 'הערכה עצמית', issues: 'סוגיות ומבצעים', learn: 'יציבות בלימוד' };
+        let prefs = { off: [], every: 15 }, paused = false, timer = null, showCfg = false;
+        try { const p = JSON.parse(localStorage.getItem('govui_live') || '{}'); if (Array.isArray(p.off)) prefs.off = p.off.filter(x => typeof x === 'string').slice(0, 30); if ([5, 15, 30, 60].includes(p.every)) prefs.every = p.every; } catch (e) { }
+        const savePrefs = () => { try { localStorage.setItem('govui_live', JSON.stringify(prefs)); } catch (e) { } };
+        const on = id => !prefs.off.includes(id);
+        const pn = (id, cls, ic, title, link, body, col) => on(id) ? `<section class="pn ${cls}" style="--c:${col || '#fbbf24'}"><h2><span class="t"><span class="ic">${ic}</span>${title}</span>${link ? `<a href="${link[0]}">${link[1]}</a>` : ''}</h2>${body}</section>` : '';
+        const kpi = (href, col, label, ic, val, sub, spark) => `<a class="kpi" href="${href}" style="--c:${col}"><div class="l"><span>${label}</span><span>${ic}</span></div><div class="v">${val}</div><div class="s">${sub || ''}</div>${spark ? `<div class="sp">${spark}</div>` : ''}</a>`;
+        function trend(mk0, n) { const out = []; for (let i = n - 1; i >= 0; i--) { const m = G.addMonths(mk0, -i), rv = SAFE(() => G.review.get(m), null), sn = rv && rv.snapshot, v = sn ? sn.total : (m === mk0 ? SAFE(() => G.score(m).total, null) : null); out.push({ m, v }); } return out; }
+        function render() {
+            const td = G.localDate(), mk = G.monthOf(td), sc = SAFE(() => G.score(mk), null) || { parts: [], wins: { n: 0 }, bonus: 0, total: null }, g = sc.total != null ? G.gradeFor(sc.total) : null;
+            const ps = G.promises.all().filter(p => p.month === mk), by = { done: 0, progress: 0, open: 0, failed: 0, dropped: 0 }; ps.forEach(p => { by[p.status] = (by[p.status] || 0) + 1; });
+            const tk = G.tasks.all(), open = tk.filter(t => !t.done), over = open.filter(t => t.due && t.due < td), dueToday = open.filter(t => t.due === td), doneToday = tk.filter(t => t.done && t.doneAt === td), nToday = dueToday.length + doneToday.length;
+            const iss = G.issues.all().filter(i => ['open', 'handling'].includes(i.status));
+            const tl = SAFE(() => G.timelog.on(td), []) || [], tlMin = tl.reduce((s, x) => s + (x.mins || 0), 0), byP = {}; tl.forEach(x => { const k = x.pid ? (SAFE(() => G.portfolios.get(x.pid).name, '') || 'תיק') : 'ללא תיק'; byP[k] = (byP[k] || 0) + (x.mins || 0); });
+            const ms = MM.money.summary(mk), trip = MM.trips.next(), ts = trip ? MM.trips.stats(trip.id) : null, wk = G.wins.bonus(mk), tr = trend(mk, 6), trv = tr.map(x => x.v);
+            const cq = SAFE(() => GOV_CQ.latest(), null), cqs = cq ? SAFE(() => GOV_CQ.score(cq), null) : null, vs = SAFE(() => GOV_VOCAB.summary(), null);
+            const lang = SAFE(() => G.langs.all(), []).map(l => ({ l, st: SAFE(() => G.langs.stats(l.id), null) })).filter(x => x.st);
+            const ev = SAFE(() => G.events.upcoming(td, G.addDays(td, 7)), []) || [], pctM = ms.budget ? Math.round(ms.spent / ms.budget * 100) : null, streak = lang.reduce((m, x) => Math.max(m, x.st.streak || 0), 0);
+            $('clock').textContent = new Date().toLocaleString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }); $('upd').textContent = 'עודכן ' + new Date().toLocaleTimeString('he-IL');
+            const prio = { 1: '#f87171', 2: '#fbbf24', 3: '#64748b' };
+            const topTasks = over.sort((a, b) => a.due.localeCompare(b.due)).concat(dueToday).slice(0, 8), restN = over.length + dueToday.length - topTasks.length;
+            const partRows = sc.parts.filter(p => PARTS[p.id]).map(p => `<div class="mb6"><div class="bl"><span>${PARTS[p.id]} <span class="mut">(${p.w}%)</span></span><span>${p.v == null ? '—' : Math.round(p.v)}</span></div><div class="bar"><i style="width:${p.v == null ? 0 : Math.round(p.v)}%;background:${p.v == null ? '#334155' : p.v >= 75 ? '#22c55e' : p.v >= 50 ? '#fbbf24' : '#f87171'}"></i></div></div>`).join('');
+            const topCats = Object.keys(ms.by).filter(k => ms.by[k] > 0).sort((a, b) => ms.by[b] - ms.by[a]).slice(0, 4);
+            const kpis = `<div class="kpis">${[
+                kpi('review.html', g ? g.c : '#64748b', 'ציון הממשלה', '📊', sc.total != null ? sc.total : '—', g ? 'ציון ' + g.l + (sc.bonus > 0 ? ' · כולל ' + sc.bonus + '+ בונוס' : '') : 'אין עדיין נתונים', trv.some(x => x != null) ? V.line([{ v: trv, c: g ? g.c : '#fbbf24' }], { h: 34, w: 140, area: true, dot: true, max: 100 }) : ''),
+                kpi('tasks.html', '#22c55e', 'משימות היום', '☑️', doneToday.length + '/' + nToday, over.length ? '<span style="color:#f87171">' + over.length + ' באיחור</span>' : nToday ? 'אין איחורים' : 'אין משימות להיום', nToday ? `<div class="bar"><i style="width:${Math.round(doneToday.length / nToday * 100)}%;background:#22c55e"></i></div>` : ''),
+                kpi('money.html', pctM != null && pctM > 100 ? '#f87171' : '#fbbf24', 'הוצאות החודש', '💰', '₪' + fmt(ms.spent), ms.budget ? pctM + '% מהתקציב · צפי ₪' + fmt(ms.pace) : 'לא הוגדר תקציב', V.line([{ v: ms.cum, c: '#fbbf24' }], { h: 34, w: 140, area: true, dot: true })),
+                kpi('trip.html', '#38bdf8', 'נסיעה', '✈️', ts ? (ts.daysTo != null && ts.daysTo > 0 ? ts.daysTo + ' ימים' : 'בנסיעה') : '—', ts ? esc(ts.trip.dest) + ' · מוכנות ' + ts.check.pct + '%' : 'אין נסיעה מתוכננת'),
+                kpi('wins.html', '#34d399', 'הישגים החודש', '🏆', wk.n, wk.pts ? '+' + wk.pts + ' נקודות בונוס' + (wk.capped ? ' (תקרה)' : '') : 'עוד אין בונוס'),
+                kpi('vocab.html', '#a78bfa', 'פורטוגזית', '🇧🇷', vs ? vs.learned : '—', vs ? 'מתוך ' + vs.total + ' · ' + vs.due + ' לחזרה' + (streak ? ' · רצף ' + streak : '') : 'אין נתונים')].join('')}</div>`;
+            const html = kpis + `<div class="grid fade">
+              ${pn('score', 'c4', '📊', 'ציון הממשלה', ['review.html', 'פירוט'], `<div class="split"><div style="width:130px;flex:none">${V.gauge(sc.total, { size: 130, label: g ? 'ציון ' + g.l : 'אין נתונים', color: g ? g.c : undefined })}</div><div>${partRows || '<div class="empty">אין נתונים לחודש.</div>'}</div></div>${sc.bonus > 0 ? `<div class="center" style="margin-top:6px"><span class="chip" style="color:#34d399;border-color:#34d399">בסיס ${sc.baseTotal} + בונוס ${sc.bonus} 🏆</span></div>` : ''}`, g ? g.c : '#fbbf24')}
+              ${pn('trend', 'c5', '📈', 'מגמת הציון: 6 חודשים', ['review.html', 'ציון חודשי'], trv.some(x => x != null) ? `${V.line([{ v: trv, c: '#fbbf24' }], { h: 130, w: 420, area: true, dot: true, max: 100 })}<div class="sm mut" dir="ltr" style="display:flex;justify-content:space-between;margin-top:4px">${tr.map(x => '<span>' + x.m.slice(5) + (x.v != null ? ' · <b style="color:#e2e8f0">' + x.v + '</b>' : '') + '</span>').join('')}</div>` : '<div class="empty">הציון נשמר בסגירת חודש. עוד אין היסטוריה להצגה.</div>')}
+              ${pn('promises', 'c3', '📜', 'הבטחות החודש', ['promises.html', 'פתח'], ps.length ? `<div class="flexc">${V.donut([{ l: 'בוצעו', v: by.done, c: '#22c55e' }, { l: 'בתהליך', v: by.progress, c: '#fbbf24' }, { l: 'פתוחות', v: by.open, c: '#64748b' }, { l: 'נכשלו', v: by.failed, c: '#f87171' }, { l: 'בוטלו', v: by.dropped, c: '#334155' }], { size: 150, center: ps.length, sub: 'הבטחות' })}</div><div class="sm mut center">✅ ${by.done} · ⏳ ${by.progress + by.open} · ❌ ${by.failed} · ⛔ ${by.dropped}</div>` : '<div class="empty">אין הבטחות החודש.<br><a href="promises.html" style="color:var(--acc)">הוסף הבטחה</a></div>')}
+              ${pn('today', 'c5', '☑️', 'להיום ובאיחור', ['tasks.html', 'כל המשימות'], topTasks.length ? topTasks.map(t => `<label class="tk ${t.due < td ? 'over' : ''}"><input type="checkbox" onchange="tick('${esc(t.id)}')"><span class="pr" style="background:${prio[t.priority] || '#64748b'}"></span><span class="tt" title="${esc(t.text)}">${esc(t.text)}</span><span class="d">${t.due < td ? 'איחור ' + (SAFE(() => Math.round((new Date(td + 'T12:00:00Z') - new Date(t.due + 'T12:00:00Z')) / 86400000), '') ) + ' ימים' : 'היום'}</span></label>`).join('') + (restN > 0 ? `<div class="sm mut center">ועוד ${restN}…</div>` : '') : `<div class="empty">${doneToday.length ? '🎉 כל המשימות להיום הושלמו!' : 'אין משימות להיום או באיחור.'}</div>`, '#22c55e')}
+              ${pn('time', 'c3', '⏱️', 'זמן היום', ['schedule.html', 'יומן'], tlMin ? `<div class="flexc">${V.donut(Object.keys(byP).map(k => ({ l: k, v: byP[k] })), { size: 140, center: Math.floor(tlMin / 60) + ':' + String(tlMin % 60).padStart(2, '0'), sub: 'שעות' })}</div>` : '<div class="empty">לא נרשם זמן היום.<br><a href="schedule.html" style="color:var(--acc)">רשום זמן</a></div>', '#38bdf8')}
+              ${pn('events', 'c4', '🗓️', 'בשבוע הקרוב', ['schedule.html', 'יומן'], ev.length ? ev.slice(0, 6).map(e => `<div class="tk"><span class="d" style="width:76px">${esc((e.date || '').slice(5).split('-').reverse().join('.'))}${e.start ? ' ' + esc(e.start) : ''}</span><span class="tt">${esc(e.title || e.text || '')}</span></div>`).join('') : '<div class="empty">אין אירועים בשבוע הקרוב.</div>', '#a78bfa')}
+              ${pn('money', 'c4', '💰', 'הוצאות החודש', ['money.html', 'פתח'], `<div class="split"><div><div class="big">₪${fmt(ms.spent)}</div><div class="sm mut">${ms.budget ? 'מתוך ₪' + fmt(ms.budget) : 'ללא תקציב'}</div></div><div>${V.line([{ v: ms.cum, c: '#fbbf24' }].concat(ms.budget ? [{ v: Array.from({ length: ms.dim }, (x, i) => Math.round(ms.budget * (i + 1) / ms.dim)), c: '#64748b', dash: true }] : []), { h: 70, w: 220, max: ms.budget || 0 })}</div></div>${topCats.length ? `<div style="margin-top:8px">${V.bars(topCats.map(k => ({ l: MM.money.CATS[k][0] + ' ' + MM.money.CATS[k][1], v: ms.by[k], t: '₪' + fmt(ms.by[k]) })))}</div>` : '<div class="empty">אין הוצאות החודש.</div>'}${ms.tripSpent ? '<div class="sm" style="color:#38bdf8">✈️ ₪' + fmt(ms.tripSpent) + ' מהן מנסיעה</div>' : ''}`)}
+              ${pn('trip', 'c4', '✈️', 'נסיעה קרובה', ['trip.html', 'פתח'], ts ? `<div class="big" style="color:#fbbf24">${ts.daysTo != null && ts.daysTo > 0 ? ts.daysTo + ' ימים' : 'בנסיעה'}</div><div class="sm mut mb6">${esc(ts.trip.dest)}${ts.trip.from ? ' · ' + esc(ts.trip.from.split('-').reverse().join('.')) : ''}</div>${V.bars([{ l: 'מוכנות', v: ts.check.pct, max: 100, t: ts.check.done + ' מתוך ' + ts.check.total, c: '#22c55e' }].concat(ts.trip.budget ? [{ l: 'תקציב', v: Math.min(100, ts.spent / ts.trip.budget * 100), max: 100, t: '₪' + fmt(ts.spent) + ' מתוך ₪' + fmt(ts.trip.budget), c: ts.spent > ts.trip.budget ? '#f87171' : '#38bdf8' }] : []))}` : '<div class="empty">אין נסיעה מתוכננת.<br><a href="trip.html" style="color:var(--acc)">צור נסיעה</a></div>', '#38bdf8')}
+              ${pn('wins', 'c4', '🏆', 'הישגי הממשלה', ['wins.html', 'פתח'], `<div class="split"><div class="big" style="color:#34d399">+${wk.pts}</div><div><div class="sm mut">בונוס החודש · ${wk.n} הישגים${wk.capped ? ' · הגעת לתקרה' : ''}</div>${V.bars([{ l: 'ניצול התקרה', v: wk.pts, max: wk.cap, t: wk.pts + ' מתוך ' + wk.cap, c: '#34d399' }])}</div></div><div class="sm mut" style="margin-top:6px">הישג = משהו מעבר להבטחות ולסוגיות. <a href="wins.html" style="color:var(--acc)">הוסף</a></div>`, '#34d399')}
+              ${pn('lang', 'c4', '🇧🇷', 'פורטוגזית ושפות', ['vocab.html', 'תרגל'], vs ? `<div class="split"><div style="width:96px;flex:none">${V.gauge(vs.total ? Math.round(vs.learned / vs.total * 100) : 0, { size: 96, label: '', color: '#a78bfa' })}</div><div class="sm"><div><b style="font-size:15px">${vs.learned}</b> / ${vs.total} מילים</div><div class="mut">${vs.mastered} שולטות · ${vs.due} לחזרה היום</div><div class="mut">${vs.todayMins} דק' היום · ${vs.sentSeen}/${vs.sentTotal} משפטים</div></div></div>${lang.length ? '<div class="sm mut" style="margin-top:6px">' + lang.map(x => esc(x.l.name) + ': רצף ' + x.st.streak + ' ימים').join(' · ') + '</div>' : ''}` : '<div class="empty">אין נתונים.</div>', '#a78bfa')}
+              ${pn('elem', 'c4', '🔥', 'היסודות שלי', ['central.html', 'פתח'], cqs && cqs.ready ? `<div class="split"><div style="width:100px;flex:none">${V.donut(GOV_CQ.EK.map(e => ({ l: GOV_CQ.EL[e].l, v: cqs.shares[e], c: EC[e] })), { size: 100, center: GOV_CQ.EL[cqs.dom].ic })}</div><div class="sm"><b style="color:${EC[cqs.dom]};font-size:15px">${GOV_CQ.EL[cqs.dom].l} ${cqs.shares[cqs.dom]}%</b><div class="mut">${cqs.conf.level === 'clear' ? 'תוצאה חדה' : cqs.conf.level === 'probable' ? 'תוצאה סבירה' : 'פרופיל משולב'} · איכות ${cqs.quality.level === 'high' ? 'גבוהה' : cqs.quality.level === 'mid' ? 'סבירה' : 'נמוכה'}</div></div></div>` : '<div class="empty">עדיין אין תוצאת שאלון מרכזי.<br><a href="central.html" style="color:var(--acc)">התחל</a></div>', '#f97316')}
+              ${pn('issues', 'c4', '⚖️', 'סוגיות פתוחות', ['issues.html', 'פתח'], iss.length ? iss.sort((a, b) => (b.severity || 0) - (a.severity || 0)).slice(0, 5).map(i => `<div class="tk"><span class="pr" style="background:${(i.severity || 0) >= 4 ? '#f87171' : (i.severity || 0) >= 3 ? '#fbbf24' : '#64748b'}"></span><span class="tt">${esc(i.title)}</span><span class="d">${i.status === 'handling' ? 'בטיפול' : 'פתוחה'}</span></div>`).join('') + (iss.length > 5 ? `<div class="sm mut center">ועוד ${iss.length - 5}…</div>` : '') : '<div class="empty">אין סוגיות פתוחות. 👌</div>', '#f87171')}
+            </div>`;
+            $('app').innerHTML = html;
+        }
+        function tick(id) { G.tasks.toggle(id); setTimeout(render, 350); }
+        function cfgHtml() { return `<b style="font-size:12px">אילו פאנלים להציג</b><div style="margin:6px 0">${PANELS.map(p => `<label><input type="checkbox" ${on(p[0]) ? 'checked' : ''} onchange="togglePanel('${p[0]}')"> ${p[1]}</label>`).join('')}</div><b style="font-size:12px">רענון אוטומטי:</b> ${[5, 15, 30, 60].map(n => `<button class="bt ${prefs.every === n ? 'on' : ''}" onclick="setEvery(${n})">${n} שנ'</button>`).join(' ')}`; }
+        function toggleCfg() { showCfg = !showCfg; $('cfg').className = 'cfg' + (showCfg ? ' on' : ''); $('cfg').innerHTML = showCfg ? cfgHtml() : ''; $('bCfg').className = 'bt' + (showCfg ? ' on' : ''); }
+        function togglePanel(id) { prefs.off = on(id) ? prefs.off.concat([id]) : prefs.off.filter(x => x !== id); savePrefs(); render(); }
+        function setEvery(n) { prefs.every = n; savePrefs(); schedule(); $('cfg').innerHTML = cfgHtml(); }
+        function togglePause() { paused = !paused; $('bPause').textContent = paused ? '▶ המשך' : '⏸ השהה'; $('bPause').className = 'bt' + (paused ? ' on' : ''); $('pulse').className = 'pulse' + (paused ? ' off' : ''); }
+        function schedule() { clearInterval(timer); timer = setInterval(() => { if (!paused && !document.hidden) render(); }, prefs.every * 1000); }
+        function kiosk() { const b = document.body; b.classList.toggle('tv'); if (b.classList.contains('tv')) { document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().catch(() => { }); } else if (document.fullscreenElement) document.exitFullscreen(); }
+        document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) document.body.classList.remove('tv'); });
+        document.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return; if (e.key === 'r') render(); else if (e.key === 'f') kiosk(); else if (e.key === 'p') togglePause(); });
+        window.addEventListener('DOMContentLoaded', () => { render(); schedule(); setInterval(() => { $('clock').textContent = new Date().toLocaleString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }); }, 20000); });
+        window.addEventListener('storage', () => { if (!paused) render(); });
+    </script>
+</body>
+</html>

@@ -111,6 +111,7 @@
             return issuesCol.save(o);
         },
         allTasks(id) { const x = issuesCol.get(id); if (!x) return []; const seen = new Set(), out = []; liveTasks().forEach(t => { if ((t.issueId === id || t.promiseIds.some(p => x.promiseIds.includes(p))) && !seen.has(t.id)) { seen.add(t.id); out.push(t); } }); return out; },
+        closeOpenTasks(id, reason) { const x = issuesCol.get(id); if (!x) return ERR0('הסוגיה לא נמצאה.'); reason = str(reason, 300); if (reason.length < 10) return ERR0('סגירה ללא השלמה דורשת נימוק של 10 תווים לפחות.'); let n = 0; issues.allTasks(id).filter(t => !t.done).forEach(t => { if (tasks.closeNoCompletion(t.id, 'נסגרה בלי השלמה עם סגירת הסוגיה "' + x.title + '": ' + reason).ok) n++; }); return { ok: true, n }; },
         progress(id) { const ts = issues.allTasks(id), d = ts.filter(t => t.done).length; return { n: ts.length, done: d, pct: ts.length ? Math.round(d / ts.length * 100) : null }; },
         remove(id) { tasks.all().filter(t => t.issueId === id).forEach(t => { t.issueId = ''; tasksCol.save(t); }); return issuesCol.remove(id); },
         setStatus(id, st) { const x = issuesCol.get(id); if (!x || x.status === 'resolved' || x.status === 'dropped' || !['open', 'handling'].includes(st)) return false; x.status = st; return !!issuesCol.save(x); },
@@ -118,7 +119,7 @@
         resolve(id, note) {
             const x = issuesCol.get(id); if (!x) return ERR0('הסוגיה לא נמצאה.'); if (x.status === 'resolved') return ERR0('הסוגיה כבר נסגרה.'); if (x.status === 'dropped') return ERR0('הסוגיה בוטלה.');
             note = str(note, 400); if (note.length < 10) return ERR0('סגירת סוגיה דורשת תיעוד: מה טופל ואיך (לפחות 10 תווים).');
-            const openT = issues.allTasks(id).filter(t => !t.done).length; if (openT) return ERR0('יש ' + openT + ' משימות פתוחות בסוגיה (כולל משימות של הבטחות מקושרות). השלם אותן או נתק אותן קודם.');
+            tasks.sweepOrphans(); const openT = issues.allTasks(id).filter(t => !t.done).length; if (openT) return ERR0('יש ' + openT + ' משימות פתוחות בסוגיה (כולל משימות של הבטחות מקושרות). השלם אותן, נתק אותן, או סגור אותן ללא השלמה עם נימוק (כפתור בדף הסוגיה).');
             x.status = 'resolved'; x.resolvedAt = localDate(); x.note = note; return issuesCol.save(x) ? { ok: true } : ERR0('השמירה נכשלה.');
         },
         dropEffects(id) {   // תצוגה מקדימה: מה יבוטל איתה (לא משנה דבר)
@@ -168,6 +169,7 @@
         if (!s || typeof s !== 'object') return null;
         return {
             total: (s.total == null || !isFinite(s.total)) ? null : clampInt(s.total, 0, 100, null),
+            base: (s.base == null || !isFinite(s.base)) ? null : clampInt(s.base, 0, 100, null), bonus: (s.bonus == null || !isFinite(s.bonus)) ? 0 : Math.max(0, Math.min(8, Math.round(Number(s.bonus) * 10) / 10)),
             parts: (Array.isArray(s.parts) ? s.parts : []).slice(0, 6).map(p => ({ id: str(p && p.id, 20), v: (p && p.v != null && isFinite(p.v)) ? clampInt(p.v, 0, 100, null) : null, w: clampInt(p && p.w, 0, 100, 0) })),
             promises: (Array.isArray(s.promises) ? s.promises : []).slice(0, 200).map(p => ({ text: str(p && p.text, 300), status: STATUS[p && p.status] ? p.status : 'open', progress: clampInt(p && p.progress, 0, 100, 0), priority: clampInt(p && p.priority, 1, 3, 2), pid: str(p && p.pid, 40), dropReason: str(p && p.dropReason, 300) })),
             pm: str(s.pm, 80), dropped: clampInt(s.dropped, 0, 500, 0)
@@ -427,6 +429,23 @@
             sw += w0 * conf; sum += w0 * conf * v; });
         return sw ? Math.round(sum / sw) : null;
     }
+    // ---------- הישגי הממשלה (מעבר להבטחות ולסוגיות) ----------
+    // הישג שלא היה בהבטחה או בסוגיה: יוזמה, הצלחה לא מתוכננת, טיפול במשבר, שיפור שהושג בפועל. נותן בונוס לציון החודשי:
+    // קטן 1, בינוני 2.5, גדול 4 נקודות, תקרה חודשית 8 נקודות, ולא יותר משלושה הישגים נספרים בשבוע. נדרש תיאור של 15 תווים לפחות ותיעוד "מה השגתי בפועל".
+    // הבונוס מתווסף לציון הבסיס (עד 100) ומוצג בנפרד, כדי שיהיה שקוף מה ציון הבסיס ומה הבונוס.
+    const WIN_KINDS = { beyond: 'מעבר להבטחה (עשיתי יותר ממה שהבטחתי)', unplanned: 'הצלחה לא מתוכננת (הזדמנות שנוצלה)', crisis: 'טיפול במשבר או בעיה שלא הייתה בסוגיות', initiative: 'יוזמה חדשה שהשפיעה בפועל' }, WIN_PTS = { 1: 1, 2: 2.5, 3: 4 }, WIN_CAP = 8, WIN_WEEK = 3;
+    const winsCol = collection('wins', p => { const o = base(p), k = WIN_KINDS[o.kind] ? o.kind : 'beyond', sz = [1, 2, 3].includes(Number(o.size)) ? Number(o.size) : 1; return { id: str(o.id, 40) || uid(), text: str(o.text, 200), kind: k, size: sz, date: dateOr(o.date, localDate()), pid: str(o.pid, 40), proof: str(o.proof, 300), promiseId: str(o.promiseId, 40), issueId: str(o.issueId, 40), created: dateOr(o.created, localDate()) }; });
+    const weekKey = d => { const t = new Date(d + 'T12:00:00Z'), day = (t.getUTCDay() + 6) % 7; t.setUTCDate(t.getUTCDate() - day); return t.toISOString().slice(0, 10); };
+    function winsBonus(mk) {
+        const l = winsCol.all().filter(w => w.date.slice(0, 7) === mk).sort((a, b) => a.date.localeCompare(b.date) || a.created.localeCompare(b.created)), wk = {}; let pts = 0, counted = 0, skipped = 0;
+        l.forEach(w => { const k = weekKey(w.date); wk[k] = (wk[k] || 0) + 1; if (wk[k] > WIN_WEEK) { skipped++; return; } pts += WIN_PTS[w.size]; counted++; });
+        return { pts: Math.min(WIN_CAP, Math.round(pts * 10) / 10), raw: pts, n: l.length, counted, skipped, capped: pts > WIN_CAP, cap: WIN_CAP };
+    }
+    const wins = {
+        KINDS: WIN_KINDS, PTS: WIN_PTS, CAP: WIN_CAP, WEEK: WIN_WEEK, all: () => winsCol.all().sort((a, b) => b.date.localeCompare(a.date)), get: winsCol.get, bonus: winsBonus,
+        add(o) { o = base(o); const text = str(o.text, 200), proof = str(o.proof, 300); if (text.length < 15) return ERR0('תאר את ההישג (לפחות 15 תווים).'); if (proof.length < 15) return ERR0('כתוב מה בפועל הושג ואיך אפשר לראות את זה (לפחות 15 תווים). בלי זה אין בונוס.'); if (!WIN_KINDS[o.kind]) return ERR0('בחר סוג הישג.'); if (![1, 2, 3].includes(Number(o.size))) return ERR0('בחר גודל.'); if (dateOr(o.date, '') > localDate()) return ERR0('אי אפשר לרשום הישג עתידי.'); const r = winsCol.save(Object.assign({}, o, { text, proof })); return r ? { ok: true, win: r } : ERR0('השמירה נכשלה.'); },
+        remove: id => winsCol.remove(id)
+    };
     function score(mk) {
         const all = promises.all().filter(p => p.month === mk), active = all.filter(p => p.status !== 'dropped');
         const PW = { 1: 1, 2: 2, 3: 3 };
@@ -446,8 +465,8 @@
         const nominal = [{ id: 'promises', w: W.promises * k, v: pr }, { id: 'daily', w: W.daily * k, v: dl }, { id: 'self', w: W.self * k, v: self }, { id: 'issues', w: iv != null ? ISSUES_SHARE : 0, v: iv }].concat(lv != null ? [{ id: 'learn', w: LEARN_SHARE, v: lv }] : []);
         const have = nominal.filter(p => p.v != null), tW = have.reduce((a, p) => a + p.w, 0);   // רכיב חסר מוסר והמשקלים מנורמלים מחדש ל-100
         const parts = nominal.map(p => ({ id: p.id, v: p.v, w: p.v != null && tW ? Math.round(p.w / tW * 100) : (p.id === 'issues' ? ISSUES_SHARE : Math.round(p.w)) }));
-        const total = have.some(p => p.id !== 'self') && tW ? Math.round(have.reduce((a, p) => a + p.w * p.v, 0) / tW) : null;
-        return { total, parts, promisesN: active.length, droppedN: all.length - active.length, allN: all.length, doneN: active.filter(p => p.status === 'done').length, dailyDays: days, dailyPlanned: planned, dailyDone: doneN, min: { promises: MIN_PROMISES, daily: MIN_DAILY_DAYS } };
+        const baseTotal = have.some(p => p.id !== 'self') && tW ? Math.round(have.reduce((a, p) => a + p.w * p.v, 0) / tW) : null, wb = winsBonus(mk), total = baseTotal != null ? Math.min(100, Math.round(baseTotal + wb.pts)) : null;
+        return { total, baseTotal, bonus: baseTotal != null ? Math.min(wb.pts, 100 - baseTotal) : 0, wins: wb, parts, promisesN: active.length, droppedN: all.length - active.length, allN: all.length, doneN: active.filter(p => p.status === 'done').length, dailyDays: days, dailyPlanned: planned, dailyDone: doneN, min: { promises: MIN_PROMISES, daily: MIN_DAILY_DAYS } };
     }
 
     // ---------- נעילה (שער סיסמה בצד הלקוח בלבד: אינו הצפנה) ----------
@@ -513,6 +532,17 @@
     const syncAll = (...lists) => [...new Set([].concat(...lists))].forEach(syncPromise);
     const tasks = {
         all: liveTasks, get: tasksCol.get, cancelled: () => tasksCol.all().filter(t => t.cancelled),
+        // סגירה בלי השלמה, עם נימוק: המשימה נשמרת בהיסטוריה כ"בוטלה", לא נספרת כביצוע ולא כהחמצה (רק משימה שבוצעה נספרת)
+        closeNoCompletion(id, reason) { const t = tasksCol.get(id); if (!t || t.done || t.cancelled) return ERR0('אפשר לסגור ללא השלמה רק משימה פתוחה.'); reason = str(reason, 300); if (reason.length < 10) return ERR0('סגירה ללא השלמה דורשת נימוק של 10 תווים לפחות.'); t.cancelled = true; t.cancelledAt = localDate(); t.cancelReason = reason; t.cancelRef = 'manual'; return tasksCol.save(t) ? { ok: true } : ERR0('השמירה נכשלה.'); },
+        // סוגיה או הבטחה שבוטלו בנימוק לא משאירות משימות פתוחות יתומות: משימה פתוחה שכל השיוכים שלה בוטלו נסגרת אוטומטית בלי השלמה, עם הנימוק של הביטול. מופעל בטעינה ובסגירת סוגיה. משימה שיש לה שיוך פעיל נשארת
+        sweepOrphans() {
+            let n = 0; tasksCol.all().forEach(t => {
+                if (t.done || t.cancelled) return; const ps = (t.promiseIds || []).map(id => promises.get(id)).filter(Boolean), is = t.issueId ? issuesCol.get(t.issueId) : null; if (!ps.length && !is) return;
+                if (ps.some(p => p.status !== 'dropped') || (is && is.status !== 'dropped')) return;
+                const dp = ps[0], src = is || dp, why = is ? 'הסוגיה "' + is.title + '"' : 'ההבטחה "' + dp.text + '"', rs = (src.dropReason || '').slice(0, 140);
+                t.cancelled = true; t.cancelledAt = localDate(); t.cancelReason = str('נסגרה בלי השלמה: ' + why + ' בוטלה בנימוק' + (rs ? ': ' + rs : '') + '.', 300); t.cancelRef = (is ? 'issue:' + is.id : 'promise:' + dp.id); tasksCol.save(t); n++;
+            }); return n;
+        },
         save(item) {
             const ex = item && item.id ? tasksCol.get(item.id) : null, o = Object.assign({}, item);
             if (o.mode === 'by') { if (!DATE_RE.test(o.due || '')) return null; const from = DATE_RE.test(o.from || '') ? o.from : ((ex && ex.from) || localDate()); if (from > o.due) return null; o.from = from; }
@@ -722,6 +752,7 @@
     function historyItems() {   // כל מה שהושלם/הוכרע: לא נעלם, עובר להיסטוריה
         const out = [], eom = m => m + '-' + pad(daysInMonth(m));
         tasksCol.all().filter(t => t.done && !t.cancelled).forEach(t => out.push({ kind: 'task', id: t.id, text: t.text, at: t.doneAt || t.created, pid: t.pid || ((promises.get(t.promiseId) || {}).pid) || '', ref: t.promiseId || t.issueId || t.treatyId || '' }));
+        winsCol.all().forEach(w => out.push({ kind: 'win', id: w.id, text: w.text, at: w.date, status: 'done', note: w.proof, pid: w.pid, ref: w.promiseId || w.issueId || '' }));
         tasksCol.all().filter(t => t.cancelled).forEach(t => out.push({ kind: 'task', id: t.id, text: t.text, at: t.cancelledAt || t.created, status: 'cancelled', note: t.cancelReason, pid: t.pid || ((promises.get(t.promiseId) || {}).pid) || '', ref: t.promiseId || t.issueId || '' }));
         wishCol.all().filter(w => w.done).forEach(w => out.push({ kind: 'wish', id: w.id, text: w.text, at: w.doneAt || w.created, note: w.cat }));
         promises.all().filter(p => ['done', 'failed', 'dropped'].includes(p.status)).forEach(p => out.push({ kind: 'promise', id: p.id, text: p.text, at: p.doneAt || eom(p.month), pid: p.pid, status: p.status, note: p.dropReason, rating: p.status === 'dropped' ? lastPm(p) : null }));
@@ -1005,7 +1036,7 @@
         tDone.forEach(t => bump(tp(t), 'tasks')); pDone.forEach(p => bump(p.pid, 'promises')); iRes.forEach(i => bump(i.pid, 'issues')); stages.forEach(x => bump(x.op.pid, 'stages'));
         const hl = [].concat(pDone.map(p => ({ kind: 'promise', text: p.text, at: p.doneAt })), oDone.map(o => ({ kind: 'op', text: o.title, at: o.doneAt })), stages.map(x => ({ kind: 'stage', text: x.op.title + ' › ' + x.s.text, at: x.s.doneAt })),
             iRes.map(i => ({ kind: 'issue', text: i.title, at: i.resolvedAt })), wDone.map(w => ({ kind: 'wish', text: w.text, at: w.doneAt }))).sort((a, b) => b.at.localeCompare(a.at));
-        return { from, to, counts: { tasks: tDone.length, tasksCancelled: tCanc.length, promises: pDone.length, promisesDropped: pDrop.length, issues: iRes.length, issuesDropped: iDrop.length, stages: stages.length, ops: oDone.length, ideas: id.length, adopted: id.filter(i => i.status === 'adopted').length, decisions: dc.length, wish: wDone.length, mins, dailyPlanned: dPlan, dailyDone: dDone, routinesPlanned: rPlan, routinesDone: rDone },
+        const winsR = winsCol.all().filter(w => inR(w.date)); return { from, to, wins: winsR, counts: { wins: winsR.length, tasks: tDone.length, tasksCancelled: tCanc.length, promises: pDone.length, promisesDropped: pDrop.length, issues: iRes.length, issuesDropped: iDrop.length, stages: stages.length, ops: oDone.length, ideas: id.length, adopted: id.filter(i => i.status === 'adopted').length, decisions: dc.length, wish: wDone.length, mins, dailyPlanned: dPlan, dailyDone: dDone, routinesPlanned: rPlan, routinesDone: rDone },
             byPortfolio: byP, highlights: hl.slice(0, 15) };
     }
     function progressSummary(mk) {
@@ -1064,5 +1095,6 @@
             + `<text x="50%" y="${o.label ? '47%' : '50%'}" text-anchor="middle" dominant-baseline="central" fill="#f8fafc" font-weight="800" font-size="${fs}" font-family="Rubik,sans-serif">${p}<tspan font-size="${Math.round(fs * 0.6)}">%</tspan></text>`
             + (o.label ? `<text x="50%" y="70%" text-anchor="middle" dominant-baseline="central" fill="#94a3b8" font-size="${Math.round(size * 0.13)}" font-family="Rubik,sans-serif">${esc(o.label)}</text>` : '') + `</svg>`;
     }
-    window.GOV = { VERSION: '0.19.0', esc, uid, pad, localDate, monthOf, addDays, addMonths, monthLabel, daysInMonth, HEB_MONTHS, DATE_RE, MONTH_RE, STATUS, PRIORITY, gradeFor, portfolios: Object.assign({}, portfolios, { save(p) { const r = portfolios.save(p); ministers.ensure(); return r; }, remove(id) { const r = portfolios.remove(id); ministers.ensure(); return r; } }), promises, ideas, daily, term, review, profile, score, lock, exportAll, importAll, rd, wr, TREATY_STATUS, PARTY_KIND, LEVEL, DECISION_STATUS, treaties, decisions, impactItem, optionImpact, nl, gauge, critStatus, wish, DROP_SCALE, dropStats, HORIZON, historyItems, pmProfile, tasks, routines, dayItems, issues: issues, ISSUE_STATUS, events, timelog, ministers, difficulty, history, METHODS, DOW, dowOf, cleanDays, people, relEvents, REL, closeness, contactStatus, relationAlerts, treatyTimeline, SECRET_KEYS, ops, caps, careers, langs, quiz, learnScore, LEARN_SHARE, DROP_CATS, DROP_MIN, progressRange, progressSummary };
+    try { tasks.sweepOrphans(); } catch (e) { /* לא חוסם טעינה */ }
+    window.GOV = { wins, VERSION: '0.20.0', esc, uid, pad, localDate, monthOf, addDays, addMonths, monthLabel, daysInMonth, HEB_MONTHS, DATE_RE, MONTH_RE, STATUS, PRIORITY, gradeFor, portfolios: Object.assign({}, portfolios, { save(p) { const r = portfolios.save(p); ministers.ensure(); return r; }, remove(id) { const r = portfolios.remove(id); ministers.ensure(); return r; } }), promises, ideas, daily, term, review, profile, score, lock, exportAll, importAll, rd, wr, TREATY_STATUS, PARTY_KIND, LEVEL, DECISION_STATUS, treaties, decisions, impactItem, optionImpact, nl, gauge, critStatus, wish, DROP_SCALE, dropStats, HORIZON, historyItems, pmProfile, tasks, routines, dayItems, issues: issues, ISSUE_STATUS, events, timelog, ministers, difficulty, history, METHODS, DOW, dowOf, cleanDays, people, relEvents, REL, closeness, contactStatus, relationAlerts, treatyTimeline, SECRET_KEYS, ops, caps, careers, langs, quiz, learnScore, LEARN_SHARE, DROP_CATS, DROP_MIN, progressRange, progressSummary };
 })();

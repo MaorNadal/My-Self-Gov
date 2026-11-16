@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>הישגי הממשלה - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .sz { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1px solid #334155; background: #0f172a; font-size: 12px; } .sz.on { border-color: #34d399; background: #064e3b; color: #fff; font-weight: 700; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+    <script src="gov-core.js?v=0.20.0"></script>
+    <script src="gov-nav.js?v=0.20.0"></script>
+    <header class="max-w-4xl mx-auto px-4 pt-6 pb-2 text-center">
+        <h1 class="text-3xl font-black text-white">🏆 הישגי הממשלה</h1>
+        <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">דברים שהממשלה השיגה מעבר להבטחות ולסוגיות: יוזמות, הזדמנויות שנוצלו, משברים שטופלו. הם מתווספים לציון כבונוס שקוף ומוגבל.</p>
+    </header>
+    <main class="max-w-4xl mx-auto px-4 mt-4 space-y-3"><div id="app"></div></main>
+    <script>
+        const G = GOV, W = G.wins, esc = G.esc, $ = id => document.getElementById(id); let size = 1, msg = '', month = G.monthOf(G.localDate());
+        const SZ = { 1: ['קטן', 'שיפור קטן או הצלחה נקודתית'], 2: ['בינוני', 'השפעה ברורה על חיים או עבודה'], 3: ['גדול', 'שינוי משמעותי שנשאר'] };
+        function render() {
+            const b = W.bonus(month), sc = G.score(month), l = W.all(), pf = (G.portfolios && G.portfolios.all) ? G.portfolios.all() : [];
+            $('app').innerHTML = `<div class="g-card"><div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+                    <div class="bg-slate-900/70 border border-slate-700 rounded-xl p-2"><div class="text-2xl font-black text-emerald-300">+${b.pts}</div><div class="text-[11px] text-slate-400">נקודות בונוס החודש (עד ${b.cap})</div></div>
+                    <div class="bg-slate-900/70 border border-slate-700 rounded-xl p-2"><div class="text-2xl font-black">${b.n}</div><div class="text-[11px] text-slate-400">הישגים החודש (${b.counted} נספרו)</div></div>
+                    <div class="bg-slate-900/70 border border-slate-700 rounded-xl p-2"><div class="text-2xl font-black">${sc.baseTotal != null ? sc.baseTotal : '—'}</div><div class="text-[11px] text-slate-400">ציון בסיס</div></div>
+                    <div class="bg-slate-900/70 border border-slate-700 rounded-xl p-2"><div class="text-2xl font-black text-amber-300">${sc.total != null ? sc.total : '—'}</div><div class="text-[11px] text-slate-400">ציון כולל עם בונוס</div></div></div>
+                <p class="text-[11px] text-slate-400 mt-2 leading-relaxed">כללים: קטן 1 נקודה, בינוני 2.5, גדול 4. תקרה של ${b.cap} נקודות בחודש, ולא יותר מ-${W.WEEK} הישגים נספרים בשבוע. חובה לתאר מה בפועל הושג. ${b.skipped ? '<b class="text-amber-300">' + b.skipped + ' הישגים לא נספרו החודש בגלל מגבלת השבוע.</b>' : ''} ${b.capped ? '<b class="text-amber-300">הגעת לתקרת הבונוס.</b>' : ''}</p></div>
+              <div class="g-card"><h2 class="font-bold text-white mb-2">➕ הישג חדש</h2>
+                <label class="g-lab">מה השגת?<input id="wt" class="g-inp" maxlength="200" placeholder="למשל: הצעתי ויישמתי שיטה חדשה שחסכה לי שעה ביום"></label>
+                <label class="g-lab mt-2">מה בפועל הושג ואיך אפשר לראות את זה? (הוכחה)<textarea id="wp" class="g-inp" rows="2" maxlength="300" placeholder="מספרים, תוצאה, מי הרוויח, מה השתנה"></textarea></label>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2"><label class="g-lab">סוג<select id="wk" class="g-inp">${Object.entries(W.KINDS).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select></label>
+                  <label class="g-lab">תאריך<input id="wd" type="date" class="g-inp" value="${G.localDate()}" max="${G.localDate()}"></label>
+                  <label class="g-lab">תיק (אופציונלי)<select id="wf" class="g-inp"><option value="">ללא</option>${pf.map(p => `<option value="${esc(p.id)}">${esc(p.name || p.title || p.id)}</option>`).join('')}</select></label></div>
+                <div class="mt-2 text-xs text-slate-300">גודל</div><div class="flex gap-2 mt-1">${[1, 2, 3].map(n => `<button class="sz ${size === n ? 'on' : ''}" onclick="size=${n};render()">${SZ[n][0]}<div class="text-[10px] font-normal text-slate-400">${SZ[n][1]} · +${W.PTS[n]}</div></button>`).join('')}</div>
+                <button class="g-btn pri mt-3" onclick="add()">🏆 הוסף הישג</button>${msg ? '<span class="text-xs text-rose-300 mr-2">' + esc(msg) + '</span>' : ''}
+                <p class="text-[11px] text-amber-300 mt-2">⚖️ אתה גם השופט וגם הנשפט, ולכן יש תקרה, מגבלה שבועית וחובת הוכחה. אם קשה להסביר מה השתנה בפועל, כנראה זה לא הישג.</p></div>
+              <div class="g-card"><h2 class="font-bold text-white mb-2">📜 כל ההישגים (${l.length})</h2>${l.length ? l.map(w => `<div class="flex items-start gap-2 text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-2 mb-1"><span class="text-lg">🏆</span><div class="flex-1"><div><b class="text-white">${esc(w.text)}</b> <span class="text-emerald-300">${SZ[w.size][0]} · +${W.PTS[w.size]}</span></div><div class="text-slate-400">${esc(W.KINDS[w.kind])} · ${esc(w.date)}</div><div class="text-slate-300 mt-0.5">הוכחה: ${esc(w.proof)}</div></div><button class="text-rose-400" onclick="del('${esc(w.id)}')">✕</button></div>`).join('') : '<div class="text-sm text-slate-400 text-center py-3">עדיין אין הישגים. מה השגת השבוע שלא היה בתוכנית?</div>'}</div>`;
+        }
+        function add() { const r = W.add({ text: $('wt').value, proof: $('wp').value, kind: $('wk').value, date: $('wd').value, pid: $('wf').value, size }); if (!r.ok) { msg = r.error; render(); return; } msg = ''; size = 1; month = G.monthOf(r.win.date) === G.monthOf(G.localDate()) ? month : month; render(); }
+        function del(id) { if (confirm('למחוק את ההישג?')) { W.remove(id); render(); } }
+        window.addEventListener('DOMContentLoaded', render);
+    </script>
+</body>
+</html>

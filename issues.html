@@ -11,8 +11,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.19.0"></script>
-    <script src="gov-nav.js?v=0.19.0"></script>
+    <script src="gov-core.js?v=0.20.0"></script>
+    <script src="gov-nav.js?v=0.20.0"></script>
     <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
         <h1 class="text-3xl font-black text-white">🔥 סוגיות על הפרק</h1>
         <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">סוגיה עולה על הפרק, מסומנת לפי חומרה, מקושרת להבטחות ולמשימות שמטפלות בה, ונסגרת רק בתיעוד מה טופל ואיך, ורק אחרי שהמשימות המקושרות הושלמו.</p>
@@ -86,7 +86,17 @@
         function addT() { const t = $('tk').value.trim(); if (t.length < 2) { alert('נסח את המשימה (לפחות 2 תווים).'); return; } const i = G.issues.get(sel); G.tasks.save({ text: t, issueId: sel, pid: i.pid, due: $('td').value }); render(); }
         function togT(id) { G.tasks.toggle(id); render(); }
         function delT(id) { if (confirm('למחוק את המשימה?')) { G.tasks.remove(id); render(); } }
-        function resolve() { const r = G.issues.resolve(sel, $('rN').value); if (!r.ok) { alert(r.error); return; } render(); }
+        function resolve() {
+            let r = G.issues.resolve(sel, $('rN').value);
+            if (!r.ok && G.issues.allTasks(sel).some(t => !t.done) && $('rN').value.trim().length >= 10) {
+                const n = G.issues.allTasks(sel).filter(t => !t.done).length;
+                if (confirm('יש ' + n + ' משימות פתוחות בסוגיה. לסגור אותן ללא השלמה (בהיסטוריה, בלי להיספר כביצוע או כהחמצה) ולסגור את הסוגיה?')) {
+                    const why = prompt('נימוק לסגירת המשימות ללא השלמה (10 תווים לפחות):', $('rN').value.trim().slice(0, 120)); if (why === null) return;
+                    const c = G.issues.closeOpenTasks(sel, why); if (!c.ok) { alert(c.error); return; } r = G.issues.resolve(sel, $('rN').value);
+                } else return;
+            }
+            if (!r.ok) { alert(r.error); return; } render();
+        }
         function delI() { if (confirm('למחוק את הסוגיה לגמרי? מחיקה היא הדרך היחידה שבה סוגיה לא נשמרת בהיסטוריה, ומיועדת לסוגיה שנפתחה בטעות. אם הסוגיה כבר לא רלוונטית, עדיף לבטל אותה בנימוק. (משימות מקושרות יישארו ללא סוגיה)')) { G.issues.remove(sel); sel = null; history.replaceState(null, '', location.pathname); render(); } }
         function render() { renderList(); renderDetail(); }
         window.addEventListener('DOMContentLoaded', render); window.addEventListener('storage', render);

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מעקב הוצאות - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+    <script src="gov-core.js?v=0.20.0"></script>
+    <script src="gov-nav.js?v=0.20.0"></script>
+    <script src="gov-viz.js?v=0.20.0"></script>
+    <script src="gov-money.js?v=0.20.0"></script>
+    <header class="max-w-5xl mx-auto px-4 pt-6 pb-2 text-center">
+        <h1 class="text-3xl font-black text-white">💰 מעקב הוצאות חודשי</h1>
+        <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">רישום הוצאות, תקציב לפי קטגוריה, קצב מול תקציב. הוצאות מנסיעה לחו"ל מופיעות כאן אוטומטית.</p>
+    </header>
+    <main class="max-w-5xl mx-auto px-4 mt-4"><div id="app"></div></main>
+    <script>
+        const G = GOV, M = GOV_MONEY.money, V = GOV_VIZ, esc = G.esc, $ = id => document.getElementById(id), fmt = n => Math.round(n).toLocaleString('he-IL'); let mk = G.monthOf(G.localDate()), msg = '', edit = false;
+        function render() {
+            const s = M.summary(mk), es = M.month(mk), parts = Object.keys(M.CATS).map(k => ({ l: M.CATS[k][1], v: s.by[k], c: V.PAL[Object.keys(M.CATS).indexOf(k)] })).filter(p => p.v > 0), pct = s.budget ? Math.round(s.spent / s.budget * 100) : null;
+            const bud = s.budgets;
+            $('app').innerHTML = `<div class="flex items-center justify-center gap-3 mb-3"><button class="g-btn" onclick="mv(-1)">→</button><div class="font-bold">${esc(G.monthLabel(mk))}</div><button class="g-btn" onclick="mv(1)">←</button></div>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+                <div class="g-card"><div class="text-2xl font-black text-white">₪${fmt(s.spent)}</div><div class="text-[11px] text-slate-400">הוצאות החודש</div></div>
+                <div class="g-card"><div class="text-2xl font-black ${s.remaining != null && s.remaining < 0 ? 'text-rose-400' : 'text-emerald-300'}">${s.remaining != null ? '₪' + fmt(s.remaining) : '—'}</div><div class="text-[11px] text-slate-400">${s.budget ? 'נשאר מתוך ₪' + fmt(s.budget) : 'לא הוגדר תקציב'}</div></div>
+                <div class="g-card"><div class="text-2xl font-black text-amber-300">₪${fmt(s.daily)}</div><div class="text-[11px] text-slate-400">ממוצע ליום</div></div>
+                <div class="g-card"><div class="text-2xl font-black ${s.over ? 'text-rose-400' : 'text-white'}">₪${fmt(s.pace)}</div><div class="text-[11px] text-slate-400">צפי לסוף החודש בקצב הזה${s.over ? ' (חורג!)' : ''}</div></div></div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                <div class="g-card"><h2 class="font-bold text-sm mb-2">🍩 לפי קטגוריה</h2><div class="flex flex-col items-center">${V.donut(parts, { size: 190, center: '₪' + fmt(s.spent), sub: s.n + ' רישומים' })}</div><div class="mt-2 space-y-0.5 text-[11px]">${parts.sort((a, b) => b.v - a.v).map(p => `<div class="flex justify-between"><span><span style="color:${p.c}">●</span> ${esc(p.l)}</span><span>₪${fmt(p.v)} · ${Math.round(p.v / s.spent * 100)}%</span></div>`).join('') || '<div class="text-slate-500 text-center">אין הוצאות החודש.</div>'}</div></div>
+                <div class="g-card"><h2 class="font-bold text-sm mb-2">📈 הוצאה מצטברת מול תקציב</h2>${V.line([{ v: s.cum, c: '#fbbf24', l: 'בפועל' }].concat(s.budget ? [{ v: Array.from({ length: s.dim }, (x, i) => Math.round(s.budget * (i + 1) / s.dim)), c: '#64748b', dash: true, l: 'קצב תקציב' }] : []), { h: 150, max: s.budget || 0 })}<div class="text-[11px] text-slate-400 mt-1"><span style="color:#fbbf24">━</span> בפועל ${s.budget ? ' · <span style="color:#64748b">┅</span> קצב התקציב' : ''}</div>
+                  ${pct != null ? `<div class="mt-3">${V.bars([{ l: 'ניצול תקציב חודשי', v: pct, max: 100, c: pct > 100 ? '#f87171' : pct > 85 ? '#fbbf24' : '#22c55e', t: pct + '%' }])}</div>` : ''}
+                  ${s.tripSpent ? `<div class="text-[11px] text-sky-300 mt-2">✈️ ₪${fmt(s.tripSpent)} מהחודש הם הוצאות נסיעה (מסונכרן מדף הנסיעה).</div>` : ''}</div></div>
+              <div class="g-card mt-3"><h2 class="font-bold text-sm mb-2">➕ הוצאה חדשה</h2>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-2"><label class="g-lab">סכום (₪)<input id="ma" type="number" min="0" step="0.01" inputmode="decimal" class="g-inp"></label>
+                  <label class="g-lab">קטגוריה<select id="mc" class="g-inp">${Object.entries(M.CATS).filter(([k]) => k !== 'trip').map(([k, v]) => `<option value="${k}">${v[0]} ${esc(v[1])}</option>`).join('')}</select></label>
+                  <label class="g-lab">תאריך<input id="md" type="date" class="g-inp" value="${mk === G.monthOf(G.localDate()) ? G.localDate() : mk + '-01'}"></label>
+                  <label class="g-lab md:col-span-2">הערה<input id="mn" class="g-inp" maxlength="120" placeholder="אופציונלי"></label></div>
+                <button class="g-btn pri mt-2" onclick="add()">הוסף</button>${msg ? '<span class="text-xs text-rose-300 mr-2">' + esc(msg) + '</span>' : ''}</div>
+              <div class="g-card mt-3"><div class="flex items-center justify-between mb-2"><h2 class="font-bold text-sm">🎯 תקציב</h2><button class="g-btn" onclick="edit=!edit;render()">${edit ? 'סגור' : 'ערוך תקציב'}</button></div>
+                ${edit ? `<div class="grid grid-cols-2 md:grid-cols-4 gap-2"><label class="g-lab">סה"כ חודשי (₪)<input id="bt" type="number" min="0" class="g-inp" value="${M.total() || ''}"></label>${Object.entries(M.CATS).map(([k, v]) => `<label class="g-lab">${v[0]} ${esc(v[1])}<input data-b="${k}" type="number" min="0" class="g-inp" value="${bud[k] || ''}"></label>`).join('')}</div><button class="g-btn pri mt-2" onclick="saveB()">שמור תקציב</button><div class="text-[11px] text-slate-500 mt-1">אם לא תזין סכום כולל, הוא יחושב מסכום הקטגוריות.</div>`
+                : (Object.keys(bud).length ? V.bars(Object.keys(bud).map(k => ({ l: M.CATS[k][0] + ' ' + M.CATS[k][1], v: s.by[k], max: bud[k], t: '₪' + fmt(s.by[k]) + ' / ₪' + fmt(bud[k]), c: s.by[k] > bud[k] ? '#f87171' : '#22c55e' }))) : '<div class="text-xs text-slate-500">לא הוגדר תקציב לפי קטגוריה.</div>')}</div>
+              <div class="g-card mt-3"><div class="flex items-center justify-between mb-2"><h2 class="font-bold text-sm">🧾 רישומים (${es.length})</h2><button class="g-btn" onclick="csv()">⬇️ CSV</button></div>
+                ${es.length ? es.map(e => `<div class="flex items-center gap-2 text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1.5 mb-1"><span>${e.tripId ? '✈️' : M.CATS[e.cat][0]}</span><span class="w-20 text-slate-500 shrink-0">${esc(e.date)}</span><span class="flex-1">${esc(e.tripId ? (e.tcat ? M.TCATS[e.tcat][1] : '') : M.CATS[e.cat][1])}${e.note ? ' · ' + esc(e.note) : ''}${e.orig ? ' <span class="text-slate-500">(' + e.orig.amt + ' ' + esc(e.orig.cur) + ')</span>' : ''}</span><b>₪${fmt(e.amount)}</b>${e.tripId ? '' : `<button class="text-rose-400" onclick="del('${esc(e.id)}')">✕</button>`}</div>`).join('') : '<div class="text-sm text-slate-400 text-center py-3">אין רישומים בחודש הזה.</div>'}
+                <div class="text-[10px] text-slate-500 mt-1">הוצאות נסיעה נמחקות מדף הנסיעה.</div></div>`;
+        }
+        function mv(d) { mk = G.addMonths(mk, d); render(); }
+        function add() { const r = M.add({ amount: $('ma').value, cat: $('mc').value, date: $('md').value, note: $('mn').value }); msg = r.ok ? '' : r.error; render(); }
+        function del(id) { if (confirm('למחוק את ההוצאה?')) { M.remove(id); render(); } }
+        function saveB() { const b = {}; document.querySelectorAll('[data-b]').forEach(i => { if (i.value) b[i.dataset.b] = i.value; }); M.setBudgets(b, $('bt').value); edit = false; render(); }
+        function csv() { const blob = new Blob([M.csv(mk)], { type: 'text/csv;charset=utf-8' }), a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'expenses-' + mk + '.csv'; a.click(); }
+        window.addEventListener('DOMContentLoaded', render); window.addEventListener('storage', render);
+    </script>
+</body>
+</html>

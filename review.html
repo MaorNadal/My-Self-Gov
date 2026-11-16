@@ -12,8 +12,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.19.0"></script>
-    <script src="gov-nav.js?v=0.19.0"></script>
+    <script src="gov-core.js?v=0.20.0"></script>
+    <script src="gov-nav.js?v=0.20.0"></script>
 
     <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
         <h1 class="text-3xl font-black text-white">📊 ציון הממשלה</h1>
@@ -88,7 +88,7 @@
             if (!confirm(msg)) return;
             const rv = readForm(), sc = (G.review.set(mk, rv), G.score(mk)), t = G.term.get(mk);
             rv.closed = true; rv.closedAt = NOW;
-            rv.snapshot = { total: sc.total, parts: sc.parts.map(p => ({ id: p.id, v: p.v, w: p.w })), pm: t ? (t.name || 'אני') : '', dropped: sc.droppedN, promises: G.promises.all().filter(p => p.month === mk).map(p => ({ text: p.text, status: p.status, progress: p.progress, priority: p.priority, pid: p.pid, dropReason: p.dropReason })) };
+            rv.snapshot = { total: sc.total, base: sc.baseTotal, bonus: sc.bonus, parts: sc.parts.map(p => ({ id: p.id, v: p.v, w: p.w })), pm: t ? (t.name || 'אני') : '', dropped: sc.droppedN, promises: G.promises.all().filter(p => p.month === mk).map(p => ({ text: p.text, status: p.status, progress: p.progress, priority: p.priority, pid: p.pid, dropReason: p.dropReason })) };
             G.review.set(mk, rv); render();
         }
         function reopen() { if (!confirm('לפתוח את החודש מחדש? הציון המוקפא יימחק ויחושב מחדש. פתיחות חוזרות פוגעות באמינות ההיסטוריה.')) return; const rv = G.review.get(mk); rv.closed = false; rv.closedAt = ''; rv.snapshot = null; G.review.set(mk, rv); render(); }

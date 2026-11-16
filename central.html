@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>השאלון המרכזי ליסודות - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .cq-fade { animation: cqf .4s ease both; } @keyframes cqf { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+        .cq-opt { display: flex; align-items: center; gap: 8px; width: 100%; text-align: right; padding: 12px; border-radius: 12px; border: 2px solid #334155; background: #0f172a; color: #e2e8f0; transition: .12s; font-size: 14px; }
+        .cq-opt:hover { border-color: #fbbf24; } .cq-opt.on { border-color: #fbbf24; background: #422006; }
+        .cq-pm { flex: none; font-size: 11px; padding: 4px 8px; border-radius: 8px; border: 1px solid #475569; background: #1e293b; color: #cbd5e1; }
+        .cq-pm.most { background: #14532d; border-color: #22c55e; color: #fff; } .cq-pm.least { background: #7f1d1d; border-color: #f87171; color: #fff; }
+        .cq-lk { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+        .cq-lk button { padding: 11px 0; border-radius: 10px; border: 1px solid #334155; background: #0f172a; color: #cbd5e1; font-size: 15px; transition: .12s; }
+        .cq-lk button:hover { border-color: #fbbf24; } .cq-lk button.on { background: #fbbf24; color: #0f172a; border-color: #fbbf24; font-weight: 800; }
+        .cq-bar { height: 10px; border-radius: 6px; background: #1e293b; position: relative; overflow: hidden; } .cq-bar > i { position: absolute; top: 0; bottom: 0; right: 0; border-radius: 6px; transition: width .8s cubic-bezier(.2, .8, .2, 1); }
+        @media print { header, nav, .no-print { display: none !important; } body { background: #fff; color: #000; } }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
+    <script src="gov-core.js?v=0.20.0"></script>
+    <script src="gov-nav.js?v=0.20.0"></script>
+    <script src="gov-scen.js?v=0.20.0"></script>
+    <script src="gov-cq-data.js?v=0.20.0"></script>
+    <script src="gov-cq.js?v=0.20.0"></script>
+    <header class="max-w-4xl mx-auto px-4 pt-6 pb-2 text-center">
+        <h1 class="text-3xl font-black text-white">🎯 השאלון המרכזי ליסודות</h1>
+        <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">שאלון רב-שיטתי שמבחין בין עיקר לטפל: חמש שיטות שונות מצטלבות, ויש בדיקות אמינות על התשובות שלך.</p>
+    </header>
+    <main class="max-w-4xl mx-auto px-4 mt-4"><div id="app"></div></main>
+    <script>
+        const G = GOV, Q = GOV_CQ, esc = G.esc, $ = id => document.getElementById(id), EK = Q.EK, C = { fire: '#f97316', water: '#38bdf8', earth: '#84cc16', air: '#a78bfa' };
+        let view = 'home', sel = null, shown = 0, bw = { m: null, l: null }, msg = '', pending = null;
+        const LAB = { freq: ['אף פעם', 'לעיתים רחוקות', 'לפעמים', 'לעיתים קרובות', 'כמעט תמיד'], agree: ['בכלל לא', 'לא ממש', 'באמצע', 'כן בערך', 'בהחלט כן'] };
+        const INTRO = {
+            bws: ['בחר הכי / הכי פחות', 'בכל מסך 4 משפטים. סמן את המשפט שהכי מתאר אותך (✔) ואת זה שהכי פחות מתאר אותך (✖). אי אפשר לבחור את כולם כ"טובים", ולכן זו שיטה שקשה "לייפות" בה.'],
+            frq: ['תדירות התנהגות', 'כמה פעמים זה קרה לך ב-3 החודשים האחרונים? לא איך היית רוצה להיות, אלא מה באמת עשית. חלק מההיגדים הפוכים בכוונה.'],
+            prs: ['הכרעה בין שני מצבים', 'שני משפטים: בחר את מה שיותר דומה לך. אם שניהם באותה מידה, יש כפתור לכך.'],
+            frm: ['רגיל מול לחץ', 'דרג כל משפט פעמיים: איך זה בימים רגילים, ואיך זה כשאתה תחת לחץ גדול. כך רואים איך הפרופיל משתנה בלחץ.'],
+            sjt: ['תרחישים', 'מצב מהחיים וארבע תגובות. בחר את מה שהכי מתאר מה שאתה עושה בפועל.'],
+            sd: ['עוד כמה משפטים', 'השב בכנות. אחדים מהמשפטים הבאים נועדו לבדוק עקביות.']
+        };
+        const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+        function set(v, id) { view = v; if (id !== undefined) sel = id; msg = ''; bw = { m: null, l: null }; render(); window.scrollTo(0, 0); }
+        function render() { const a = $('app'); a.innerHTML = '<div class="cq-fade">' + (view === 'home' ? home() : view === 'run' ? run() : result()) + '</div>'; shown = Date.now(); }
+        // ---------- בית ----------
+        function home() {
+            const l = Q.all().sort((a, b) => (b.created + b.id).localeCompare(a.created + a.id)), prog = l.filter(a => !a.done && !a.doneAt), done = l.filter(a => Q.usable(a));
+            return `<div class="g-card"><h2 class="font-bold text-white mb-2">איך זה עובד</h2><div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-300">
+                ${Object.entries(INTRO).filter(x => x[0] !== 'sd').map(([k, v]) => `<div class="bg-slate-900/70 border border-slate-700 rounded-xl p-3"><b class="text-amber-300">${v[0]}</b><div class="mt-1 leading-relaxed">${v[1]}</div></div>`).join('')}</div>
+                <p class="text-[11px] text-slate-400 mt-3 leading-relaxed">התוצאה משלבת את כל השיטות, נותנת טווח אי-ודאות, מציגה אילו תשובות הכריעו (העיקר), מפרידה בין "ליבה" (מניעים והתנהגות מכרעת) לבין "סגנון" (הרגלים וטעם), ובודקת את איכות התשובות: מהירות, תשובות זהות, רצוי חברתי, ועקביות בניסוח חוזר.</p></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                  <button class="g-card text-right hover:border-amber-400" style="border:2px solid #334155" onclick="start('quick')"><div class="font-black text-white">⚡ מהיר</div><div class="text-xs text-slate-400 mt-1">כ-75 שאלות, 15-20 דקות. מספיק לתמונה ראשונית. אפשר להמשיך אחר כך.</div></button>
+                  <button class="g-card text-right hover:border-amber-400" style="border:2px solid #334155" onclick="start('full')"><div class="font-black text-white">🎯 מלא</div><div class="text-xs text-slate-400 mt-1">כ-145 שאלות, 35-40 דקות. דיוק גבוה יותר וטווח אי-ודאות צר יותר.</div></button></div>
+                ${prog.length ? `<div class="g-card mt-3"><h3 class="font-bold text-sm mb-2">⏳ שאלונים שהתחלת</h3>${prog.map(a => `<div class="flex items-center gap-2 text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-2 mb-1"><span class="flex-1">${esc(a.created)} · ${a.mode === 'full' ? 'מלא' : 'מהיר'} · ${Object.keys(a.ans).length}/${a.plan.length}</span><button class="g-btn pri" onclick="resume('${a.id}')">המשך</button><button class="text-rose-400" onclick="del('${a.id}')">✕</button></div>`).join('')}</div>` : ''}
+                ${done.length ? `<div class="g-card mt-3"><h3 class="font-bold text-sm mb-2">🕘 תוצאות קודמות</h3>${done.map(a => { const s = Q.score(a); return `<div class="flex items-center gap-2 text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-2 mb-1 cursor-pointer" onclick="set('result','${a.id}')"><span>${s && s.ready ? Q.EL[s.dom].ic + ' ' + Q.EL[s.dom].l + ' ' + s.shares[s.dom] + '%' : '—'}</span><span class="flex-1 text-slate-400">${esc(a.doneAt || a.created)} · ${Object.keys(a.ans).length} תשובות</span><button class="text-rose-400" onclick="event.stopPropagation();del('${a.id}')">✕</button></div>`; }).join('')}</div>` : ''}
+                <p class="text-[11px] text-amber-300 mt-3 leading-relaxed">⚠️ כלי רפלקציה סמלי. אין לו תוקף מדעי או פסיכומטרי מוכח; הפריטים נכתבו על ידי Claude ולא נבדקו על אנשים. השאלון המרכזי רציני יותר בשיטה משאלוני התרחישים וההיגדים, אבל אינו אבחון.</p>`;
+        }
+        function start(m) { const a = Q.create(m); if (a) set('run', a.id); }
+        function resume(id) { set('run', id); }
+        function del(id) { if (confirm('למחוק את השאלון?')) { Q.remove(id); set('home'); } }
+        // ---------- ריצה ----------
+        function next(a) { return a.plan.find(k => a.ans[k] == null); }
+        function run() {
+            const a = Q.get(sel); if (!a) return home();
+            const key = next(a); if (!key) return finishNow();
+            const idx = a.plan.indexOf(key), total = a.plan.length, v = Q.view(a, key), prevK = idx > 0 ? a.plan[idx - 1] : null, pv = prevK && Q.view(a, prevK), newM = !pv || pv.method !== v.method || (v.method === 'frq' && (pv.type === 'lik') && pv.scale !== v.scale);
+            const introKey = v.method === 'sd' ? 'sd' : v.method, intro = newM && INTRO[introKey] ? `<div class="rounded-xl border border-amber-500/40 bg-amber-500/5 p-3 mb-3 text-xs text-amber-100 leading-relaxed"><b>${INTRO[introKey][0]}:</b> ${INTRO[introKey][1]}</div>` : '';
+            return `<div class="g-card"><div class="flex items-center gap-2 mb-2 text-xs text-slate-400"><span>${idx + 1} / ${total}</span><div class="cq-bar flex-1"><i style="width:${pct(idx, total)}%;background:#fbbf24"></i></div><button class="g-btn" onclick="set('home')">שמור וצא</button></div>
+                ${intro}${qbody(v, key)}
+                <div class="flex flex-wrap gap-2 mt-4 no-print">${idx > 0 ? '<button class="g-btn" onclick="back()">⬅ הקודמת</button>' : ''}${Object.keys(a.ans).length >= 20 ? '<button class="g-btn" onclick="seeNow()">📊 תוצאה עד עכשיו</button>' : ''}</div>${msg ? '<div class="text-xs text-rose-300 mt-2">' + esc(msg) + '</div>' : ''}</div>`;
+        }
+        function qbody(v, key) {
+            if (v.type === 'bws') return `<h3 class="font-bold text-white mb-1">איזה משפט הכי מתאר אותך, ואיזה הכי פחות?</h3><div class="text-[11px] text-slate-400 mb-2">${v.core ? 'מניעים והתנהגות במצבים מכריעים' : 'הרגלים ודרכי פעולה יומיומיים'}</div><div class="space-y-2">${v.opts.map(o => `<div class="cq-opt ${bw.m === o.e ? 'on' : bw.l === o.e ? 'on' : ''}"><span class="flex-1">${esc(o.t)}</span><button class="cq-pm ${bw.m === o.e ? 'most' : ''}" onclick="pickBW('m',${o.e})">✔ הכי</button><button class="cq-pm ${bw.l === o.e ? 'least' : ''}" onclick="pickBW('l',${o.e})">✖ הכי פחות</button></div>`).join('')}</div>`;
+            if (v.type === 'sjt') return `<h3 class="font-bold text-white mb-2">${esc(v.q)}</h3><div class="space-y-2">${v.opts.map(o => `<button class="cq-opt" onclick="ans('${key}',${o.e})">${esc(o.t)}</button>`).join('')}</div>`;
+            if (v.type === 'prs') return `<h3 class="font-bold text-white mb-2">מה יותר דומה לך?</h3><div class="space-y-2">${v.opts.map((o, i) => `<button class="cq-opt" onclick="ansP('${key}',${o.e})">${esc(o.t)}</button>`).join('')}<button class="text-xs text-slate-400 underline mt-1" onclick="ans('${key}',2)">שניהם באותה מידה</button></div>`;
+            if (v.type === 'frm') { const s = pending && pending.key === key ? pending : { key, c: null, s: null }; return `<h3 class="font-bold text-white mb-3">${esc(v.t)}</h3>${[['c', 'בימים רגילים'], ['s', 'כשאני תחת לחץ גדול']].map(([f, l]) => `<div class="mb-3"><div class="text-xs text-slate-300 mb-1">${l}</div><div class="cq-lk">${[1, 2, 3, 4, 5].map(n => `<button class="${s[f] === n ? 'on' : ''}" onclick="pickR('${key}','${f}',${n})">${n}</button>`).join('')}</div></div>`).join('')}<div class="text-[10px] text-slate-500">1 = בכלל לא כמוני · 5 = בדיוק כמוני</div>`; }
+            const lab = LAB[v.scale]; return `<h3 class="font-bold text-white mb-3">${v.scale === 'freq' ? 'ב-3 החודשים האחרונים: ' : ''}${esc(v.t)}</h3><div class="cq-lk">${[1, 2, 3, 4, 5].map(n => `<button onclick="ans('${key}',${n})">${n}</button>`).join('')}</div><div class="flex justify-between text-[10px] text-slate-500 mt-1"><span>${lab[4]}</span><span>${lab[0]}</span></div>`;
+        }
+        const el = () => Date.now() - shown;
+        function ans(key, val) { Q.answer(sel, key, val, el()); render(); }
+        function ansP(key, e) { const i = Number(key.slice(1)), it = Q.BANK.prs[i]; ans(key, e === it[0] ? 0 : 1); }
+        function pickBW(w, e) { if (w === 'm') { bw.m = e; if (bw.l === e) bw.l = null; } else { bw.l = e; if (bw.m === e) bw.m = null; } const a = Q.get(sel), key = next(a); if (bw.m != null && bw.l != null) { Q.answer(sel, key, { m: bw.m, l: bw.l }, el()); bw = { m: null, l: null }; render(); } else { const sc = window.scrollY; $('app').innerHTML = '<div class="cq-fade">' + run() + '</div>'; window.scrollTo(0, sc); } }
+        function pickR(key, f, n) { pending = pending && pending.key === key ? pending : { key, c: null, s: null }; pending[f] = n; if (pending.c != null && pending.s != null) { const p = pending; pending = null; Q.answer(sel, key, { c: p.c, s: p.s }, el()); render(); } else { const sc = window.scrollY; $('app').innerHTML = '<div class="cq-fade">' + run() + '</div>'; window.scrollTo(0, sc); } }
+        function back() { const a = Q.get(sel), done = a.plan.filter(k => a.ans[k] != null); if (!done.length) return; const k = done[done.length - 1]; delete a.ans[k]; delete a.t[k]; Q.put(a); pending = null; render(); }
+        function seeNow() { set('result', sel); }
+        function finishNow() { const a = Q.finish(sel); view = 'result'; return result(); }
+        // ---------- תוצאה ----------
+        function donut(s) {
+            const R = 90, Cc = 2 * Math.PI * R; let off = 0, segs = '';
+            EK.forEach(e => { const len = s.shares[e] / 100 * Cc, gap = len > 6 ? 3 : 0; segs += `<circle cx="130" cy="130" r="${R}" fill="none" stroke="${C[e]}" stroke-width="30" stroke-dasharray="${Math.max(0, len - gap).toFixed(2)} ${Cc.toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 130 130)"><title>${Q.EL[e].l}: ${s.shares[e]}%</title></circle>`; off += len; });
+            const d = Q.EL[s.dom]; return `<svg viewBox="0 0 260 260" style="width:100%;max-width:290px;height:auto"><circle cx="130" cy="130" r="${R}" fill="none" stroke="#1e293b" stroke-width="30"/>${segs}<text x="130" y="122" text-anchor="middle" font-size="38">${d.ic}</text><text x="130" y="150" text-anchor="middle" fill="#fff" font-size="19" font-weight="800">${d.l}</text><text x="130" y="171" text-anchor="middle" fill="${C[s.dom]}" font-size="17" font-weight="800">${s.shares[s.dom]}%</text></svg>`;
+        }
+        const CONF = { clear: ['בהירה', '#22c55e', 'יסוד אחד בולט בבירור, גם כשמטלטלים את התשובות סטטיסטית.'], probable: ['סבירה', '#fbbf24', 'יש יסוד מוביל, אבל יש סיכוי ממשי ליסוד שני. שאלות הבהרה יחדדו.'], blended: ['משולבת', '#f87171', 'אין יסוד אחד שבולט בבירור. אתה פרופיל משולב, ושני היסודות המובילים קרובים מדי להכרעה.'] };
+        const QL = { high: ['גבוהה', '#22c55e'], mid: ['סבירה', '#fbbf24'], low: ['נמוכה', '#f87171'] };
+        function result() {
+            const a = Q.get(sel); if (!a) return home(); const s = Q.score(a);
+            if (!s || !s.ready) return `<div class="g-card text-center"><p class="text-sm">צריך לפחות 20 תשובות לתוצאה (יש ${s ? s.n : 0}).</p><button class="g-btn pri mt-2" onclick="set('run','${a.id}')">להמשיך לענות</button></div>`;
+            const cf = CONF[s.conf.level], q = QL[s.quality.level], rem = Q.remaining(a.id), d = Q.EL[s.dom], d2 = Q.EL[s.second];
+            const bars = EK.slice().sort((x, y) => s.shares[y] - s.shares[x]).map(e => `<div class="mb-2"><div class="flex justify-between text-xs"><span>${Q.EL[e].ic} ${Q.EL[e].l}</span><span><b style="color:${C[e]}">${s.shares[e]}%</b> <span class="text-slate-500">(טווח ${s.ci[e][0]}-${s.ci[e][1]}%)</span></span></div><div class="cq-bar"><i style="width:${s.shares[e]}%;background:${C[e]}"></i><i style="right:${s.ci[e][0]}%;width:${Math.max(1, s.ci[e][1] - s.ci[e][0])}%;background:rgba(255,255,255,.35);height:4px;top:3px"></i></div></div>`).join('');
+            const miniBars = sh => EK.map((e, i) => `<span style="display:inline-block;width:${Math.max(3, sh[i])}%;height:8px;background:${C[e]}" title="${Q.EL[e].l} ${sh[i]}%"></span>`).join('');
+            const methods = s.methods.map(m => `<tr><td class="py-1 pr-1">${esc(m.l)}</td><td class="text-slate-400">${m.n}</td><td style="width:50%"><div class="flex" style="gap:1px;width:100%">${miniBars(m.sh)}</div></td><td>${Q.EL[m.top].ic}</td></tr>`).join('');
+            const drv = t => `<div class="text-[11px] bg-slate-900/70 border border-slate-700 rounded-lg px-2 py-1 mb-1"><span class="text-slate-500">${esc(Q.METH[t.m] || '')}${t.core ? ' · ליבה' : ' · סגנון'}</span><div>${esc(t.t)}</div></div>`;
+            const gap = s.coreStyleGap ? s.coreStyleGap : null;
+            const csTxt = s.core && s.style ? (EK[s.core.indexOf(Math.max.apply(null, s.core))] === EK[s.style.indexOf(Math.max.apply(null, s.style))] ? 'הליבה והסגנון מצביעים על אותו יסוד: התמונה עקבית.' : 'הליבה (מניעים והתנהגות מכרעת) והסגנון (הרגלים וטעם) מצביעים על יסודות שונים. בדרך כלל הליבה מסבירה יותר מה אתה, והסגנון איך אתה נראה.') : 'עדיין אין מספיק פריטי סגנון או ליבה להשוואה.';
+            return `<div class="g-card"><div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center"><div class="text-center">${donut(s)}</div><div>
+                <div class="text-xs text-slate-400">היסוד הדומיננטי</div><div class="text-2xl font-black" style="color:${C[s.dom]}">${d.ic} ${d.l}${s.conf.level === 'blended' ? ' + ' + d2.ic + ' ' + d2.l : ''}</div>
+                <div class="mt-1 inline-block text-xs px-2 py-1 rounded-full" style="background:${cf[1]}22;color:${cf[1]};border:1px solid ${cf[1]}">חדות: ${cf[0]} (${s.conf.p}% מהמדגמים החוזרים)</div><div class="text-[11px] text-slate-400 mt-1">${cf[2]}</div>
+                <div class="mt-3">${bars}</div><div class="text-[10px] text-slate-500">הפס הדק = טווח 90% מבוסס על דגימה חוזרת של התשובות שלך.</div></div></div>
+                <div class="flex flex-wrap gap-2 mt-3 no-print"><button class="g-btn pri" onclick="more()">➕ המשך לענות ${rem ? '(' + rem + ' פריטים נותרו במאגר)' : ''}</button><button class="g-btn" onclick="set('home')">חזרה</button><button class="g-btn" onclick="window.print()">🖨️ הדפסה</button></div>${msg ? '<div class="text-xs text-amber-300 mt-2">' + esc(msg) + '</div>' : ''}</div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                <div class="g-card"><h3 class="font-bold text-sm mb-2">🧭 איכות התשובות: <span style="color:${q[1]}">${q[0]}</span></h3>${s.quality.flags.length ? s.quality.flags.map(f => `<div class="text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-2 py-1 mb-1"><b class="text-amber-300">${esc(f.l)}</b><div class="text-slate-300">${esc(f.d)}</div></div>`).join('') : '<div class="text-xs text-slate-300">לא נמצאו סימני אי-אמינות. התוצאה נראית כנה ועקבית.</div>'}<div class="text-[11px] text-slate-500 mt-1">${s.quality.cons != null ? 'עקביות בניסוח חוזר: ' + Math.round(s.quality.cons * 100) + '%. ' : ''}${s.quality.level === 'low' ? 'בגלל האיכות הנמוכה האחוזים "רוככו" לכיוון שוויון.' : ''}</div></div>
+                <div class="g-card"><h3 class="font-bold text-sm mb-2">🔬 הסכמה בין השיטות</h3><table class="w-full text-xs">${methods}</table><div class="text-[11px] text-slate-400 mt-2">${s.agreeTop} מתוך ${s.nMethods} שיטות מצביעות על ${d.l}.${s.convergence != null ? ' מתאם דירוג ממוצע: ' + s.convergence.toFixed(2) + '.' : ''}</div></div>
+                <div class="g-card"><h3 class="font-bold text-sm mb-2">⚖️ ליבה מול סגנון</h3>${s.core && s.style ? `<div class="text-[11px] text-slate-400">ליבה (מניעים, מצבים מכריעים)</div><div class="flex" style="gap:1px">${miniBars(s.core)}</div><div class="text-[11px] text-slate-400 mt-2">סגנון (הרגלים, טעם)</div><div class="flex" style="gap:1px">${miniBars(s.style)}</div>` : ''}<div class="text-[11px] text-slate-300 mt-2">${csTxt}</div></div>
+                <div class="g-card"><h3 class="font-bold text-sm mb-2">🔥 רגיל מול לחץ</h3>${s.shift ? `<table class="w-full text-xs">${s.shift.map(x => `<tr><td class="py-0.5">${Q.EL[x.e].ic} ${Q.EL[x.e].l}</td><td class="${x.d > 5 ? 'text-orange-300' : x.d < -5 ? 'text-sky-300' : 'text-slate-400'}">${x.d > 5 ? 'עולה בלחץ' : x.d < -5 ? 'יורד בלחץ' : 'יציב'} (${x.d > 0 ? '+' : ''}${x.d})</td></tr>`).join('')}</table><div class="text-[10px] text-slate-500 mt-1">מבוסס על ${s.shift.reduce((t, x) => t + x.n, 0)} היגדים. ככל שיותר תשובות, כך מדויק יותר.</div>` : '<div class="text-xs text-slate-400">צריך לפחות 4 היגדי "רגיל מול לחץ" (יש בשאלון המלא; אפשר להוסיף בהמשך).</div>'}</div></div>
+              <div class="g-card mt-3"><h3 class="font-bold text-sm mb-2">🔑 מה הכריע: התשובות שהכי תמכו ב${d.l}</h3>${s.drivers.support.map(drv).join('') || '<div class="text-xs text-slate-400">אין מספיק.</div>'}${s.drivers.against.length ? `<h4 class="font-bold text-xs mt-3 mb-1 text-slate-300">תשובות שהלכו נגדו</h4>${s.drivers.against.map(drv).join('')}` : ''}</div>
+              ${a.hist.length > 1 ? `<div class="g-card mt-3"><h3 class="font-bold text-sm mb-2">📈 איך התוצאה השתנתה כשהמשכת</h3>${a.hist.map(h => `<div class="flex items-center gap-2 text-xs mb-1"><span class="w-20 text-slate-500">${esc(h.at)} · ${h.n}</span><div class="flex flex-1" style="gap:1px">${miniBars(h.sh)}</div></div>`).join('')}</div>` : ''}
+              <p class="text-[11px] text-amber-300 mt-3 leading-relaxed">⚠️ כלי רפלקציה סמלי. התוצאה משקפת את התשובות שנתת, לא "מי שאתה באמת". הפריטים לא נבדקו על אנשים, והמשקלים נקבעו בשיקול דעת ולא בכיול סטטיסטי.</p>`;
+        }
+        function more() { const n = Q.nextChunk(sel); if (!n) { msg = 'המאגר התרוקן: כל הפריטים כבר נשאלו.'; render(); return; } set('run', sel); }
+        window.addEventListener('DOMContentLoaded', render);
+    </script>
+</body>
+</html>
