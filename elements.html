@@ -19,10 +19,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.20.0"></script>
-    <script src="gov-nav.js?v=0.20.0"></script>
-    <script src="gov-scen.js?v=0.20.0"></script>
-    <script src="gov-elements.js?v=0.20.0"></script>
+    <script src="gov-core.js?v=0.21.0"></script>
+    <script src="gov-nav.js?v=0.21.0"></script>
+    <script src="gov-scen.js?v=0.21.0"></script>
+    <script src="gov-elements.js?v=0.21.0"></script>
     <header class="max-w-5xl mx-auto px-4 pt-6 pb-2 text-center">
         <h1 class="text-3xl font-black text-white">🔥💧🪨💨 ארבעת היסודות</h1>
         <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">מאגר של 200 היגדים ועוד 400 שאלות תרחיש עם תשובות של ממש: כמה אחוזים מכל יסוד יש בך, מה היסוד המרכזי, ובאילו היבטים. כלי רפלקציה ומשחק סמלי, <b class="text-amber-300">לא אבחון ובלי תוקף מדעי</b>.</p>
@@ -94,7 +94,7 @@
                 ${histCard(a)}<div class="g-card mt-3 text-xs"><h3 class="font-bold text-slate-200 text-sm mb-2">🎯 עד כמה לסמוך על התוצאה</h3><div class="flex items-center gap-3"><div class="flex-1"><div class="g-bar" style="height:10px"><i style="width:${Math.round(s.n / s.total * 100)}%;background:${cf[1]}"></i></div></div><b class="text-white">${s.n}/${s.total}</b></div>
                     <ul class="mt-2 space-y-1 text-slate-300"><li>• דיוק ${cf[0]}: ${s.confidence === 'low' ? 'פחות מ-40 תשובות, התוצאה ראשונית ועלולה להשתנות.' : s.confidence === 'mid' ? 'בין 40 ל-120 תשובות.' : '120 תשובות ומעלה.'}</li><li>• הפער בין המקום הראשון לשני: ${s.margin} נקודות אחוז${s.margin < 4 ? ' (צמוד מאוד, ייתכן שהסדר יתהפך בחזרה על השאלון)' : ''}.</li>
                     <li>• ${s.consistency == null ? 'עקביות בין שתי מחציות השאלון: אין מספיק תשובות לבדיקה.' : s.consistency ? '✅ עקביות: אותו יסוד מוביל בשתי מחציות השאלון (בלוקים זוגיים ואי-זוגיים).' : '⚠️ חוסר עקביות: יסוד אחר מוביל בכל מחצית. התוצאה לא יציבה, כדאי להמשיך לענות או לחזור על השאלון.'}</li></ul>
-                    <div class="flex flex-wrap gap-2 mt-3 no-print">${s.total < 200 || a.mode === 'quick' ? '<button class="g-btn pri" onclick="more()">➕ הרחב לשאלון מלא (200) לדיוק גבוה יותר</button>' : ''}<button class="g-btn" onclick="start('${a.mode}')">🔁 שאלון חדש (להשוואה בעתיד)</button><button class="g-btn" onclick="window.print()">🖨️ הדפס</button><button class="g-btn" onclick="go(null)">כל השאלונים</button><button class="g-btn red" onclick="del('${h(a.id)}')">מחק</button></div></div>
+                    <div class="flex flex-wrap gap-2 mt-3 no-print">${s.n < 200 ? '<button class="g-btn pri" onclick="more()">➕ ' + (s.total < 200 || a.mode === 'quick' ? 'הרחב לשאלון מלא (200) לדיוק גבוה יותר' : 'המשך לענות (' + s.n + ' מתוך 200 נענו)') + '</button>' : '<span class="text-xs text-emerald-300">✅ ענית על כל 200 ההיגדים</span>'}<button class="g-btn" onclick="start('${a.mode}')">🔁 שאלון חדש (להשוואה בעתיד)</button><button class="g-btn" onclick="window.print()">🖨️ הדפס</button><button class="g-btn" onclick="go(null)">כל השאלונים</button><button class="g-btn red" onclick="del('${h(a.id)}')">מחק</button></div></div>
                 <div class="g-card mt-3 no-print"><button class="g-btn pri" onclick="aiRun()">🤖 ${ai ? 'פרשנות חדשה' : 'פרשנות מ-AI'} (אנונימי, באישור)</button> <span class="text-[11px] text-slate-400" id="aiM">${h(aiMsg)}</span>${ai ? `<div class="mt-2 text-xs text-slate-200 bg-slate-900/60 border border-violet-500/30 rounded-xl p-3 leading-relaxed"><b class="text-violet-300">🤖 פרשנות AI (${fmt(ai.at)}):</b><br>${G.nl(ai.text)}</div>` : ''}</div>
                 <details class="text-[11px] text-slate-300 mt-3 leading-relaxed"><summary class="cursor-pointer text-slate-200">💨 איך הוגדר יסוד האוויר?</summary><p class="mt-1">האוויר כאן הוא <b>חופש וקלילות</b>, יחד עם סקרנות, רעיונות ותקשורת: מי שמרפה, מחייך, זורם ומסתכל מלמעלה. ההגדרה נשענת על הרעיון של "אווטאר" ועל המסורת היהודית (החסידית והקבלית) שבה ארבעת היסודות הם אש, מים, רוח ועפר. בתניא (פרק א) יסוד הרוח קשור ל"קלות ראש", לשיחה ולדיבור, ובספר יצירה האוויר הוא היסוד המכריע והמאזן בין אש למים. במסורת הצד הזה מוצג בעיקר כצד שלילי (קלות ראש, ליצנות), ואילו כאן נלקח הצד החיובי שלו: קלילות, גמישות וחופש. המסורות אינן מסכימות ביניהן, ולכן זו הגדרה סמלית שנבחרה על ידך ועל ידי, ולא "האמת". עד v0.19 האוויר הוגדר בעיקר כחשיבה אנליטית.</p></details><p class="text-[11px] text-amber-300 mt-3 leading-relaxed">⚠️ זהו כלי רפלקציה ומשחק סמלי בהשראת תורת ארבעת היסודות. אין לו תוקף מדעי או פסיכומטרי, והתוצאה משקפת איך הצגת את עצמך באותו יום. אל תשתמש בו לקבלת החלטות חשובות על עצמך או על אחרים.</p></div>`;
         }

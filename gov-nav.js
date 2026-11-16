@@ -15,6 +15,7 @@
         { file: 'career.html', icon: '🧭', title: 'סימולטור קריירה', desc: 'מטרה, דרישות, פער מול הכרטיס האישי, מסלול ותאריך משוער.', sections: [['list', 'מטרות'], ['detail', 'סימולציה']] },
         { file: 'lang.html', icon: '🗣️', title: 'לימוד שפות', desc: 'רמת CEFR לכל מיומנות, יעד, יומן לימוד, רצף, קצב שבועי ותחזית סיום.', sections: [['list', 'שפות'], ['detail', 'פירוט']] },
         { file: 'vocab.html', icon: '🇧🇷', title: 'פורטוגזית', desc: 'מילים עם הקראה, מבחנים, תרגול רציף ותרגום משפטים לטיול.' },
+        { file: 'articles.html', icon: '📰', title: 'קריאה בפורטוגזית', desc: 'מאמרים קצרים עם תרגום מילה בלחיצה ושאלות הבנה.' },
         { file: 'quiz.html', icon: '📝', title: 'שאלונים', desc: 'שאלון אישיות קצר, ושאלוני רפלקציה שה-AI מייצר ומנתח.', sections: [['list', 'שאלונים'], ['detail', 'פירוט']] },
         { file: 'central.html', icon: '🎯', title: 'השאלון המרכזי', desc: 'שאלון רב-שיטתי ליסודות: בחר הכי/הכי פחות, תדירות, הכרעות, תרחישים, רגיל מול לחץ, עם בדיקות אמינות.' },
         { file: 'elements.html', icon: '🔥', title: 'ארבעת היסודות', desc: 'שאלון של 200 היגדים: אחוזי אש, מים, אדמה ואוויר, והיסוד המרכזי.', sections: [['app', 'השאלון והתוצאה']] },
@@ -38,7 +39,7 @@
         { id: 'today', icon: '🗓️', title: 'היום והזמן', files: ['schedule.html', 'tasks.html', 'wish.html'] },
         { id: 'goals', icon: '🎯', title: 'יעדים', files: ['promises.html', 'issues.html', 'operations.html', 'portfolios.html'] },
         { id: 'gov', icon: '🏛️', title: 'ממשל', files: ['cabinet.html', 'treaties.html', 'people.html', 'ministers.html'] },
-        { id: 'me', icon: '🪪', title: 'אני', files: ['player.html', 'career.html', 'lang.html', 'vocab.html', 'quiz.html', 'elements.html', 'central.html'] },
+        { id: 'me', icon: '🪪', title: 'אני', files: ['player.html', 'career.html', 'lang.html', 'vocab.html', 'articles.html', 'quiz.html', 'elements.html', 'central.html'] },
         { id: 'life', icon: '🧭', title: 'חיים', files: ['money.html', 'trip.html'] },
         { id: 'score', icon: '📊', title: 'ציון והישגים', files: ['review.html', 'wins.html'] }
     ];
@@ -86,11 +87,11 @@
     })();
 
     // אם נטען gov-core.js ישן (מטמון, או קובץ שלא הועלה): מציגים הודעה ברורה במקום דף ריק
-    if (!window.GOV || window.GOV.VERSION !== '0.20.0') { window.addEventListener('DOMContentLoaded', () => { document.body.insertAdjacentHTML('afterbegin', '<div style="position:sticky;top:0;z-index:2000;background:#7f1d1d;color:#fff;padding:10px 14px;font:14px Rubik,sans-serif;direction:rtl;text-align:right">⚠️ גרסאות הקבצים לא תואמות (נטען gov-core.js ' + ((window.GOV && window.GOV.VERSION) || 'ישן') + ', נדרש 0.20.0). פתרון: ודא שהעלית את כל הקבצים מה-zip (בעיקר gov-core.js) ל-GitHub, המתן דקה-שתיים, ורענן בלי מטמון (באנדרואיד: הגדרות הדפדפן ← נקה נתוני אתר מטמון בלבד, לא "נתוני אתר" כי זה ימחק את הנתונים!).</div>'); }); }
-    document.write('<script src="gov-vault.js?v=0.20.0"><\/script>');   // כספת המפתחות (נטענת לפני הסנכרון וה-AI)
-    document.write('<script src="gov-sync.js?v=0.20.0"><\/script>');
-    document.write('<script src="gov-ai.js?v=0.20.0"><\/script>');
-    document.write('<script src="gov-review.js?v=0.20.0"><\/script>');    // הערכת ביטול (סוגיות והבטחות)    // שכבת AI משותפת (מפתח Gemini של המשתמש)    // סנכרון לענן: נטען סינכרונית בכל דף, כדי שכל שמירה תופעל אוטומטית
+    if (!window.GOV || window.GOV.VERSION !== '0.21.0') { window.addEventListener('DOMContentLoaded', () => { document.body.insertAdjacentHTML('afterbegin', '<div style="position:sticky;top:0;z-index:2000;background:#7f1d1d;color:#fff;padding:10px 14px;font:14px Rubik,sans-serif;direction:rtl;text-align:right">⚠️ גרסאות הקבצים לא תואמות (נטען gov-core.js ' + ((window.GOV && window.GOV.VERSION) || 'ישן') + ', נדרש 0.21.0). פתרון: ודא שהעלית את כל הקבצים מה-zip (בעיקר gov-core.js) ל-GitHub, המתן דקה-שתיים, ורענן בלי מטמון (באנדרואיד: הגדרות הדפדפן ← נקה נתוני אתר מטמון בלבד, לא "נתוני אתר" כי זה ימחק את הנתונים!).</div>'); }); }
+    document.write('<script src="gov-vault.js?v=0.21.0"><\/script>');   // כספת המפתחות (נטענת לפני הסנכרון וה-AI)
+    document.write('<script src="gov-sync.js?v=0.21.0"><\/script>');
+    document.write('<script src="gov-ai.js?v=0.21.0"><\/script>');
+    document.write('<script src="gov-review.js?v=0.21.0"><\/script>');    // הערכת ביטול (סוגיות והבטחות)    // שכבת AI משותפת (מפתח Gemini של המשתמש)    // סנכרון לענן: נטען סינכרונית בכל דף, כדי שכל שמירה תופעל אוטומטית
 
 
     // מכשיר חדש: קישור חיבור (#setup=...) או gov-config.enc.json. מזינים סיסמה: מפענחים, קובעים אותה כסיסמת כניסה, שומרים את הכתובת והמפתח בכספת ומושכים נתונים.

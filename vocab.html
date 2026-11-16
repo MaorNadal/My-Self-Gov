@@ -34,11 +34,12 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen">
-    <script src="gov-core.js?v=0.20.0"></script>
-    <script src="gov-nav.js?v=0.20.0"></script>
-    <script src="gov-vocab-data.js?v=0.20.0"></script>
-    <script src="gov-vocab-more.js?v=0.20.0"></script>
-    <script src="gov-vocab.js?v=0.20.0"></script>
+    <script src="gov-core.js?v=0.21.0"></script>
+    <script src="gov-nav.js?v=0.21.0"></script>
+    <script src="gov-vocab-data.js?v=0.21.0"></script>
+    <script src="gov-vocab-more.js?v=0.21.0"></script>
+    <script src="gov-vocab-more2.js?v=0.21.0"></script>
+    <script src="gov-vocab.js?v=0.21.0"></script>
     <div class="vq-wrap">
         <header class="vq-head">
             <h1>🇧🇷 פורטוגזית לטיול</h1>
@@ -52,13 +53,14 @@
         const P = t => '<bdi dir="ltr" lang="pt">' + h(t) + '</bdi>';
         const CAT = V.CATS, DIRQ = { pt2he: 'מה פירוש המילה?', he2pt: 'איך אומרים בפורטוגזית?', listen: 'מה פירוש המילה ששמעת?' };
         const TABS = [['home', '🏠 ראשי'], ['learn', '📖 למידה'], ['practice', '♾️ תרגול רציף'], ['sents', '✍️ משפטים'], ['words', '📚 המילים']];
+        const EXTRA_TAB = '<a class="vq-tab" href="articles.html">📰 קריאה</a>';
         let view = 'home', msg = '', LS = null, PS = null, SS = null, endInfo = null, logged = false, wf = { cat: '', q: '' };
         const sayBtn = (t, slow) => `<button class="vq-say" data-say="${h(t)}" ${slow ? 'data-slow="1"' : ''} title="${slow ? 'הקראה לאט' : 'הקראה'}">${slow ? '🐢' : '🔊'}</button>`;
         const auto = t => { if (V.cfg().auto && t) V.speak(t, false); };
         const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
         function go(v) { if (V.hasSession()) V.endSession(); view = v; msg = ''; endInfo = null; if (v === 'learn') { LS = null; } if (v === 'practice') { PS = null; } if (v === 'sents') { SS = null; } render(); window.scrollTo(0, 0); }
-        function tabs() { $('tabs').innerHTML = TABS.map(t => `<button class="vq-tab ${view === t[0] || (view === 'end' && t[0] === 'home') ? 'on' : ''}" onclick="go('${t[0]}')">${t[1]}</button>`).join(''); }
+        function tabs() { $('tabs').innerHTML = TABS.map(t => `<button class="vq-tab ${view === t[0] || (view === 'end' && t[0] === 'home') ? 'on' : ''}" onclick="go('${t[0]}')">${t[1]}</button>`).join('') + EXTRA_TAB; }
         function render() {
             tabs(); const f = { home, learn: learnV, practice: practiceV, sents: sentsV, words: wordsV, end: endV }[view] || home; $('app').innerHTML = (msg && view !== 'home' && view !== 'words' ? `<div class="vq-fb mid">${h(msg)}</div>` : '') + f();
             const i = $('vqIn'); if (i && !i.disabled) i.focus();

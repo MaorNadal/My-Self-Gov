@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>קריאה בפורטוגזית - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .ar-wrap { max-width: 860px; margin: 0 auto; padding: 14px 16px 60px; }
+        .ar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+        .ar-card { background: #1e293b; border: 1px solid #334155; border-radius: 14px; padding: 12px; text-align: right; cursor: pointer; transition: .15s; font-family: inherit; color: #e2e8f0; }
+        .ar-card:hover { border-color: #fbbf24; transform: translateY(-2px); }
+        .ar-pill { display: inline-block; font-size: 10px; padding: 1px 8px; border-radius: 999px; border: 1px solid #475569; color: #cbd5e1; }
+        .ar-btn { background: #1e293b; border: 1px solid #475569; color: #e2e8f0; border-radius: 10px; padding: 7px 13px; font-size: 13px; cursor: pointer; font-family: inherit; } .ar-btn:hover { border-color: #fbbf24; } .ar-btn.pri { background: #fbbf24; color: #0f172a; border-color: #fbbf24; font-weight: 800; } .ar-btn.on { background: #334155; border-color: #fbbf24; }
+        .ar-box { background: #111c2f; border: 1px solid #334155; border-radius: 16px; padding: 14px 16px; margin-top: 12px; }
+        .ar-pt { direction: ltr; text-align: left; font-size: 19px; line-height: 2.05; }
+        .ar-w { cursor: pointer; border-radius: 5px; padding: 1px 2px; border-bottom: 1px dotted #64748b; } .ar-w:hover { background: #334155; } .ar-w.sel { background: #fbbf24; color: #0f172a; border-bottom-color: transparent; } .ar-w.seen { border-bottom-color: #38bdf8; }
+        .ar-tip { position: sticky; bottom: 10px; background: #0b1220; border: 2px solid #fbbf24; border-radius: 14px; padding: 10px 14px; margin-top: 10px; box-shadow: 0 8px 30px rgba(0, 0, 0, .55); z-index: 20; }
+        .ar-he { color: #94a3b8; font-size: 14px; line-height: 1.8; border-right: 3px solid #334155; padding-right: 10px; margin-top: 2px; }
+        .ar-opt { display: block; width: 100%; text-align: right; background: #1e293b; border: 1px solid #475569; color: #e2e8f0; border-radius: 10px; padding: 9px 12px; margin-top: 6px; font-size: 14px; cursor: pointer; font-family: inherit; }
+        .ar-opt:hover:not(:disabled) { border-color: #fbbf24; } .ar-opt.ok { background: #064e3b; border-color: #34d399; } .ar-opt.no { background: #4c0519; border-color: #fb7185; } .ar-opt:disabled { cursor: default; }
+        .ar-bar { height: 8px; background: #1b2a45; border-radius: 6px; overflow: hidden; } .ar-bar > i { display: block; height: 100%; background: #fbbf24; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+    <script src="gov-core.js?v=0.21.0"></script>
+    <script src="gov-nav.js?v=0.21.0"></script>
+    <script src="gov-vocab-data.js?v=0.21.0"></script>
+    <script src="gov-vocab-more.js?v=0.21.0"></script>
+    <script src="gov-vocab-more2.js?v=0.21.0"></script>
+    <script src="gov-vocab.js?v=0.21.0"></script>
+    <script src="gov-articles.js?v=0.21.0"></script>
+    <div class="ar-wrap">
+        <header class="text-center mb-2">
+            <h1 class="text-3xl font-black text-white">📰 קריאה בפורטוגזית</h1>
+            <p class="text-slate-400 text-sm mt-1">מאמרים קצרים בברזילאית. לחץ על מילה כדי לראות מה היא אומרת, ובסוף ענה על שאלות הבנה.</p>
+        </header>
+        <div id="app"></div>
+    </div>
+    <script>
+        const G = GOV, V = GOV_VOCAB, A = GOV_ARTICLES, esc = G.esc, $ = id => document.getElementById(id);
+        const KEY = 'articles', LV = { all: 'הכול', A2: 'קל (A2)', B1: 'בינוני (B1)' };
+        let view = 'list', cur = null, lvl = 'all', showHe = false, sel = null, seen = {}, qi = 0, ans = [], t0 = 0, msg = '', topicQ = '';
+        const store = () => { const o = G.rd(KEY, {}); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; };
+        function rec(id, score, total) { const s = store(), o = s[id] && typeof s[id] === 'object' ? s[id] : {}; o.tries = (Number(o.tries) || 0) + 1; o.best = Math.max(Number(o.best) || 0, score); o.last = score; o.total = total; o.at = G.localDate(); s[id] = o; G.wr(KEY, s); }
+        // מילון מהיר מהמילים הכלליות כגיבוי: מילה נמצאת לפי הטקסט הפורטוגזי של פריט המילון
+        let glob = null; function globalGloss(tok) { if (!glob) { glob = {}; V.words().forEach(w => { String(V.ptOf(w)).split(' / ').forEach(p => { const k = p.toLowerCase().replace(/[.,;:!?()"«»—–…]/g, '').trim(); if (k && !k.includes(' ') && !glob[k]) glob[k] = w.he; }); }); } return glob[tok] || ''; }
+        const norm = t => t.replace(/[.,;:!?()"«»—–…]/g, '').toLowerCase();
+        const gloss = (a, tok) => a.gl[tok] || globalGloss(tok) || '';
+        function list() {
+            const st = store(), l = A.filter(a => (lvl === 'all' || a.level === lvl) && (!topicQ || (a.topic + ' ' + a.title.he + ' ' + a.title.pt).toLowerCase().includes(topicQ.toLowerCase()))), done = A.filter(a => st[a.id] && st[a.id].tries).length;
+            return `<div class="ar-box" style="margin-top:6px"><div class="flex items-center gap-3 flex-wrap"><div class="flex-1 min-w-[160px]"><div class="text-xs text-slate-300 mb-1">קראת ${done} מתוך ${A.length} מאמרים</div><div class="ar-bar"><i style="width:${Math.round(done / A.length * 100)}%"></i></div></div>
+                <div class="flex gap-1 flex-wrap">${Object.keys(LV).map(k => `<button class="ar-btn ${lvl === k ? 'on' : ''}" onclick="lvl='${k}';render()">${LV[k]}</button>`).join('')}</div>
+                <input class="ar-btn" style="width:150px;text-align:right" placeholder="חפש נושא…" value="${esc(topicQ)}" oninput="topicQ=this.value;clearTimeout(window._t);window._t=setTimeout(render,250)"></div>
+                <button class="ar-btn pri mt-3" onclick="randomA()">🎲 מאמר אקראי שעוד לא קראתי</button></div>
+              <div class="ar-grid mt-3">${l.map(a => { const r = st[a.id]; return `<button class="ar-card" onclick="open_('${a.id}')"><div class="flex justify-between items-center mb-1"><span class="text-sm">${esc(a.topic)}</span><span class="ar-pill">${a.level}</span></div><div class="font-bold text-white" dir="ltr" style="text-align:left">${esc(a.title.pt)}</div><div class="text-xs text-slate-400 mt-0.5">${esc(a.title.he)}</div><div class="text-[11px] mt-2 ${r && r.tries ? 'text-emerald-300' : 'text-slate-500'}">${r && r.tries ? '✅ ציון הכי טוב ' + r.best + '/' + r.total : 'עוד לא נקרא'}</div></button>`; }).join('') || '<div class="text-slate-400 text-sm">לא נמצאו מאמרים.</div>'}</div>`;
+        }
+        function reader() {
+            const a = cur, ps = a.p.map((p, i) => `<div class="mb-4"><div class="ar-pt">${p.pt.split(/(\s+)/).map(t => { if (/^\s+$/.test(t) || !t) return t; const k = norm(t); return k ? `<span class="ar-w ${seen[k] ? 'seen' : ''} ${sel && sel.k === k ? 'sel' : ''}" onclick="pickW('${esc(k).replace(/'/g, '&#39;')}')">${esc(t)}</span>` : esc(t); }).join('')}</div>
+                <div class="flex gap-2 mt-1"><button class="ar-btn" onclick="say(${i})">🔊</button><button class="ar-btn" onclick="say(${i},1)">🐢</button></div>${showHe ? `<div class="ar-he">${esc(p.he)}</div>` : ''}</div>`).join('');
+            const tip = sel ? `<div class="ar-tip"><div class="flex items-center gap-3"><div class="flex-1"><div dir="ltr" style="text-align:left" class="text-lg font-black text-amber-300">${esc(sel.k)}</div><div class="text-base text-white">${sel.g ? esc(sel.g) : '<span class="text-slate-400">אין תרגום למילה הזו במילון</span>'}</div></div><button class="ar-btn" onclick="sayW()">🔊</button><button class="ar-btn" onclick="addW()" title="הוסף למילים שלי">➕</button><button class="ar-btn" onclick="sel=null;render()">✕</button></div>${msg ? '<div class="text-xs text-emerald-300 mt-1">' + esc(msg) + '</div>' : ''}</div>` : '';
+            return `<div class="flex items-center gap-2 flex-wrap"><button class="ar-btn" onclick="back()">→ כל המאמרים</button><span class="ar-pill">${esc(a.topic)}</span><span class="ar-pill">${a.level}</span><span class="flex-1"></span><button class="ar-btn ${showHe ? 'on' : ''}" onclick="showHe=!showHe;render()">${showHe ? 'הסתר תרגום מלא' : 'הצג תרגום מלא'}</button></div>
+              <div class="ar-box"><h2 dir="ltr" style="text-align:left" class="text-2xl font-black text-white">${esc(a.title.pt)}</h2><div class="text-slate-400 text-sm mb-3">${esc(a.title.he)}</div>${ps}
+              <div class="text-[11px] text-slate-500 mt-2">מילים עם קו כחול כבר נלחצו. תוכן ותרגום נכתבו על ידי Claude ולא נבדקו על ידי דובר שפת אם; פרטי עובדות (מחירים, מספרים) עשויים להשתנות.</div></div>${tip}
+              <div class="text-center mt-4"><button class="ar-btn pri" onclick="startQ()">✅ סיימתי לקרוא, לשאלות הבנה (${a.q.length})</button></div>`;
+        }
+        function quiz() {
+            const a = cur, q = a.q[qi];
+            if (qi >= a.q.length) { const sc = ans.filter((x, i) => x === a.q[i].a).length, mins = Math.max(1, Math.round((Date.now() - t0) / 60000)); return `<div class="ar-box text-center"><div class="text-5xl">${sc === a.q.length ? '🏆' : sc >= a.q.length / 2 ? '👏' : '📖'}</div><div class="text-3xl font-black mt-2">${sc} מתוך ${a.q.length}</div><div class="text-sm text-slate-300 mt-1">${sc === a.q.length ? 'הבנת הכול.' : 'כדאי לקרוא שוב את הפסקאות שבהן טעית, עם התרגום המלא.'}</div>
+                <div class="text-right mt-3">${a.q.map((x, i) => `<div class="text-xs mb-1 ${ans[i] === x.a ? 'text-emerald-300' : 'text-rose-300'}">${ans[i] === x.a ? '✅' : '❌'} ${esc(x.q)} <span class="text-slate-400">· ${esc(x.o[x.a])}</span></div>`).join('')}</div>
+                <div class="flex gap-2 justify-center flex-wrap mt-4"><button class="ar-btn" onclick="reread()">📖 קרא שוב</button><button class="ar-btn" onclick="randomA()">📰 מאמר הבא</button><button class="ar-btn" onclick="back()">כל המאמרים</button><button class="ar-btn" onclick="logT(${mins})">⏱️ רשום ${mins} דק' ביומן הלימוד</button></div>${msg ? '<div class="text-xs text-emerald-300 mt-2">' + esc(msg) + '</div>' : ''}</div>`; }
+            const done = ans[qi] != null;
+            return `<div class="ar-box"><div class="text-xs text-slate-400 mb-1">שאלה ${qi + 1} מתוך ${a.q.length} · ${esc(a.title.he)}</div><div class="ar-bar mb-3"><i style="width:${Math.round(qi / a.q.length * 100)}%"></i></div><div class="font-bold text-white">${esc(q.q)}</div>
+              ${q.o.map((o, i) => `<button class="ar-opt ${done ? (i === q.a ? 'ok' : i === ans[qi] ? 'no' : '') : ''}" ${done ? 'disabled' : ''} onclick="pickA(${i})">${esc(o)}</button>`).join('')}
+              ${done ? `<div class="text-sm mt-3 ${ans[qi] === q.a ? 'text-emerald-300' : 'text-rose-300'}">${ans[qi] === q.a ? '✅ נכון.' : '❌ לא מדויק.'} ${esc(q.why)}</div><div class="flex gap-2 mt-3"><button class="ar-btn pri" onclick="qi++;render()">${qi === a.q.length - 1 ? 'לתוצאה' : 'הבאה'}</button><button class="ar-btn" onclick="view='read';render()">חזור לטקסט</button></div>` : '<div class="mt-3"><button class="ar-btn" onclick="view=\'read\';render()">→ חזור לטקסט</button></div>'}</div>`;
+        }
+        function render() { $('app').innerHTML = view === 'list' ? list() : view === 'read' ? reader() : quiz(); }
+        function open_(id) { cur = A.find(a => a.id === id); if (!cur) return; view = 'read'; sel = null; seen = {}; showHe = false; qi = 0; ans = []; msg = ''; t0 = Date.now(); render(); window.scrollTo(0, 0); }
+        function back() { view = 'list'; cur = null; sel = null; render(); window.scrollTo(0, 0); }
+        function reread() { view = 'read'; qi = 0; ans = []; render(); window.scrollTo(0, 0); }
+        function pickW(k) { seen[k] = 1; sel = { k, g: gloss(cur, k) }; msg = ''; render(); }
+        function sayW() { if (sel) V.speak(sel.k, false); }
+        function say(i, slow) { if (!V.speak(cur.p[i].pt, !!slow)) { msg = 'אין קול פורטוגזי זמין במכשיר.'; alert(msg); } }
+        function addW() { if (!sel || !sel.g) { msg = 'אין תרגום להוספה.'; render(); return; } const r = V.addCustom(sel.g.replace(/\s*\(.*\)\s*$/, ''), sel.k); msg = r ? 'נוסף למילים שלי.' : 'המילה כבר קיימת במילון.'; render(); }
+        function startQ() { view = 'quiz'; qi = 0; ans = []; msg = ''; render(); window.scrollTo(0, 0); }
+        function pickA(i) { if (ans[qi] != null) return; ans[qi] = i; if (qi === cur.q.length - 1 || ans.length === cur.q.length) { /* שמירה בסיום */ } if (ans.filter(x => x != null).length === cur.q.length) rec(cur.id, ans.filter((x, j) => x === cur.q[j].a).length, cur.q.length); render(); }
+        function randomA() { const st = store(), un = A.filter(a => !(st[a.id] && st[a.id].tries) && (lvl === 'all' || a.level === lvl)), pool = un.length ? un : A.filter(a => !cur || a.id !== cur.id); open_(pool[Math.floor(Math.random() * pool.length)].id); }
+        function logT(m) { const r = V.logTime(m); msg = r ? 'נרשם ביומן הלימוד.' : 'הרישום נכשל.'; render(); }
+        window.addEventListener('DOMContentLoaded', render);
+    </script>
+</body>
+</html>
