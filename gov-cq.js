@@ -56,7 +56,7 @@
         const rIdx = BANK.frm.map((x, i) => i).filter(freeR), nr = q ? 2 : 4, frm = shuffle(pickBalanced(rIdx, nr, i => BANK.frm[i][0], r, null), r).map(i => 'r' + i);
         const sc = scenItems(), byD = {}; sc.forEach(s => { if (!used.has('j' + s.id)) (byD[s.d] = byD[s.d] || []).push(s.id); });
         let sjt = []; const ds = shuffle(Object.keys(byD), r); for (let n = 0; sjt.length < (q ? 8 : 16) && ds.length && n < 40; n++) { const d = ds[n % ds.length]; const l = byD[d]; if (l && l.length) sjt.push(l.splice(Math.floor(r() * l.length), 1)[0]); } sjt = sjt.map(s => 'j' + s);
-        const nsd = q ? 4 : 8, sdI = shuffle([0, 1, 2, 3, 4, 5, 6, 7].filter(i => !used.has('d' + i)), r).slice(0, nsd).map(i => 'd' + i);
+        const nsd = q ? 4 : 8, sdAll = [0, 1, 2, 3, 4, 5, 6, 7].filter(i => !used.has('d' + i)), sdA0 = shuffle(sdAll.filter(i => BANK.sd[i][0] === 1), r), sdB0 = shuffle(sdAll.filter(i => BANK.sd[i][0] !== 1), r), sdI = shuffle(sdA0.slice(0, Math.min(sdA0.length, Math.ceil(nsd / 2))).concat(sdB0).concat(sdA0.slice(Math.ceil(nsd / 2))).slice(0, nsd), r).map(i => 'd' + i);   // לפחות חצי מפריטי הרצייה החברתית הם מהסוג שמזהה אידיאליזציה, כדי שהבדיקה תפעל גם בגרסה המהירה
         const rt = shuffle(BANK.rt.map((x, i) => i).filter(i => !used.has('a' + i)), r).slice(0, q ? 4 : 8);
         const stage2 = shuffle(frq.concat(sdI, rt.map(i => 'a' + i)), r), stage5 = shuffle(sjt.concat(rt.map(i => 'c' + i)), r);
         return bws.concat(stage2, prs, frm, stage5);

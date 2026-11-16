@@ -12,8 +12,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.21.0"></script>
-    <script src="gov-nav.js?v=0.21.0"></script>
+    <script src="gov-core.js?v=0.22.0"></script>
+    <script src="gov-nav.js?v=0.22.0"></script>
 
     <header class="max-w-6xl mx-auto px-4 pt-8 pb-4">
         <div class="text-[11px] font-bold text-amber-400 tracking-wider">☀️ לוח הבקרה של הממשלה</div>
@@ -42,6 +42,7 @@
         </section>
 
         <section id="cloud" class="g-card border-sky-500/30"></section>
+        <section id="pwa" class="g-card border-amber-500/30"></section>
         <section id="aiCard" class="g-card border-violet-500/30"></section>
 
         <section id="roadmap" class="g-card">
@@ -267,12 +268,12 @@
         function secureMsg() { return !G.lock.isSet() ? 'כדי לשמור מפתחות צריך קודם להגדיר סיסמת כניסה (בהגדרות בתחתית הדף). המפתחות נשמרים מוצפנים בסיסמה.' : (!window.GOV_VAULT || !GOV_VAULT.isOpen() ? 'הכספת נעולה. היכנס מחדש עם הסיסמה.' : ''); }
         function renderCloud() {
             const S = window.GOV_SYNC; if (!S) { $('cloud').innerHTML = ''; return; }
-            const c = S.cfg(), conn = !!(c.url && c.token), sm = secureMsg(), st = { idle: ['⚪', 'לא מסונכרן', '#94a3b8'], ok: ['🟢', 'מסונכרן', '#34d399'], syncing: ['🔵', 'מסנכרן…', '#38bdf8'], error: ['🔴', 'שגיאה', '#f87171'], conflict: ['🟠', 'התנגשות', '#fb923c'], behind: ['🟠', 'הענן מקדים', '#fb923c'] }[c.state] || ['⚪', '', '#94a3b8'];
+            const c = S.cfg(), conn = !!(c.url && c.token), sm = secureMsg(), st = { idle: ['⚪', 'לא מסונכרן', '#94a3b8'], ok: ['🟢', 'מסונכרן', '#34d399'], syncing: ['🔵', 'מסנכרן…', '#38bdf8'], error: ['🔴', 'שגיאה', '#f87171'], conflict: ['🟠', 'התנגשות', '#fb923c'], behind: ['🟠', 'ממתין לבחירה', '#fb923c'] }[c.state] || ['⚪', '', '#94a3b8'];
             const btn = 'class="g-btn"';
             $('cloud').innerHTML = `<div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h2 class="font-bold text-white text-sm">☁️ שמירה קבועה בענן (Google Apps Script)</h2><span class="g-chip" style="color:${st[2]};border-color:${st[2]}66;background:${st[2]}1a">${st[0]} ${st[1]}</span></div>
                 <p class="text-[11px] text-slate-400 mb-3 leading-relaxed">הנתונים נשמרים כקובץ JSON בדרייב שלך. הכתובת והמפתח נשמרים במכשיר <b>מוצפנים בסיסמה</b> ואינם מוצגים שוב לאחר ההזנה. הוראות פריסה ב-README.md.</p>
-                ${sm ? `<div class="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2.5">🔒 ${sm}${pinInline()}</div>` : conn ? `<div class="flex flex-wrap items-center gap-3 text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-2"><span>🔗 מחובר: <b dir="ltr">${h(S.maskUrl(c.url))}</b></span><span class="text-slate-500">מפתח: ••••••••</span><label class="flex items-center gap-2 text-slate-300"><input type="checkbox" id="cAuto" ${c.auto ? 'checked' : ''} onchange="cloudAuto(this.checked)" class="accent-sky-400"> סנכרון אוטומטי (5 שניות אחרי כל שינוי)</label></div>
-                <div class="flex flex-wrap gap-2 mt-3"><button class="g-btn ok" onclick="cloudPush(false)">⬆️ דחוף לענן</button><button ${btn} onclick="cloudPull()">⬇️ משוך מהענן</button><button ${btn} onclick="cloudPing()">🔍 בדוק חיבור</button><button class="g-btn red" onclick="cloudPush(true)">⚠️ דרוס את הענן</button><button class="g-btn red" onclick="cloudDisconnect()">🔌 נתק והסר מפתחות</button></div>
+                ${sm ? `<div class="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2.5">🔒 ${sm}${pinInline()}</div>` : conn ? `<div class="flex flex-wrap items-center gap-3 text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-2"><span>🔗 מחובר: <b dir="ltr">${h(S.maskUrl(c.url))}</b></span><span class="text-slate-500">מפתח: ••••••••</span><label class="flex items-center gap-2 text-slate-300"><input type="checkbox" id="cAuto" ${c.auto ? 'checked' : ''} onchange="cloudAuto(this.checked)" class="accent-sky-400"> סנכרון אוטומטי מלא: כל שינוי עולה לענן, ושינויים ממכשיר אחר נמשכים מעצמם</label></div>
+                ${c.state === 'behind' ? `<div class="mt-3 text-xs bg-amber-500/10 border border-amber-500/30 rounded-lg p-3"><b class="text-amber-300">בענן כבר יש נתונים והמכשיר הזה עוד לא סונכרן.</b> זו בחירה חד-פעמית:<div class="flex flex-wrap gap-2 mt-2"><button class="g-btn ok" onclick="cloudPull()">⬇️ משוך מהענן (מומלץ במכשיר חדש)</button><button ${btn} onclick="cloudMerge()">🔀 מזג עם נתוני המכשיר</button><button class="g-btn red" onclick="cloudPush(true)">⚠️ דרוס את הענן בנתוני המכשיר</button></div></div>` : `<div class="flex flex-wrap gap-2 mt-3"><button class="g-btn ok" onclick="cloudSyncNow()">🔄 סנכרן עכשיו</button><button ${btn} onclick="cloudPing()">🔍 בדוק חיבור</button><button class="g-btn red" onclick="cloudDisconnect()">🔌 נתק והסר מפתחות</button></div><details class="mt-2 text-[11px] text-slate-400"><summary class="cursor-pointer">מתקדם (בדרך כלל לא צריך)</summary><div class="flex flex-wrap gap-2 mt-2"><button ${btn} onclick="cloudPull()">⬇️ משוך והחלף את המכשיר</button><button class="g-btn red" onclick="cloudPush(true)">⚠️ דרוס את הענן</button></div></details>`}
                 <details class="mt-3 text-xs"><summary class="cursor-pointer text-sky-300 font-bold">📱 חיבור מכשיר נוסף (קישור חד-פעמי מוצפן)</summary>
                     <p class="text-[11px] text-slate-400 my-2 leading-relaxed">הקישור מכיל את הכתובת והמפתח מוצפנים בסיסמה (8+ תווים), בחלק ה-# שלא נשלח לשרת ולא נשמר באתר. פתח אותו במכשיר החדש והזן את הסיסמה: המערכת תתחבר לענן, תמשוך נתונים ותשמור מפתחות מוצפנים. שלח אותו לעצמך (למשל בהודעה) ומחק אחר כך. ללא ריפוזיטורי ציבורי של קבצי הגדרות.</p>
                     <div class="flex flex-wrap gap-2"><input id="cfgPw" type="password" class="g-inp" style="margin:0;max-width:16rem" placeholder="סיסמת הממשלה" autocomplete="new-password"><button class="g-btn pri" onclick="cfgLink()">🔗 צור קישור</button></div><textarea id="cfgOut" readonly rows="3" dir="ltr" class="g-inp mt-2" style="display:none"></textarea></details>`
@@ -283,11 +284,27 @@
         }
         async function cloudSave() { const r = await window.GOV_SYNC.setConfig({ url: $('cUrl').value, token: $('cTok').value, auto: true }); if (!r.ok) { alert(r.error); return; } renderCloud(); await window.GOV_SYNC.ping(); renderCloud(); }
         async function cloudAuto(on) { await window.GOV_SYNC.setConfig({ auto: on }); renderCloud(); }
+        async function cloudSyncNow() { await window.GOV_SYNC.sync(); renderCloud(); }
+        async function cloudMerge() { await window.GOV_SYNC.mergeFirst(); renderCloud(); }
         async function cloudPing() { await window.GOV_SYNC.ping(); renderCloud(); }
         function cloudDisconnect() { if (confirm('לנתק את הענן ולמחוק את הכתובת והמפתח מהמכשיר הזה? הנתונים בענן נשארים.')) { window.GOV_SYNC.clearConfig(); renderCloud(); } }
         async function cfgLink() { const r = await window.GOV_SYNC.exportLink($('cfgPw').value); if (!r.ok) { alert(r.error); return; } const o = $('cfgOut'); o.style.display = 'block'; o.value = r.link; o.select(); alert('הקישור נוצר. הוא פועל רק עם הסיסמה. ודא שזו אותה סיסמה שקבעת לכניסה למערכת.'); }
         async function cloudPush(force) { if (force && !confirm('לדרוס את הנתונים שבענן בנתונים של המכשיר הזה? גרסת הענן הקודמת נשמרת כגיבוי בדרייב (עד 5 גרסאות).')) return; await window.GOV_SYNC.push(force); renderCloud(); }
         async function cloudPull() { if (!confirm('למשוך מהענן? הנתונים במכשיר הזה יוחלפו בנתוני הענן. מומלץ להוריד קודם גיבוי מקומי.')) return; const c = await window.GOV_SYNC.pull(); if (c.state === 'ok') render(); else renderCloud(); }
+
+        // ---------- התקנה כאפליקציה ----------
+        function renderPwa() {
+            const P = window.GOV_PWA; if (!P) { $('pwa').innerHTML = ''; return; }
+            const https = location.protocol === 'https:' || location.hostname === 'localhost';
+            const body = P.installed() ? '<div class="text-xs text-emerald-300">✅ אתה כבר משתמש באפליקציה המותקנת.</div>'
+                : P.canInstall() ? '<button class="g-btn pri" onclick="pwaInstall()">📲 התקן את האפליקציה</button>'
+                : P.ios() ? '<div class="text-xs text-slate-300 leading-relaxed">באייפון: פתח את האתר ב-<b>Safari</b>, לחץ על כפתור השיתוף (ריבוע עם חץ), ובחר <b>"הוסף למסך הבית"</b>.</div>'
+                : '<div class="text-xs text-slate-300 leading-relaxed">ב-Chrome/Edge: תפריט הדפדפן (שלוש נקודות) ← <b>"התקן אפליקציה"</b> או <b>"הוסף למסך הבית"</b>. אם האפשרות לא מופיעה, פתח את האתר בכתובת https (GitHub Pages) וטען מחדש.</div>';
+            $('pwa').innerHTML = `<div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h2 class="font-bold text-white text-sm">📲 אפליקציה במכשיר</h2><span class="g-chip">${P.sw() === 'active' ? '🟢 עובד גם בלי רשת' : https ? '⚪ יופעל בטעינה הבאה' : '🔴 דורש https'}</span></div>
+                <p class="text-[11px] text-slate-400 mb-2 leading-relaxed">האתר מותקן כאייקון במסך הבית, נפתח במסך מלא ועובד גם בלי אינטרנט (סנכרון לענן ממשיך כשיש חיבור). הנתונים נשארים במכשיר ומסתנכרנים בין מכשירים דרך הענן.</p>${body}`;
+        }
+        async function pwaInstall() { await window.GOV_PWA.install(); renderPwa(); }
+        window.addEventListener('gov:pwa', renderPwa); window.addEventListener('DOMContentLoaded', () => { renderPwa(); setTimeout(renderPwa, 1500); });
         window.addEventListener('gov:sync', () => { if (!document.activeElement || !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) renderCloud(); });
 
         function renderScore() {

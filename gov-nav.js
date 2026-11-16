@@ -86,12 +86,29 @@
         document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeAll(); });
     })();
 
+    // ---- אפליקציה (PWA, v0.22): manifest, אייקונים, Service Worker, כפתור התקנה ----
+    (function pwa() {
+        try {
+            const h = document.head, add = (tag, a) => { const e = document.createElement(tag); Object.keys(a).forEach(k => e.setAttribute(k, a[k])); h.appendChild(e); };
+            if (!document.querySelector('link[rel=manifest]')) add('link', { rel: 'manifest', href: 'manifest.webmanifest' });
+            add('link', { rel: 'icon', type: 'image/png', href: 'icons/icon-192.png' }); add('link', { rel: 'apple-touch-icon', href: 'icons/apple-touch-icon.png' });
+            add('meta', { name: 'theme-color', content: '#0f172a' }); add('meta', { name: 'mobile-web-app-capable', content: 'yes' }); add('meta', { name: 'apple-mobile-web-app-capable', content: 'yes' }); add('meta', { name: 'apple-mobile-web-app-title', content: 'ממשל אישי' });
+            let dip = null;
+            window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); dip = e; window.dispatchEvent(new Event('gov:pwa')); });
+            window.addEventListener('appinstalled', () => { dip = null; window.dispatchEvent(new Event('gov:pwa')); });
+            const standalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+            window.GOV_PWA = { canInstall: () => !!dip, installed: standalone, ios: () => /iphone|ipad|ipod/i.test(navigator.userAgent), install: async () => { if (!dip) return false; dip.prompt(); const r = await dip.userChoice.catch(() => null); dip = null; window.dispatchEvent(new Event('gov:pwa')); return !!(r && r.outcome === 'accepted'); },
+                sw: () => navigator.serviceWorker && navigator.serviceWorker.controller ? 'active' : 'none' };
+            if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+        } catch (e) {}
+    })();
+
     // אם נטען gov-core.js ישן (מטמון, או קובץ שלא הועלה): מציגים הודעה ברורה במקום דף ריק
-    if (!window.GOV || window.GOV.VERSION !== '0.21.0') { window.addEventListener('DOMContentLoaded', () => { document.body.insertAdjacentHTML('afterbegin', '<div style="position:sticky;top:0;z-index:2000;background:#7f1d1d;color:#fff;padding:10px 14px;font:14px Rubik,sans-serif;direction:rtl;text-align:right">⚠️ גרסאות הקבצים לא תואמות (נטען gov-core.js ' + ((window.GOV && window.GOV.VERSION) || 'ישן') + ', נדרש 0.21.0). פתרון: ודא שהעלית את כל הקבצים מה-zip (בעיקר gov-core.js) ל-GitHub, המתן דקה-שתיים, ורענן בלי מטמון (באנדרואיד: הגדרות הדפדפן ← נקה נתוני אתר מטמון בלבד, לא "נתוני אתר" כי זה ימחק את הנתונים!).</div>'); }); }
-    document.write('<script src="gov-vault.js?v=0.21.0"><\/script>');   // כספת המפתחות (נטענת לפני הסנכרון וה-AI)
-    document.write('<script src="gov-sync.js?v=0.21.0"><\/script>');
-    document.write('<script src="gov-ai.js?v=0.21.0"><\/script>');
-    document.write('<script src="gov-review.js?v=0.21.0"><\/script>');    // הערכת ביטול (סוגיות והבטחות)    // שכבת AI משותפת (מפתח Gemini של המשתמש)    // סנכרון לענן: נטען סינכרונית בכל דף, כדי שכל שמירה תופעל אוטומטית
+    if (!window.GOV || window.GOV.VERSION !== '0.22.0') { window.addEventListener('DOMContentLoaded', () => { document.body.insertAdjacentHTML('afterbegin', '<div style="position:sticky;top:0;z-index:2000;background:#7f1d1d;color:#fff;padding:10px 14px;font:14px Rubik,sans-serif;direction:rtl;text-align:right">⚠️ גרסאות הקבצים לא תואמות (נטען gov-core.js ' + ((window.GOV && window.GOV.VERSION) || 'ישן') + ', נדרש 0.22.0). פתרון: ודא שהעלית את כל הקבצים מה-zip (בעיקר gov-core.js) ל-GitHub, המתן דקה-שתיים, ורענן בלי מטמון (באנדרואיד: הגדרות הדפדפן ← נקה נתוני אתר מטמון בלבד, לא "נתוני אתר" כי זה ימחק את הנתונים!).</div>'); }); }
+    document.write('<script src="gov-vault.js?v=0.22.0"><\/script>');   // כספת המפתחות (נטענת לפני הסנכרון וה-AI)
+    document.write('<script src="gov-sync.js?v=0.22.0"><\/script>');
+    document.write('<script src="gov-ai.js?v=0.22.0"><\/script>');
+    document.write('<script src="gov-review.js?v=0.22.0"><\/script>');    // הערכת ביטול (סוגיות והבטחות)    // שכבת AI משותפת (מפתח Gemini של המשתמש)    // סנכרון לענן: נטען סינכרונית בכל דף, כדי שכל שמירה תופעל אוטומטית
 
 
     // מכשיר חדש: קישור חיבור (#setup=...) או gov-config.enc.json. מזינים סיסמה: מפענחים, קובעים אותה כסיסמת כניסה, שומרים את הכתובת והמפתח בכספת ומושכים נתונים.
