@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <title>מעבדת למידה - ממשל אישי</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Rubik', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .lb-wrap { max-width: 760px; margin: 0 auto; padding: 14px 16px 60px; }
+        .lb-box { background: #111c2f; border: 1px solid #334155; border-radius: 16px; padding: 14px 16px; margin-top: 12px; }
+        .lb-btn { background: #1e293b; border: 1px solid #475569; color: #e2e8f0; border-radius: 10px; padding: 8px 14px; font-size: 14px; cursor: pointer; font-family: inherit; } .lb-btn:hover { border-color: #fbbf24; } .lb-btn.pri { background: #fbbf24; color: #0f172a; border-color: #fbbf24; font-weight: 800; } .lb-btn.on { background: #334155; border-color: #fbbf24; }
+        .lb-mode { text-align: right; background: #1e293b; border: 1px solid #334155; border-radius: 14px; padding: 12px; cursor: pointer; color: #e2e8f0; font-family: inherit; transition: .15s; } .lb-mode:hover { border-color: #fbbf24; transform: translateY(-2px); }
+        .lb-pt { direction: ltr; text-align: left; }
+        .lb-tile { direction: ltr; background: #1e293b; border: 1px solid #64748b; color: #f1f5f9; border-radius: 10px; padding: 8px 12px; font-size: 17px; cursor: pointer; font-family: inherit; transition: .1s; } .lb-tile:hover:not(:disabled) { border-color: #fbbf24; } .lb-tile:disabled { opacity: .25; cursor: default; }
+        .lb-slot { direction: ltr; min-height: 52px; border: 2px dashed #475569; border-radius: 12px; padding: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; } .lb-slot.ok { border-color: #34d399; background: rgba(16, 185, 129, .08); } .lb-slot.no { border-color: #fb7185; background: rgba(244, 63, 94, .08); }
+        .lb-opt { display: block; width: 100%; direction: ltr; text-align: left; background: #1e293b; border: 1px solid #475569; color: #e2e8f0; border-radius: 10px; padding: 10px 12px; margin-top: 6px; font-size: 16px; cursor: pointer; font-family: inherit; } .lb-opt:hover:not(:disabled) { border-color: #fbbf24; } .lb-opt.ok { background: #064e3b; border-color: #34d399; } .lb-opt.no { background: #4c0519; border-color: #fb7185; } .lb-opt:disabled { cursor: default; }
+        .lb-inp { direction: ltr; text-align: left; width: 100%; background: #0b1220; border: 1px solid #475569; border-radius: 10px; color: #fff; padding: 10px 12px; font-size: 17px; font-family: inherit; }
+        .lb-bar { height: 8px; background: #1b2a45; border-radius: 6px; overflow: hidden; } .lb-bar > i { display: block; height: 100%; background: #fbbf24; transition: width .3s; }
+        .lb-gap { display: inline-block; min-width: 70px; border-bottom: 3px solid #fbbf24; color: #fbbf24; text-align: center; }
+        .lb-ins { background: rgba(251, 191, 36, .25); border-radius: 3px; } .lb-del { background: rgba(251, 113, 133, .3); border-radius: 3px; text-decoration: line-through; }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+    <script src="gov-core.js?v=0.23.0"></script>
+    <script src="gov-nav.js?v=0.23.0"></script>
+    <script src="gov-vocab-data.js?v=0.23.0"></script>
+    <script src="gov-vocab-more.js?v=0.23.0"></script>
+    <script src="gov-vocab-more2.js?v=0.23.0"></script>
+    <script src="gov-vocab.js?v=0.23.0"></script>
+    <div class="lb-wrap">
+        <header class="text-center mb-2">
+            <h1 class="text-3xl font-black text-white">🧪 מעבדת למידה</h1>
+            <p class="text-slate-400 text-sm mt-1">שלוש טכניקות פעילות ללימוד משפטים בפורטוגזית ברזילאית: בנייה, השלמה והכתבה. כל תשובה מזינה את חזרות המשפטים (Spaced Repetition) שבדף הפורטוגזית.</p>
+        </header>
+        <div id="app"></div>
+    </div>
+    <script>
+        const G = GOV, V = GOV_VOCAB, P = GOV_PT, esc = G.esc, $ = id => document.getElementById(id);
+        const MODES = { build: ['🧱', 'בנה את המשפט', 'מסדרים אריחי מילים לפי הסדר הנכון. מאמן סדר מילים ודקדוק מבלי להקליד.'], cloze: ['🕳️', 'השלם את החסר', 'חסרה מילה אחת במשפט ויש 4 אפשרויות. מאמן זיהוי מילים בהקשר.'], dict: ['🎧', 'הכתבה', 'שומעים משפט ומקלידים מה ששמעתם. מאמן שמיעה והבנת הנשמע ואיות.'] };
+        const NORM = s => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[.,!?¿¡;:"()]/g, '').replace(/\s+/g, ' ').trim();
+        const tokens = s => String(s).replace(/[.,!?¿¡;:"()]/g, '').split(/\s+/).filter(Boolean);
+        const sh = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+        let mode = null, cat = 'all', q = null, done = null, st = { n: 0, ok: 0, t0: 0 }, picked = [], recent = [], msg = '';
+        const ptOf = s => V.sPt(s), SENTS = () => V.sents();
+        function pool() { return SENTS().filter(s => (cat === 'all' || s.cat === cat) && tokens(ptOf(s)).length >= 3 && tokens(ptOf(s)).length <= 12); }
+        function pickSent() { const l = pool(), fresh = l.filter(s => !recent.includes(s.id)), src = fresh.length ? fresh : l; const s = src[Math.floor(Math.random() * src.length)]; recent.push(s.id); if (recent.length > 40) recent.shift(); return s; }
+        function mkQ() {
+            const s = pickSent(), pt = ptOf(s), tk = tokens(pt);
+            if (mode === 'build') { const extra = sh(P.WORDS.filter(w => !w.pt.includes(' ')).map(w => w.pt)).filter(w => !tk.map(NORM).includes(NORM(w))).slice(0, Math.min(3, Math.max(1, Math.floor(tk.length / 3)))); return { s, pt, tk, tiles: sh(tk.map((w, i) => ({ w, i, d: false })).concat(extra.map((w, i) => ({ w, i: 100 + i, d: true })))) }; }
+            if (mode === 'cloze') { const cand = tk.map((w, i) => [w, i]).filter(x => x[0].length >= 4), gap = cand.length ? cand[Math.floor(Math.random() * cand.length)] : [tk[tk.length - 1], tk.length - 1]; const key = NORM(gap[0]); const dis = []; sh(SENTS().flatMap(x => tokens(ptOf(x)))).forEach(w => { if (dis.length < 3 && NORM(w) !== key && Math.abs(w.length - gap[0].length) <= 3 && !dis.some(d => NORM(d) === NORM(w)) && /[a-zà-ú]/i.test(w)) dis.push(w); }); const lc = tk.map(w => w), low = gap[0] === gap[0].toLowerCase(); return { s, pt, tk, gap: gap[1], ans: gap[0], opts: sh([gap[0]].concat(dis.map(d => low ? d.toLowerCase() : d))) }; }
+            return { s, pt, tk };
+        }
+        function menu() {
+            const cats = Object.keys(V.CATS).filter(k => SENTS().some(s => s.cat === k));
+            return `<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">${Object.entries(MODES).map(([k, v]) => `<button class="lb-mode" onclick="start('${k}')"><div class="text-2xl">${v[0]}</div><div class="font-black text-white mt-1">${v[1]}</div><div class="text-[12px] text-slate-400 mt-1 leading-relaxed">${v[2]}</div></button>`).join('')}</div>
+              <div class="lb-box"><div class="text-xs text-slate-400 mb-2">נושא למשפטים</div><div class="flex flex-wrap gap-1.5"><button class="lb-btn ${cat === 'all' ? 'on' : ''}" onclick="cat='all';render()">הכול (${SENTS().length})</button>${cats.map(k => `<button class="lb-btn ${cat === k ? 'on' : ''}" onclick="cat='${k}';render()">${esc(V.CATS[k].ic || V.CATS[k].e || '')} ${esc(V.CATS[k].l || V.CATS[k].he || V.CATS[k].n || k)}</button>`).join('')}</div>
+                <p class="text-[11px] text-slate-500 mt-3 leading-relaxed">למה זה עובד: שליפה פעילה (לא רק זיהוי) מחזקת זיכרון הרבה יותר מקריאה חוזרת. בנייה והכתבה מכריחות אותך להפיק את המשפט, והשלמה מחזקת הקשר. טענה זו מבוססת על מחקר כללי על שליפה פעילה ולא נבדקה על ההצלחה שלך דווקא.</p></div>`;
+        }
+        function hdr() { return `<div class="flex items-center gap-2 flex-wrap"><button class="lb-btn" onclick="stop()">→ סיום</button><span class="text-xs text-slate-300">${MODES[mode][0]} ${MODES[mode][1]}</span><span class="flex-1"></span><span class="text-xs text-slate-400">${st.ok} נכון מתוך ${st.n}</span></div><div class="lb-bar mt-2"><i style="width:${st.n ? Math.round(st.ok / st.n * 100) : 0}%"></i></div>`; }
+        function run() {
+            const s = q.s;
+            let body = '';
+            if (mode === 'build') {
+                const placed = picked.map(i => q.tiles.find(t => t.i === i));
+                body = `<div class="text-xs text-slate-400">תרגם לפורטוגזית:</div><div class="text-xl font-black text-white mt-1">${esc(s.he)}</div>
+                  <div class="lb-slot mt-3 ${done ? (done.ok ? 'ok' : 'no') : ''}">${placed.length ? placed.map(t => `<button class="lb-tile" ${done ? 'disabled' : ''} onclick="unpick(${t.i})">${esc(t.w)}</button>`).join('') : '<span class="text-slate-500 text-sm" dir="rtl">לחץ על המילים לפי הסדר</span>'}</div>
+                  <div class="flex flex-wrap gap-2 mt-3 lb-pt" dir="ltr">${q.tiles.map(t => `<button class="lb-tile" ${picked.includes(t.i) || done ? 'disabled' : ''} onclick="pick(${t.i})">${esc(t.w)}</button>`).join('')}</div>
+                  ${done ? '' : `<div class="flex gap-2 mt-3"><button class="lb-btn pri" onclick="chkBuild()" ${picked.length ? '' : 'disabled'}>בדוק</button><button class="lb-btn" onclick="picked=[];render()">נקה</button><button class="lb-btn" onclick="hear()">🔊 רמז קולי</button></div>`}`;
+            } else if (mode === 'cloze') {
+                body = `<div class="text-xs text-slate-400">איזו מילה חסרה?</div><div class="text-xl font-black text-white mt-1 lb-pt" dir="ltr">${q.tk.map((w, i) => i === q.gap ? (done ? `<span class="${done.ok ? 'text-emerald-300' : 'text-rose-300'}">${esc(q.ans)}</span>` : '<span class="lb-gap">&nbsp;</span>') : esc(w)).join(' ')}</div><div class="text-sm text-slate-400 mt-1">${esc(s.he)}</div>
+                  ${q.opts.map((o, i) => `<button class="lb-opt ${done ? (NORM(o) === NORM(q.ans) ? 'ok' : done.pick === i ? 'no' : '') : ''}" ${done ? 'disabled' : ''} onclick="pickC(${i})">${esc(o)}</button>`).join('')}<div class="mt-2"><button class="lb-btn" onclick="hear()">🔊 שמע את המשפט</button></div>`;
+            } else {
+                body = `<div class="text-xs text-slate-400">שמע והקלד בפורטוגזית מה ששמעת:</div><div class="flex gap-2 mt-2"><button class="lb-btn pri" onclick="hear()">🔊 השמע</button><button class="lb-btn" onclick="hear(true)">🐢 לאט</button></div>
+                  <input id="dt" class="lb-inp mt-3" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="הקלד כאן…" ${done ? 'disabled' : ''} value="${done ? esc(done.text) : ''}" onkeydown="if(event.key==='Enter')chkDict()">
+                  ${done ? '' : `<div class="flex gap-2 mt-3"><button class="lb-btn pri" onclick="chkDict()">בדוק</button><button class="lb-btn" onclick="showHe=!showHe;render()">${typeof showHe !== 'undefined' && showHe ? 'הסתר' : 'רמז: תרגום'}</button></div>`}${typeof showHe !== 'undefined' && showHe && !done ? `<div class="text-sm text-slate-400 mt-2">${esc(s.he)}</div>` : ''}`;
+            }
+            const fb = done ? `<div class="mt-3 p-3 rounded-xl ${done.ok ? 'bg-emerald-500/10 border border-emerald-500/40' : 'bg-rose-500/10 border border-rose-500/40'}"><div class="font-bold ${done.ok ? 'text-emerald-300' : 'text-rose-300'}">${done.ok ? (done.note || '✅ נכון!') : '❌ לא בדיוק'}</div><div class="lb-pt text-lg mt-1" dir="ltr">${done.diff || esc(q.pt)}</div><div class="text-sm text-slate-400 mt-1">${esc(s.he)}</div><div class="flex gap-2 mt-3"><button class="lb-btn" onclick="hear()">🔊</button><button class="lb-btn pri" onclick="nextQ()">הבא ←</button></div></div>` : '';
+            return hdr() + `<div class="lb-box">${body}${fb}</div>`;
+        }
+        let showHe = false;
+        function start(m) { mode = m; if (!pool().length) { msg = 'אין משפטים בנושא הזה.'; render(); return; } st = { n: 0, ok: 0, t0: Date.now() }; try { V.startSession('sent'); } catch (e) { } nextQ(); }
+        function nextQ() { q = mkQ(); done = null; picked = []; showHe = false; render(); if (mode === 'dict') setTimeout(() => hear(), 200); const d = $('dt'); if (d) d.focus(); }
+        function stop() { try { V.endSession(); } catch (e) { } const mins = Math.max(1, Math.round((Date.now() - st.t0) / 60000)); const n = st.n, ok = st.ok; mode = null; q = null; done = null; msg = n ? 'סיימת: ' + ok + ' נכון מתוך ' + n + '.' : ''; lastMins = n ? mins : 0; render(); }
+        let lastMins = 0;
+        function hear(slow) { if (!V.speak(q ? q.pt : '', !!slow)) { alert('אין קול פורטוגזי זמין במכשיר.'); } }
+        function fin(ok, extra) { st.n++; if (ok) st.ok++; try { V.answerSent(q.s.id, ok); V.touch(); } catch (e) { } done = Object.assign({ ok }, extra || {}); render(); }
+        function pick(i) { if (done || picked.includes(i)) return; picked.push(i); render(); }
+        function unpick(i) { if (done) return; picked = picked.filter(x => x !== i); render(); }
+        function chkBuild() { const got = picked.map(i => q.tiles.find(t => t.i === i).w), exact = got.join(' ') === q.tk.join(' '), alt = V.sentQ(q.s.id, 'he2pt').accept.some(a => NORM(a) === NORM(got.join(' '))); fin(exact || alt, { note: exact ? '✅ נכון!' : '✅ נכון (ניסוח חלופי תקף)' }); }
+        function pickC(i) { if (done) return; const ok = NORM(q.opts[i]) === NORM(q.ans); fin(ok, { pick: i }); }
+        function diffHtml(a, b) { // השוואת מילים: מה שהקלדת מול התשובה
+            const A = tokens(a), B = tokens(b), m = A.length, n = B.length, d = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+            for (let i = m - 1; i >= 0; i--) for (let j = n - 1; j >= 0; j--) d[i][j] = NORM(A[i]) === NORM(B[j]) ? d[i + 1][j + 1] + 1 : Math.max(d[i + 1][j], d[i][j + 1]);
+            let i = 0, j = 0, out = []; while (i < m && j < n) { if (NORM(A[i]) === NORM(B[j])) { out.push(esc(B[j])); i++; j++; } else if (d[i + 1][j] >= d[i][j + 1]) { out.push('<span class="lb-del">' + esc(A[i]) + '</span>'); i++; } else { out.push('<span class="lb-ins">' + esc(B[j]) + '</span>'); j++; } }
+            while (i < m) out.push('<span class="lb-del">' + esc(A[i++]) + '</span>'); while (j < n) out.push('<span class="lb-ins">' + esc(B[j++]) + '</span>'); return out.join(' ');
+        }
+        function chkDict() { if (done) return; const text = $('dt').value; if (!NORM(text)) return; const acc = V.sentQ(q.s.id, 'he2pt').accept, r = V.check(text, acc, 'pt'), ok = r.res === 'exact' || r.res === 'accent' || r.res === 'close'; fin(ok, { text, diff: diffHtml(text, r.best || q.pt), note: r.res === 'exact' ? '✅ מושלם!' : r.res === 'accent' ? '✅ נכון (שים לב לסימני ההטעמה)' : r.res === 'close' ? '✅ כמעט, שגיאת איות קטנה' : '' }); }
+        function render() {
+            $('app').innerHTML = mode ? run() : ((msg ? `<div class="lb-box text-center"><div class="font-bold text-amber-300">${esc(msg)}</div>${lastMins ? `<button class="lb-btn mt-2" onclick="logT()">⏱️ רשום ${lastMins} דק' ביומן הלימוד</button>` : ''}</div>` : '') + menu());
+        }
+        function logT() { const r = V.logTime(lastMins); msg = r ? 'נרשם ביומן הלימוד.' : 'הרישום נכשל.'; lastMins = 0; render(); }
+        window.addEventListener('DOMContentLoaded', render);
+    </script>
+</body>
+</html>

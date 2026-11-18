@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>לוח בקרה - ממשל אישי</title>
@@ -12,8 +14,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.22.0"></script>
-    <script src="gov-nav.js?v=0.22.0"></script>
+    <script src="gov-core.js?v=0.23.0"></script>
+    <script src="gov-nav.js?v=0.23.0"></script>
 
     <header class="max-w-6xl mx-auto px-4 pt-8 pb-4">
         <div class="text-[11px] font-bold text-amber-400 tracking-wider">☀️ לוח הבקרה של הממשלה</div>
@@ -301,8 +303,9 @@
                 : P.ios() ? '<div class="text-xs text-slate-300 leading-relaxed">באייפון: פתח את האתר ב-<b>Safari</b>, לחץ על כפתור השיתוף (ריבוע עם חץ), ובחר <b>"הוסף למסך הבית"</b>.</div>'
                 : '<div class="text-xs text-slate-300 leading-relaxed">ב-Chrome/Edge: תפריט הדפדפן (שלוש נקודות) ← <b>"התקן אפליקציה"</b> או <b>"הוסף למסך הבית"</b>. אם האפשרות לא מופיעה, פתח את האתר בכתובת https (GitHub Pages) וטען מחדש.</div>';
             $('pwa').innerHTML = `<div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h2 class="font-bold text-white text-sm">📲 אפליקציה במכשיר</h2><span class="g-chip">${P.sw() === 'active' ? '🟢 עובד גם בלי רשת' : https ? '⚪ יופעל בטעינה הבאה' : '🔴 דורש https'}</span></div>
-                <p class="text-[11px] text-slate-400 mb-2 leading-relaxed">האתר מותקן כאייקון במסך הבית, נפתח במסך מלא ועובד גם בלי אינטרנט (סנכרון לענן ממשיך כשיש חיבור). הנתונים נשארים במכשיר ומסתנכרנים בין מכשירים דרך הענן.</p>${body}`;
+                <p class="text-[11px] text-slate-400 mb-2 leading-relaxed">האתר מותקן כאייקון במסך הבית, נפתח במסך מלא ועובד גם בלי אינטרנט (סנכרון לענן ממשיך כשיש חיבור). הנתונים נשארים במכשיר ומסתנכרנים בין מכשירים דרך הענן.</p>${body}<details class="mt-3 text-xs"><summary class="cursor-pointer text-amber-300 font-bold">🔧 למה אין כפתור התקנה? אבחון</summary><div id="pwaDiag" class="mt-2 text-[11px] text-slate-300"><button class="g-btn" onclick="pwaDiag()">הרץ אבחון</button></div></details>`;
         }
+        async function pwaDiag() { $('pwaDiag').innerHTML = 'בודק…'; const r = await window.GOV_PWA_DIAG(); $('pwaDiag').innerHTML = r.map(x => `<div class="${/^נכשל/.test(x[1]) ? 'text-rose-300' : 'text-emerald-300'}">${/^נכשל/.test(x[1]) ? '❌' : '✅'} ${h(x[0])}: ${h(x[1])}</div>`).join('') + '<div class="text-slate-400 mt-2">אם הכול ✅ ועדיין אין כפתור: ייתכן שכבר התקנת (בדוק בתפריט כרום "פתח באפליקציה"), או ש-Chrome עדיין לא ראה את האתר זמן מספיק. רענן פעמיים.</div>'; }
         async function pwaInstall() { await window.GOV_PWA.install(); renderPwa(); }
         window.addEventListener('gov:pwa', renderPwa); window.addEventListener('DOMContentLoaded', () => { renderPwa(); setTimeout(renderPwa, 1500); });
         window.addEventListener('gov:sync', () => { if (!document.activeElement || !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) renderCloud(); });

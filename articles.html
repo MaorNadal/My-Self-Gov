@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>קריאה בפורטוגזית - ממשל אישי</title>
@@ -25,13 +27,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen">
-    <script src="gov-core.js?v=0.22.0"></script>
-    <script src="gov-nav.js?v=0.22.0"></script>
-    <script src="gov-vocab-data.js?v=0.22.0"></script>
-    <script src="gov-vocab-more.js?v=0.22.0"></script>
-    <script src="gov-vocab-more2.js?v=0.22.0"></script>
-    <script src="gov-vocab.js?v=0.22.0"></script>
-    <script src="gov-articles.js?v=0.22.0"></script>
+    <script src="gov-core.js?v=0.23.0"></script>
+    <script src="gov-nav.js?v=0.23.0"></script>
+    <script src="gov-vocab-data.js?v=0.23.0"></script>
+    <script src="gov-vocab-more.js?v=0.23.0"></script>
+    <script src="gov-vocab-more2.js?v=0.23.0"></script>
+    <script src="gov-vocab.js?v=0.23.0"></script>
+    <script src="gov-articles.js?v=0.23.0"></script>
     <div class="ar-wrap">
         <header class="text-center mb-2">
             <h1 class="text-3xl font-black text-white">📰 קריאה בפורטוגזית</h1>
@@ -46,7 +48,7 @@
         const store = () => { const o = G.rd(KEY, {}); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; };
         function rec(id, score, total) { const s = store(), o = s[id] && typeof s[id] === 'object' ? s[id] : {}; o.tries = (Number(o.tries) || 0) + 1; o.best = Math.max(Number(o.best) || 0, score); o.last = score; o.total = total; o.at = G.localDate(); s[id] = o; G.wr(KEY, s); }
         // מילון מהיר מהמילים הכלליות כגיבוי: מילה נמצאת לפי הטקסט הפורטוגזי של פריט המילון
-        let glob = null; function globalGloss(tok) { if (!glob) { glob = {}; V.words().forEach(w => { String(V.ptOf(w)).split(' / ').forEach(p => { const k = p.toLowerCase().replace(/[.,;:!?()"«»—–…]/g, '').trim(); if (k && !k.includes(' ') && !glob[k]) glob[k] = w.he; }); }); } return glob[tok] || ''; }
+        let glob = null; function globalGloss(tok) { if (!glob) { glob = {}; (window.GOV_PT ? GOV_PT.WORDS : []).forEach(w => { String(w.pt).split(/\s*[\/,]\s*/).forEach(p => { const k = p.toLowerCase().replace(/[.,;:!?()"«»—–…]/g, '').trim(); if (k && !k.includes(' ') && !glob[k]) glob[k] = w.he; }); }); } return glob[tok] || ''; }
         const norm = t => t.replace(/[.,;:!?()"«»—–…]/g, '').toLowerCase();
         const gloss = (a, tok) => a.gl[tok] || globalGloss(tok) || '';
         function list() {

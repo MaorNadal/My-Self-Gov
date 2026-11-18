@@ -16,6 +16,7 @@
         { file: 'lang.html', icon: '🗣️', title: 'לימוד שפות', desc: 'רמת CEFR לכל מיומנות, יעד, יומן לימוד, רצף, קצב שבועי ותחזית סיום.', sections: [['list', 'שפות'], ['detail', 'פירוט']] },
         { file: 'vocab.html', icon: '🇧🇷', title: 'פורטוגזית', desc: 'מילים עם הקראה, מבחנים, תרגול רציף ותרגום משפטים לטיול.' },
         { file: 'articles.html', icon: '📰', title: 'קריאה בפורטוגזית', desc: 'מאמרים קצרים עם תרגום מילה בלחיצה ושאלות הבנה.' },
+        { file: 'lab.html', icon: '🧪', title: 'מעבדת למידה', desc: 'בניית משפטים, השלמת מילה והכתבה: שלוש טכניקות שליפה פעילה.' },
         { file: 'quiz.html', icon: '📝', title: 'שאלונים', desc: 'שאלון אישיות קצר, ושאלוני רפלקציה שה-AI מייצר ומנתח.', sections: [['list', 'שאלונים'], ['detail', 'פירוט']] },
         { file: 'central.html', icon: '🎯', title: 'השאלון המרכזי', desc: 'שאלון רב-שיטתי ליסודות: בחר הכי/הכי פחות, תדירות, הכרעות, תרחישים, רגיל מול לחץ, עם בדיקות אמינות.' },
         { file: 'elements.html', icon: '🔥', title: 'ארבעת היסודות', desc: 'שאלון של 200 היגדים: אחוזי אש, מים, אדמה ואוויר, והיסוד המרכזי.', sections: [['app', 'השאלון והתוצאה']] },
@@ -39,7 +40,7 @@
         { id: 'today', icon: '🗓️', title: 'היום והזמן', files: ['schedule.html', 'tasks.html', 'wish.html'] },
         { id: 'goals', icon: '🎯', title: 'יעדים', files: ['promises.html', 'issues.html', 'operations.html', 'portfolios.html'] },
         { id: 'gov', icon: '🏛️', title: 'ממשל', files: ['cabinet.html', 'treaties.html', 'people.html', 'ministers.html'] },
-        { id: 'me', icon: '🪪', title: 'אני', files: ['player.html', 'career.html', 'lang.html', 'vocab.html', 'articles.html', 'quiz.html', 'elements.html', 'central.html'] },
+        { id: 'me', icon: '🪪', title: 'אני', files: ['player.html', 'career.html', 'lang.html', 'vocab.html', 'articles.html', 'lab.html', 'quiz.html', 'elements.html', 'central.html'] },
         { id: 'life', icon: '🧭', title: 'חיים', files: ['money.html', 'trip.html'] },
         { id: 'score', icon: '📊', title: 'ציון והישגים', files: ['review.html', 'wins.html'] }
     ];
@@ -90,7 +91,13 @@
     (function pwa() {
         try {
             const h = document.head, add = (tag, a) => { const e = document.createElement(tag); Object.keys(a).forEach(k => e.setAttribute(k, a[k])); h.appendChild(e); };
-            if (!document.querySelector('link[rel=manifest]')) add('link', { rel: 'manifest', href: 'manifest.webmanifest' });
+            if (!document.querySelector('link[rel=manifest]')) add('link', { rel: 'manifest', href: 'manifest.json' });
+            window.GOV_PWA_DIAG = async () => { const r = [], t = async (name, f) => { try { r.push([name, await f()]); } catch (e) { r.push([name, 'נכשל: ' + (e && e.message || e)]); } }; const okf = async u => { const x = await fetch(u, { cache: 'no-store' }); if (!x.ok) throw new Error('HTTP ' + x.status); return x; };
+                await t('כתובת https', async () => (location.protocol === 'https:' || location.hostname === 'localhost') ? 'תקין' : 'נכשל: האתר לא ב-https (' + location.protocol + ')');
+                let man = null; await t('קובץ manifest.json', async () => { const x = await okf('manifest.json'); man = await x.json(); return 'נמצא (' + (x.headers.get('content-type') || '?') + ')'; });
+                if (man) { for (const i of (man.icons || [])) await t('אייקון ' + i.sizes, async () => { const x = await okf(i.src); const b = await x.blob(); if (!/image\/png/.test(b.type)) throw new Error('סוג קובץ ' + b.type); return 'תקין'; }); await t('שדות חובה', async () => (man.name && man.start_url && man.display && (man.icons || []).some(i => /192/.test(i.sizes)) && (man.icons || []).some(i => /512/.test(i.sizes))) ? 'תקין' : 'נכשל: חסר שם/כתובת התחלה/אייקון 192 או 512'); await t('start_url נגיש', async () => { await okf(man.start_url); return 'תקין'; }); }
+                await t('Service Worker', async () => { const g = await navigator.serviceWorker.getRegistration(); return g ? 'רשום (' + (g.active ? 'פעיל' : 'ממתין') + ')' : 'נכשל: לא רשום (פתח את האתר שוב אחרי הטעינה הראשונה)'; });
+                return r; };
             add('link', { rel: 'icon', type: 'image/png', href: 'icons/icon-192.png' }); add('link', { rel: 'apple-touch-icon', href: 'icons/apple-touch-icon.png' });
             add('meta', { name: 'theme-color', content: '#0f172a' }); add('meta', { name: 'mobile-web-app-capable', content: 'yes' }); add('meta', { name: 'apple-mobile-web-app-capable', content: 'yes' }); add('meta', { name: 'apple-mobile-web-app-title', content: 'ממשל אישי' });
             let dip = null;
@@ -104,11 +111,11 @@
     })();
 
     // אם נטען gov-core.js ישן (מטמון, או קובץ שלא הועלה): מציגים הודעה ברורה במקום דף ריק
-    if (!window.GOV || window.GOV.VERSION !== '0.22.0') { window.addEventListener('DOMContentLoaded', () => { document.body.insertAdjacentHTML('afterbegin', '<div style="position:sticky;top:0;z-index:2000;background:#7f1d1d;color:#fff;padding:10px 14px;font:14px Rubik,sans-serif;direction:rtl;text-align:right">⚠️ גרסאות הקבצים לא תואמות (נטען gov-core.js ' + ((window.GOV && window.GOV.VERSION) || 'ישן') + ', נדרש 0.22.0). פתרון: ודא שהעלית את כל הקבצים מה-zip (בעיקר gov-core.js) ל-GitHub, המתן דקה-שתיים, ורענן בלי מטמון (באנדרואיד: הגדרות הדפדפן ← נקה נתוני אתר מטמון בלבד, לא "נתוני אתר" כי זה ימחק את הנתונים!).</div>'); }); }
-    document.write('<script src="gov-vault.js?v=0.22.0"><\/script>');   // כספת המפתחות (נטענת לפני הסנכרון וה-AI)
-    document.write('<script src="gov-sync.js?v=0.22.0"><\/script>');
-    document.write('<script src="gov-ai.js?v=0.22.0"><\/script>');
-    document.write('<script src="gov-review.js?v=0.22.0"><\/script>');    // הערכת ביטול (סוגיות והבטחות)    // שכבת AI משותפת (מפתח Gemini של המשתמש)    // סנכרון לענן: נטען סינכרונית בכל דף, כדי שכל שמירה תופעל אוטומטית
+    if (!window.GOV || window.GOV.VERSION !== '0.23.0') { window.addEventListener('DOMContentLoaded', () => { document.body.insertAdjacentHTML('afterbegin', '<div style="position:sticky;top:0;z-index:2000;background:#7f1d1d;color:#fff;padding:10px 14px;font:14px Rubik,sans-serif;direction:rtl;text-align:right">⚠️ גרסאות הקבצים לא תואמות (נטען gov-core.js ' + ((window.GOV && window.GOV.VERSION) || 'ישן') + ', נדרש 0.23.0). פתרון: ודא שהעלית את כל הקבצים מה-zip (בעיקר gov-core.js) ל-GitHub, המתן דקה-שתיים, ורענן בלי מטמון (באנדרואיד: הגדרות הדפדפן ← נקה נתוני אתר מטמון בלבד, לא "נתוני אתר" כי זה ימחק את הנתונים!).</div>'); }); }
+    document.write('<script src="gov-vault.js?v=0.23.0"><\/script>');   // כספת המפתחות (נטענת לפני הסנכרון וה-AI)
+    document.write('<script src="gov-sync.js?v=0.23.0"><\/script>');
+    document.write('<script src="gov-ai.js?v=0.23.0"><\/script>');
+    document.write('<script src="gov-review.js?v=0.23.0"><\/script>');    // הערכת ביטול (סוגיות והבטחות)    // שכבת AI משותפת (מפתח Gemini של המשתמש)    // סנכרון לענן: נטען סינכרונית בכל דף, כדי שכל שמירה תופעל אוטומטית
 
 
     // מכשיר חדש: קישור חיבור (#setup=...) או gov-config.enc.json. מזינים סיסמה: מפענחים, קובעים אותה כסיסמת כניסה, שומרים את הכתובת והמפתח בכספת ומושכים נתונים.
