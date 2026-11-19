@@ -31,10 +31,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.24.0"></script>
-    <script src="gov-nav.js?v=0.24.0"></script>
-    <script src="gov-scen.js?v=0.24.0"></script>
-    <script src="gov-elements.js?v=0.24.0"></script>
+    <script src="gov-core.js?v=0.24.1"></script>
+    <script src="gov-nav.js?v=0.24.1"></script>
+    <script src="gov-scen.js?v=0.24.1"></script>
+    <script src="gov-elements.js?v=0.24.1"></script>
     <div id="tip"></div>
     <header class="max-w-6xl mx-auto px-4 pt-6 pb-2 text-center">
         <h1 class="text-3xl font-black text-white">🪪 כרטיס אישי וקורות חיים</h1>
@@ -80,7 +80,7 @@
         }
 
         // ---------- כרטיס ראשי ----------
-        // תג היסוד המרכזי (v0.24.0): מהשאלון האחרון שהושלם ויש בו תוצאה. לא משפיע על הדירוג ועל שום חישוב אחר.
+        // תג היסוד המרכזי (v0.24.1): מהשאלון האחרון שהושלם ויש בו תוצאה. לא משפיע על הדירוג ועל שום חישוב אחר.
         function elTag() {
             const E = window.GOV_EL; if (!E) return ''; let a = null, s = null;
             let cb = null; try { cb = E.combined(); a = cb ? cb.scen : E.all().find(x => E.usable(x)) || null; s = cb || (a && E.score(a)); } catch (e) { a = null; }

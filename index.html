@@ -14,8 +14,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.24.0"></script>
-    <script src="gov-nav.js?v=0.24.0"></script>
+    <script src="gov-core.js?v=0.24.1"></script>
+    <script src="gov-nav.js?v=0.24.1"></script>
 
     <header class="max-w-6xl mx-auto px-4 pt-8 pb-4">
         <div class="text-[11px] font-bold text-amber-400 tracking-wider">☀️ לוח הבקרה של הממשלה</div>
@@ -126,7 +126,7 @@
             G.routines.forDay(TODAY).forEach(x => it.push({ src: 'routine', id: x.r.id, text: x.r.text, pid: x.r.pid, done: x.done, time: x.r.time }));
             G.treaties.dueOn(TODAY).forEach(t => it.push({ src: 'treaty', id: t.id, text: t.party + ': ' + t.title, pid: t.pid, done: t.checks.includes(TODAY), time: '' }));
             G.tasks.all().forEach(t => { const by = t.mode === 'by'; if (t.done ? t.doneAt === TODAY : (by ? t.from <= TODAY : (t.due && t.due <= TODAY))) it.push({ src: 'task', id: t.id, text: t.text, pid: t.pid || ((G.promises.get(t.promiseId) || {}).pid) || '', done: t.done, time: by ? '' : t.time, late: !t.done && t.due < TODAY, due: t.due, by }); });
-            G.promises.all().filter(p => p.month === MK && p.crit.type === 'recurring' && !['done', 'failed', 'dropped'].includes(p.status)).forEach(p => { const c = G.critStatus(p); if (c && (c.due || c.last === TODAY)) it.push({ src: 'crit', id: p.id, text: p.text + ' (כל ' + c.every + ' ימים)', pid: p.pid, done: c.last === TODAY, time: '', late: c.overdue }); });
+            G.promises.all().filter(p => p.month === MK && p.crit.type === 'recurring' && !['done', 'failed', 'dropped', 'expired'].includes(p.status)).forEach(p => { const c = G.critStatus(p); if (c && (c.due || c.last === TODAY)) it.push({ src: 'crit', id: p.id, text: p.text + ' (כל ' + c.every + ' ימים)', pid: p.pid, done: c.last === TODAY, time: '', late: c.overdue }); });
             G.events.on(TODAY).forEach(e => it.push({ src: 'event', id: e.id, text: e.title + (e.place ? ' 📍' + e.place : ''), pid: e.pid, done: e.done, time: e.start }));
             return it.sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
         }

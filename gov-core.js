@@ -35,7 +35,7 @@
     // ---------- מטא ----------
     const STATUS = {
         open: { l: 'טרם התחילה', c: '#94a3b8' }, progress: { l: 'בביצוע', c: '#38bdf8' }, done: { l: 'בוצעה', c: '#34d399' },
-        failed: { l: 'לא בוצעה', c: '#f87171' }, dropped: { l: 'הוסרה בנימוק', c: '#a78bfa' }
+        failed: { l: 'לא בוצעה', c: '#f87171' }, expired: { l: 'פגה תוקף', c: '#fbbf24' }, dropped: { l: 'הוסרה בנימוק', c: '#a78bfa' }
     };
     const PRIORITY = { 1: 'נמוכה', 2: 'רגילה', 3: 'מכרעת' };
     function gradeFor(v) {   // אותה סקאלה כמו ב-QB Master Class
@@ -76,7 +76,7 @@
     const promises = collection('promises', p => {
         const o = base(p), status = STATUS[o.status] ? o.status : 'open';
         return { id: str(o.id, 40) || uid(), month: MONTH_RE.test(o.month || '') ? o.month : monthOf(localDate()), pid: str(o.pid, 40), text: str(o.text, 300), why: str(o.why, 300), measure: str(o.measure, 300),
-            priority: clampInt(o.priority, 1, 3, 2), status, crit: cleanCrit(o.crit), progress: status === 'done' ? 100 : clampInt(o.progress, 0, 100, 0), created: dateOr(o.created, localDate()), doneAt: dateOr(o.doneAt, ''), dropReason: str(o.dropReason, 400), dropCat: DROP_CATS[o.dropCat] ? o.dropCat : '', droppedAt: dateOr(o.droppedAt, ''), dropIssueId: str(o.dropIssueId, 40), restores: cleanRestores(o.restores), reviews: cleanReviews(o.reviews), carried: o.carried === true };
+            priority: clampInt(o.priority, 1, 3, 2), status, crit: cleanCrit(o.crit), progress: status === 'done' ? 100 : clampInt(o.progress, 0, 100, 0), created: dateOr(o.created, localDate()), doneAt: dateOr(o.doneAt, ''), dropReason: str(o.dropReason, 400), dropCat: DROP_CATS[o.dropCat] ? o.dropCat : '', droppedAt: dateOr(o.droppedAt, ''), dropIssueId: str(o.dropIssueId, 40), restores: cleanRestores(o.restores), reviews: cleanReviews(o.reviews), carried: o.carried === true, expiredAt: dateOr(o.expiredAt, ''), expiredNote: str(o.expiredNote, 300) };
     });
     function critStatus(p) {
         const c = p.crit; if (!c || c.type === 'none') return null; const td = localDate();
@@ -503,18 +503,26 @@
         }); return dry ? would : n;
     }
     function syncPromise(id) {   // התקדמות = אחוז משימות שבוצעו. לא נוגע בהבטחה שהוכרעה (בוצעה/נכשלה/הוסרה) או בחודש שנסגר.
-        const p = id && promises.get(id); if (!p || ['done', 'failed', 'dropped'].includes(p.status) || review.isClosed(p.month)) return;
-        const ts = liveTasks().filter(t => t.promiseIds.includes(id)), cs = critStatus(p); if (!ts.length && !cs) return;
+        const p = id && promises.get(id); if (!p || ['done', 'failed', 'dropped', 'expired'].includes(p.status) || review.isClosed(p.month)) return;
+        const ts = tasksCol.all().filter(t => !t.cancelled && t.promiseIds.includes(id)), cs = critStatus(p); if (!ts.length && !cs) return;
         const pr = ts.length ? Math.round(ts.filter(t => t.done).length / ts.length * 100) : cs.pct, st = pr > 0 ? 'progress' : 'open';   // משימות קודמות לקריטריון
         if (p.progress !== pr || p.status !== st) { p.progress = pr; p.status = st; promises.save(p); }
     }
     promises.logCrit = function (id, value, date) {
         const p = promises.get(id), td = localDate(); date = date || td; if (!p) return ERR0('ההבטחה לא נמצאה.'); if (review.isClosed(p.month)) return ERR0('החודש נסגר.');
-        if (['done', 'failed', 'dropped'].includes(p.status)) return ERR0('ההבטחה כבר הוכרעה.'); if (p.crit.type === 'none') return ERR0('להבטחה אין קריטריון הצלחה.');
+        if (['done', 'failed', 'dropped', 'expired'].includes(p.status)) return ERR0('ההבטחה כבר הוכרעה.'); if (p.crit.type === 'none') return ERR0('להבטחה אין קריטריון הצלחה.');
         if (!DATE_RE.test(date) || date > td || date.slice(0, 7) !== p.month) return ERR0('תאריך לא חוקי.');
         const v = p.crit.type === 'recurring' ? 1 : clampInt(value, 1, 100000, 0); if (!v) return ERR0('הזן כמות חיובית.');
         if (p.crit.type === 'recurring' && p.crit.log.some(x => x.at === date)) return ERR0('כבר סומן ביצוע בתאריך הזה.');
         p.crit.log = p.crit.log.concat([{ at: date, value: v }]); promises.save(p); syncPromise(id); return { ok: true };
+    };
+    // פקיעת תוקף של הבטחה: נסגרת על אחוז הביצוע שהיה בעת ההכרזה (לא 100%), משימותיה הפתוחות נסגרות כפגות תוקף ונשארות מוצגות בה, והיא נשמרת בהיסטוריה
+    promises.expire = function (id, note) {
+        const p = promises.get(id); if (!p) return ERR0('ההבטחה לא נמצאה.'); if (review.isClosed(p.month)) return ERR0('החודש נסגר.'); if (['done', 'failed', 'dropped', 'expired'].includes(p.status)) return ERR0('ההבטחה כבר הוכרעה.');
+        const pct = p.progress, open = tasksCol.all().filter(t => !t.done && !t.cancelled && !t.expired && t.promiseIds.includes(id)).map(t => t.id);
+        p.status = 'expired'; p.progress = pct; p.expiredAt = localDate(); p.expiredNote = str(note, 300); if (!promises.save(p)) return ERR0('השמירה נכשלה.');
+        let n = 0; open.forEach(tid => { const t = tasksCol.get(tid); if (!t) return; t.expired = true; t.expiredAt = p.expiredAt; t.expiredNote = str('פגה תוקף יחד עם ההבטחה' + (note ? ': ' + note : ''), 300); t.expiredState = 'notdone'; tasksCol.save(t); n++; });
+        return { ok: true, pct, closedTasks: n };
     };
     promises.dropEffects = function (id) { const p = promises.get(id); return { tasks: p ? cancelOrphans({ promiseIds: [id] }, '', true) : [] }; };
     promises.drop = function (id, reason, cat) {   // הסרה בנימוק (לא מחיקה): סיבה + 40 תווים לפחות; נשמרת בהיסטוריה ומקבלת הערכה בדיעבד
@@ -531,7 +539,7 @@
         syncPromise(id); return { ok: true, tasks: nt };
     };
     promises.review = function (id, o) { const p = promises.get(id); if (p && p.dropIssueId) return ERR0('הבטחה זו בוטלה אוטומטית עם סוגיה. ההערכה נעשית בדף הסוגיה.'); return addReview(p, promises, o); };   // מותר גם בחודש סגור: זו הערכה בדיעבד, לא שינוי בהבטחה
-    promises.undoCrit = function (id) { const p = promises.get(id); if (!p || review.isClosed(p.month) || ['done', 'failed', 'dropped'].includes(p.status) || !p.crit.log.length) return false; p.crit.log = p.crit.log.slice(0, -1); promises.save(p); syncPromise(id); return true; };
+    promises.undoCrit = function (id) { const p = promises.get(id); if (!p || review.isClosed(p.month) || ['done', 'failed', 'dropped', 'expired'].includes(p.status) || !p.crit.log.length) return false; p.crit.log = p.crit.log.slice(0, -1); promises.save(p); syncPromise(id); return true; };
     const syncAll = (...lists) => [...new Set([].concat(...lists))].forEach(syncPromise);
     const tasks = {
         all: liveTasks, get: tasksCol.get, cancelled: () => tasksCol.all().filter(t => t.cancelled),
@@ -560,6 +568,7 @@
         toggle(id) { const t = tasksCol.get(id); if (!t || t.cancelled || t.expired) return null; t.done = !t.done; t.doneAt = t.done ? localDate() : ''; const c = tasksCol.save(t); syncAll(t.promiseIds); return c; },
         link(id, promiseId, on) { const t = tasksCol.get(id); if (!t || t.cancelled || !promises.get(promiseId)) return false; const ids = on ? t.promiseIds.concat([promiseId]) : t.promiseIds.filter(v => v !== promiseId); t.promiseIds = ids; const c = tasksCol.save(t); syncAll([promiseId], t.promiseIds); return !!c; },
         forPromise: id => liveTasks().filter(t => t.promiseIds.includes(id)),
+        closedForPromise: id => tasksCol.all().filter(t => t.expired && !t.done && !t.cancelled && t.promiseIds.includes(id)),   // נסגרו ללא השלמה (פג תוקף): ממשיכות להופיע בהבטחה, ונספרות בביצוע כלא בוצעו
         forIssue: id => liveTasks().filter(t => t.issueId === id),
         pids: taskPids,
         forPortfolio: pid => liveTasks().filter(t => taskPids(t).includes(pid))
@@ -746,7 +755,7 @@
     };
     function difficulty(pid) {   // היוריסטיקה שקופה של "עומס ואתגר" בתיק (לא מדד מדעי)
         const is = issues.all().filter(i => i.pid === pid), proms = promises.all().filter(p => p.pid === pid && p.status !== 'dropped'), td = localDate();
-        const openI = is.filter(i => i.status !== 'resolved' && i.status !== 'dropped').reduce((a, i) => a + i.severity, 0), failed = proms.filter(p => p.status === 'failed').length, activeP = proms.filter(p => !['done', 'failed'].includes(p.status)).length;
+        const openI = is.filter(i => i.status !== 'resolved' && i.status !== 'dropped').reduce((a, i) => a + i.severity, 0), failed = proms.filter(p => p.status === 'failed').length, activeP = proms.filter(p => !['done', 'failed', 'expired'].includes(p.status)).length;
         const overdue = liveTasks().filter(t => !t.done && t.due && t.due < td && taskPids(t).includes(pid)).length;
         const items = is.length + proms.length, load = openI + failed * 2 + activeP + overdue * 1.5;
         return { items, load: Math.round(load * 10) / 10, score: items >= 5 ? Math.max(1, Math.min(10, Math.round(1 + load * 9 / (load + 8)))) : null, openI, failed, activeP, overdue, doneRate: proms.length >= 3 ? Math.round(proms.filter(p => p.status === 'done').length / proms.length * 100) : null };
@@ -764,7 +773,7 @@
         tasksCol.all().filter(t => t.cancelled).forEach(t => out.push({ kind: 'task', id: t.id, text: t.text, at: t.cancelledAt || t.created, status: 'cancelled', note: t.cancelReason, pid: t.pid || ((promises.get(t.promiseId) || {}).pid) || '', ref: t.promiseId || t.issueId || '' }));
         tasksCol.all().filter(t => t.expired && !t.done && !t.cancelled).forEach(t => out.push({ kind: 'task', id: t.id, text: t.text, at: t.expiredAt || t.created, status: 'expired', note: 'פג תוקף, לא בוצעה' + (t.expiredNote ? ': ' + t.expiredNote : ''), pid: taskPids(t)[0] || '', ref: t.promiseId || t.issueId || '' }));
         wishCol.all().filter(w => w.done).forEach(w => out.push({ kind: 'wish', id: w.id, text: w.text, at: w.doneAt || w.created, note: w.cat }));
-        promises.all().filter(p => ['done', 'failed', 'dropped'].includes(p.status)).forEach(p => out.push({ kind: 'promise', id: p.id, text: p.text, at: p.doneAt || eom(p.month), pid: p.pid, status: p.status, note: p.dropReason, rating: p.status === 'dropped' ? lastPm(p) : null }));
+        promises.all().filter(p => ['done', 'failed', 'dropped', 'expired'].includes(p.status)).forEach(p => out.push({ kind: 'promise', id: p.id, text: p.text, at: p.status === 'expired' ? (p.expiredAt || eom(p.month)) : (p.doneAt || eom(p.month)), pid: p.pid, status: p.status, note: p.status === 'expired' ? 'פגה תוקף ב-' + p.progress + '% ביצוע' + (p.expiredNote ? ': ' + p.expiredNote : '') : p.dropReason, rating: p.status === 'dropped' ? lastPm(p) : null }));
         issuesCol.all().filter(i => i.status === 'resolved' || i.status === 'dropped').forEach(i => out.push({ kind: i.kind === 'distraction' ? 'distraction' : 'issue', id: i.id, text: i.title, status: i.status, rating: lastPm(i), at: (i.status === 'dropped' ? i.droppedAt : i.resolvedAt) || i.created, pid: i.pid, note: i.status === 'dropped' ? i.dropReason : i.note }));
         opsCol.all().filter(o => o.status !== 'active').forEach(o => out.push({ kind: 'op', id: o.id, text: o.title, status: o.status, rating: lastPm(o), at: (o.status === 'dropped' ? o.droppedAt : o.doneAt) || o.created, pid: o.pid, note: o.status === 'dropped' ? o.dropReason : o.note }));
         treatyCol.all().filter(t => t.status !== 'active').forEach(t => out.push({ kind: 'treaty', id: t.id, text: t.party + ': ' + t.title, at: t.closedAt || t.created, status: t.status, note: t.note }));
@@ -1105,5 +1114,5 @@
             + (o.label ? `<text x="50%" y="70%" text-anchor="middle" dominant-baseline="central" fill="#94a3b8" font-size="${Math.round(size * 0.13)}" font-family="Rubik,sans-serif">${esc(o.label)}</text>` : '') + `</svg>`;
     }
     try { tasks.sweepOrphans(); } catch (e) { /* לא חוסם טעינה */ }
-    window.GOV = { wins, VERSION: '0.24.0', esc, uid, pad, localDate, monthOf, addDays, addMonths, monthLabel, daysInMonth, HEB_MONTHS, DATE_RE, MONTH_RE, STATUS, PRIORITY, gradeFor, portfolios: Object.assign({}, portfolios, { save(p) { const r = portfolios.save(p); ministers.ensure(); return r; }, remove(id) { const r = portfolios.remove(id); ministers.ensure(); return r; } }), promises, ideas, daily, term, review, profile, score, lock, exportAll, importAll, rd, wr, TREATY_STATUS, PARTY_KIND, LEVEL, DECISION_STATUS, treaties, decisions, impactItem, optionImpact, nl, gauge, critStatus, wish, DROP_SCALE, dropStats, HORIZON, historyItems, pmProfile, tasks, routines, dayItems, issues: issues, ISSUE_STATUS, events, timelog, ministers, difficulty, history, METHODS, DOW, dowOf, cleanDays, people, relEvents, REL, closeness, contactStatus, relationAlerts, treatyTimeline, SECRET_KEYS, ops, caps, careers, langs, quiz, learnScore, LEARN_SHARE, DROP_CATS, DROP_MIN, progressRange, progressSummary };
+    window.GOV = { wins, VERSION: '0.24.1', esc, uid, pad, localDate, monthOf, addDays, addMonths, monthLabel, daysInMonth, HEB_MONTHS, DATE_RE, MONTH_RE, STATUS, PRIORITY, gradeFor, portfolios: Object.assign({}, portfolios, { save(p) { const r = portfolios.save(p); ministers.ensure(); return r; }, remove(id) { const r = portfolios.remove(id); ministers.ensure(); return r; } }), promises, ideas, daily, term, review, profile, score, lock, exportAll, importAll, rd, wr, TREATY_STATUS, PARTY_KIND, LEVEL, DECISION_STATUS, treaties, decisions, impactItem, optionImpact, nl, gauge, critStatus, wish, DROP_SCALE, dropStats, HORIZON, historyItems, pmProfile, tasks, routines, dayItems, issues: issues, ISSUE_STATUS, events, timelog, ministers, difficulty, history, METHODS, DOW, dowOf, cleanDays, people, relEvents, REL, closeness, contactStatus, relationAlerts, treatyTimeline, SECRET_KEYS, ops, caps, careers, langs, quiz, learnScore, LEARN_SHARE, DROP_CATS, DROP_MIN, progressRange, progressSummary };
 })();
