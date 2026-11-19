@@ -14,21 +14,21 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.23.0"></script>
-    <script src="gov-nav.js?v=0.23.0"></script>
-    <script src="gov-viz.js?v=0.23.0"></script>
-    <script src="gov-money.js?v=0.23.0"></script>
-    <script src="gov-vocab-data.js?v=0.23.0"></script>
-    <script src="gov-vocab-more.js?v=0.23.0"></script>
-    <script src="gov-vocab-more2.js?v=0.23.0"></script>
-    <script src="gov-vocab.js?v=0.23.0"></script>
+    <script src="gov-core.js?v=0.24.0"></script>
+    <script src="gov-nav.js?v=0.24.0"></script>
+    <script src="gov-viz.js?v=0.24.0"></script>
+    <script src="gov-money.js?v=0.24.0"></script>
+    <script src="gov-vocab-data.js?v=0.24.0"></script>
+    <script src="gov-vocab-more.js?v=0.24.0"></script>
+    <script src="gov-vocab-more2.js?v=0.24.0"></script>
+    <script src="gov-vocab.js?v=0.24.0"></script>
     <header class="max-w-5xl mx-auto px-4 pt-6 pb-2 text-center">
         <h1 class="text-3xl font-black text-white">✈️ מצב נסיעה לחו"ל</h1>
         <p class="text-slate-400 text-sm mt-1 max-w-2xl mx-auto">כל מה שחשוב לנסיעה במקום אחד: ספירה לאחור, רשימת מוכנות, מידע על היעד, התקדמות בשפה ומעקב הוצאות שמסתנכרן עם המעקב החודשי.</p>
     </header>
     <main class="max-w-5xl mx-auto px-4 mt-4"><div id="app"></div></main>
     <script>
-        const SYM = c => (GOV_MONEY.trips.CUR[c] || [c, c])[1], m3 = (t, ils, only) => T.curs(t).filter(c => !only || only.includes(c)).map(c => { const r = T.rateOf(t, c), v = r > 0 ? ils / r : null; return v == null ? SYM(c) + '—' : SYM(c) + (c === 'ILS' ? fmt(v) : (v < 100 ? f1(v) : fmt(v))); }).join(' · '), curLab = (t, c) => c === 'ILS' ? 'שקל (₪)' : c === 'USD' ? 'דולר ($)' : (T.CUR[c] ? T.CUR[c][0] + ' (' + c + ')' : c);
+        const SYM = c => (GOV_MONEY.trips.CUR[c] || [c, c])[1], m3 = (t, ils, only) => T.curs(t).filter(c => (only = only || (view === 'all' || !T.curs(t).includes(view) ? null : [view]), !only || only.includes(c))).map(c => { const r = T.rateOf(t, c), v = r > 0 ? ils / r : null; return v == null ? SYM(c) + '—' : SYM(c) + (c === 'ILS' ? fmt(v) : (v < 100 ? f1(v) : fmt(v))); }).join(' · '), curLab = (t, c) => c === 'ILS' ? 'שקל (₪)' : c === 'USD' ? 'דולר ($)' : (T.CUR[c] ? T.CUR[c][0] + ' (' + c + ')' : c);
         const G = GOV, T = GOV_MONEY.trips, M = GOV_MONEY.money, V = GOV_VIZ, esc = G.esc, $ = id => document.getElementById(id), fmt = n => Math.round(n).toLocaleString('he-IL'), f1 = n => (Math.round(n * 100) / 100).toLocaleString('he-IL');
         let sel = null, tab = 'sum', msg = '', adding = false;
         function render() {
@@ -78,18 +78,20 @@
         function tg(cid) { T.toggle(sel, cid); render(); } function rmc(cid) { T.removeCheck(sel, cid); render(); } function addc(g) { T.addCheck(sel, g, $('ck_' + g).value); render(); }
         function exp(s) {
             const t = s.trip, es = T.expenses(sel);
-            return `<div class="g-card"><h3 class="font-bold text-sm mb-2">➕ הוצאה בנסיעה</h3><div class="grid grid-cols-2 md:grid-cols-5 gap-2">
+            return `<div class="g-card mb-3"><div class="flex flex-wrap items-center gap-1.5 text-xs"><span class="text-slate-400">הצג סכומים ב:</span>${[['all', 'כולם'], ...T.curs(t).map(c => [c, SYM(c) + ' ' + c])].map(([v, l]) => `<button class="g-btn ${view === v ? 'pri' : ''}" onclick="setView('${v}')">${esc(l)}</button>`).join('')}</div></div><div class="g-card"><h3 class="font-bold text-sm mb-2">➕ הוצאה בנסיעה</h3><div class="grid grid-cols-2 md:grid-cols-5 gap-2">
                 <label class="g-lab">סכום<input id="ea" type="number" min="0" step="0.01" inputmode="decimal" class="g-inp" oninput="prevE()"></label>
-                <label class="g-lab">במטבע<select id="ecur" class="g-inp" onchange="curPick=this.value;prevE()">${T.curs(t).map(c => `<option value="${c}" ${(curPick && T.curs(t).includes(curPick) ? curPick : t.cur) === c ? 'selected' : ''}>${esc(curLab(t, c))}</option>`).join('')}</select></label>
+                <label class="g-lab">במטבע<select id="ecur" class="g-inp" onchange="curPick=this.value;render()">${T.curs(t).map(c => `<option value="${c}" ${(curPick && T.curs(t).includes(curPick) ? curPick : t.cur) === c ? 'selected' : ''}>${esc(curLab(t, c))}</option>`).join('')}</select></label>
+                <label class="g-lab">שער ברגע התשלום<input id="er" type="number" min="0" step="any" inputmode="decimal" class="g-inp" placeholder="${esc(String(T.rateOf(t, curPick && T.curs(t).includes(curPick) ? curPick : t.cur) || ''))}" oninput="prevE()"></label>
                 <label class="g-lab">קטגוריה<select id="ec" class="g-inp">${Object.entries(T.TCATS).map(([k, v]) => `<option value="${k}">${v[0]} ${esc(v[1])}</option>`).join('')}</select></label>
                 <label class="g-lab">תאריך<input id="ed" type="date" class="g-inp" value="${G.localDate()}"></label><label class="g-lab md:col-span-2">הערה<input id="en" class="g-inp" maxlength="120"></label></div>
-                <div id="pe" class="text-xs text-amber-300 mt-1 min-h-[16px]"></div><div class="text-[11px] text-slate-400 mt-1">ההוצאה נשמרת בשקלים לפי השער שבהגדרות (ובמקביל נשמר הסכום המקורי), ומופיעה גם במעקב ההוצאות החודשי בקטגוריה "נסיעות".</div>
+                <div id="pe" class="text-xs text-amber-300 mt-1 min-h-[16px]"></div><div class="text-[11px] text-slate-400 mt-1">ההוצאה נשמרת בשקלים לפי השער שהזנת כאן (אם השארת ריק: השער שבהגדרות הנסיעה), ובמקביל נשמר הסכום המקורי והשער, ומופיעה גם במעקב ההוצאות החודשי בקטגוריה "נסיעות".</div>
                 <button class="g-btn pri mt-2" onclick="adde()">הוסף</button>${msg ? '<span class="text-xs text-rose-300 mr-2">' + esc(msg) + '</span>' : ''}</div>
-              <div class="g-card mt-3"><div class="flex justify-between mb-2"><h3 class="font-bold text-sm">🧾 הוצאות הנסיעה (${es.length})</h3><a href="money.html" class="text-[11px] text-amber-400">למעקב החודשי ←</a></div>${es.length ? es.map(e => `<div class="flex items-center gap-2 text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1.5 mb-1"><span>${T.TCATS[e.tcat || 'other'][0]}</span><span class="w-20 text-slate-500 shrink-0">${esc(e.date)}</span><span class="flex-1">${esc(T.TCATS[e.tcat || 'other'][1])}${e.note ? ' · ' + esc(e.note) : ''}</span><span class="text-slate-500 text-[11px] text-left" dir="ltr">${e.orig ? SYM(e.orig.cur) + f1(e.orig.amt) + ' · ' : ''}${m3(t, e.amount)}</span><button class="text-rose-400" onclick="dele('${esc(e.id)}')">✕</button></div>`).join('') : '<div class="text-sm text-slate-400 text-center py-3">אין עדיין הוצאות בנסיעה.</div>'}</div>`;
+              <div class="g-card mt-3"><div class="flex justify-between mb-2"><h3 class="font-bold text-sm">🧾 הוצאות הנסיעה (${es.length})</h3><a href="money.html" class="text-[11px] text-amber-400">למעקב החודשי ←</a></div>${es.length ? es.map(e => `<div class="flex items-center gap-2 text-xs bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1.5 mb-1"><span>${T.TCATS[e.tcat || 'other'][0]}</span><span class="w-20 text-slate-500 shrink-0">${esc(e.date)}</span><span class="flex-1">${esc(T.TCATS[e.tcat || 'other'][1])}${e.note ? ' · ' + esc(e.note) : ''}</span><span class="text-slate-500 text-[11px] text-left" dir="ltr">${e.orig ? SYM(e.orig.cur) + f1(e.orig.amt) + (e.orig.cur !== 'ILS' ? ' (שער ' + e.orig.rate + ')' : '') + ' · ' : ''}${m3(t, e.amount)}</span><button class="text-rose-400" onclick="dele('${esc(e.id)}')">✕</button></div>`).join('') : '<div class="text-sm text-slate-400 text-center py-3">אין עדיין הוצאות בנסיעה.</div>'}</div>`;
         }
-        let curPick = '';
-        function prevE() { const t = T.get(sel), v = Number($('ea').value), c = $('ecur').value, r = T.rateOf(t, c); $('pe').textContent = v > 0 && r > 0 ? '= ' + m3(t, v * r) : (v > 0 ? 'חסר שער ל-' + c + ' בהגדרות' : ''); }
-        function adde() { const r = T.addExpense(sel, { cur: $('ecur').value, amt: $('ea').value, tcat: $('ec').value, date: $('ed').value, note: $('en').value }); msg = r.ok ? '' : r.error; render(); }
+        let curPick = '', view = (() => { try { return localStorage.getItem('gov_tripview') || 'all'; } catch (e) { return 'all'; } })();
+        function setView(v) { view = v; try { localStorage.setItem('gov_tripview', v); } catch (e) { } render(); }
+        function prevE() { const t = T.get(sel), v = Number($('ea').value), c = $('ecur').value, ov = Number($('er').value), r = c !== 'ILS' && ov > 0 ? ov : T.rateOf(t, c); $('pe').textContent = v > 0 && r > 0 ? '= ' + m3(t, v * r) : (v > 0 ? 'חסר שער ל-' + c + ' בהגדרות' : ''); }
+        function adde() { const r = T.addExpense(sel, { cur: $('ecur').value, amt: $('ea').value, rate: $('er').value, tcat: $('ec').value, date: $('ed').value, note: $('en').value }); msg = r.ok ? '' : r.error; render(); }
         function dele(id) { if (confirm('למחוק את ההוצאה? היא תימחק גם מהמעקב החודשי.')) { M.remove(id); render(); } }
         function info(s) {
             const t = s.trip;

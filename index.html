@@ -14,8 +14,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen pb-12">
-    <script src="gov-core.js?v=0.23.0"></script>
-    <script src="gov-nav.js?v=0.23.0"></script>
+    <script src="gov-core.js?v=0.24.0"></script>
+    <script src="gov-nav.js?v=0.24.0"></script>
 
     <header class="max-w-6xl mx-auto px-4 pt-8 pb-4">
         <div class="text-[11px] font-bold text-amber-400 tracking-wider">☀️ לוח הבקרה של הממשלה</div>
@@ -282,9 +282,15 @@
                 : `<div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs"><label class="g-lab">כתובת ה-Web App (מסתיימת ב-/exec)<input id="cUrl" type="password" class="g-inp" dir="ltr" autocomplete="off" placeholder="https://script.google.com/macros/s/.../exec"></label>
                     <label class="g-lab">מפתח (GOV_TOKEN)<input id="cTok" type="password" class="g-inp" dir="ltr" autocomplete="off"></label></div>
                 <div class="flex flex-wrap gap-2 mt-3"><button class="g-btn pri" onclick="cloudSave()">💾 שמור ובדוק חיבור</button></div><p class="text-[10px] text-slate-500 mt-1">לאחר השמירה השדות מתרוקנים והערכים לא יוצגו שוב.</p>`}
+                ${!sm && conn ? `<details class="mt-3 text-xs"><summary class="cursor-pointer text-emerald-300 font-bold">🔐 הצפנת התוכן בענן ${c.enc ? '(פעילה ✅)' : '(כבויה)'}</summary>
+                    <p class="text-[11px] text-slate-400 my-2 leading-relaxed">${c.enc ? 'כל הערכים נשלחים לדרייב מוצפנים (AES-256) בסיסמה שרק אתה מכיר. שמות הקבצים הפנימיים (כמו gov_tasks) עדיין גלויים, התוכן לא. במכשיר חדש יש להזין את אותה סיסמה. <b>אם תשכח אותה, לא ניתן לשחזר את הנתונים מהענן.</b>' : 'כרגע קובץ הנתונים בדרייב אינו מוצפן: מי שיש לו גישה לחשבון ה-Google שלך יכול לקרוא אותו. הפעלת הצפנה מצפינה את הכול ומוחקת את הגיבויים הישנים בדרייב (דורש Code.gs מעודכן). הסיסמה נשמרת רק בכספת המקומית, והיא לא נכללת בקישור חיבור מכשיר.'}</p>
+                    <div class="flex flex-wrap gap-2"><input id="encPw" type="password" class="g-inp" style="margin:0;max-width:16rem" placeholder="סיסמת הצפנה (10+ תווים)" autocomplete="new-password">${c.enc ? '<button class="g-btn" onclick="encSet()">עדכן סיסמה במכשיר הזה</button><button class="g-btn" onclick="encOff()">בטל הצפנה</button>' : '<button class="g-btn pri" onclick="encOn()">🔐 הפעל הצפנה</button>'}</div></details>` : ''}
                 <div class="text-[11px] mt-2" style="color:${st[2]}">${h(c.msg)}${c.last ? ' • סנכרון אחרון: ' + new Date(c.last).toLocaleString('he-IL') : ''}</div>`;
         }
         async function cloudSave() { const r = await window.GOV_SYNC.setConfig({ url: $('cUrl').value, token: $('cTok').value, auto: true }); if (!r.ok) { alert(r.error); return; } renderCloud(); await window.GOV_SYNC.ping(); renderCloud(); }
+        async function encOn() { const r = await window.GOV_SYNC.enableEnc($('encPw').value); if (!r.ok) { alert(r.error); return; } alert('ההצפנה פעילה. ' + (r.purged === null ? 'לא ניתן היה למחוק גיבויים ישנים: פרוס מחדש את Code.gs ולחץ שוב, או מחק ידנית בדרייב את הקבצים gov_data_backup_* ו-gov_data_daily_*.' : 'נמחקו ' + r.purged + ' גיבויים ישנים לא מוצפנים בדרייב.')); renderCloud(); }
+        async function encSet() { const r = await window.GOV_SYNC.setEncPass($('encPw').value); alert(r.ok ? 'הסיסמה עודכנה במכשיר הזה.' : r.error); await window.GOV_SYNC.sync(); renderCloud(); }
+        async function encOff() { if (!confirm('לבטל הצפנה? הנתונים בענן יוחזרו לטקסט גלוי.')) return; const r = await window.GOV_SYNC.disableEnc(); if (!r.ok) alert(r.error); renderCloud(); }
         async function cloudAuto(on) { await window.GOV_SYNC.setConfig({ auto: on }); renderCloud(); }
         async function cloudSyncNow() { await window.GOV_SYNC.sync(); renderCloud(); }
         async function cloudMerge() { await window.GOV_SYNC.mergeFirst(); renderCloud(); }

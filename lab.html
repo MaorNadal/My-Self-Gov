@@ -25,12 +25,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen">
-    <script src="gov-core.js?v=0.23.0"></script>
-    <script src="gov-nav.js?v=0.23.0"></script>
-    <script src="gov-vocab-data.js?v=0.23.0"></script>
-    <script src="gov-vocab-more.js?v=0.23.0"></script>
-    <script src="gov-vocab-more2.js?v=0.23.0"></script>
-    <script src="gov-vocab.js?v=0.23.0"></script>
+    <script src="gov-core.js?v=0.24.0"></script>
+    <script src="gov-nav.js?v=0.24.0"></script>
+    <script src="gov-vocab-data.js?v=0.24.0"></script>
+    <script src="gov-vocab-more.js?v=0.24.0"></script>
+    <script src="gov-vocab-more2.js?v=0.24.0"></script>
+    <script src="gov-vocab.js?v=0.24.0"></script>
+    <script src="gov-dialogs.js?v=0.24.0"></script>
     <div class="lb-wrap">
         <header class="text-center mb-2">
             <h1 class="text-3xl font-black text-white">🧪 מעבדת למידה</h1>
@@ -40,7 +41,7 @@
     </div>
     <script>
         const G = GOV, V = GOV_VOCAB, P = GOV_PT, esc = G.esc, $ = id => document.getElementById(id);
-        const MODES = { build: ['🧱', 'בנה את המשפט', 'מסדרים אריחי מילים לפי הסדר הנכון. מאמן סדר מילים ודקדוק מבלי להקליד.'], cloze: ['🕳️', 'השלם את החסר', 'חסרה מילה אחת במשפט ויש 4 אפשרויות. מאמן זיהוי מילים בהקשר.'], dict: ['🎧', 'הכתבה', 'שומעים משפט ומקלידים מה ששמעתם. מאמן שמיעה והבנת הנשמע ואיות.'] };
+        const MODES = { build: ['🧱', 'בנה את המשפט', 'מסדרים אריחי מילים לפי הסדר הנכון. מאמן סדר מילים ודקדוק מבלי להקליד.'], cloze: ['🕳️', 'השלם את החסר', 'חסרה מילה אחת במשפט ויש 4 אפשרויות. מאמן זיהוי מילים בהקשר.'], talk: ['💬', 'דיאלוג: בחר את התשובה', 'שיחה קצרה מצבי טיול. בכל תור שלך בוחרים את המשפט המתאים. מאמן ניהול שיחה.'], dict: ['🎧', 'הכתבה', 'שומעים משפט ומקלידים מה ששמעתם. מאמן שמיעה והבנת הנשמע ואיות.'] };
         const NORM = s => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[.,!?¿¡;:"()]/g, '').replace(/\s+/g, ' ').trim();
         const tokens = s => String(s).replace(/[.,!?¿¡;:"()]/g, '').split(/\s+/).filter(Boolean);
         const sh = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -56,12 +57,13 @@
         }
         function menu() {
             const cats = Object.keys(V.CATS).filter(k => SENTS().some(s => s.cat === k));
-            return `<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">${Object.entries(MODES).map(([k, v]) => `<button class="lb-mode" onclick="start('${k}')"><div class="text-2xl">${v[0]}</div><div class="font-black text-white mt-1">${v[1]}</div><div class="text-[12px] text-slate-400 mt-1 leading-relaxed">${v[2]}</div></button>`).join('')}</div>
-              <div class="lb-box"><div class="text-xs text-slate-400 mb-2">נושא למשפטים</div><div class="flex flex-wrap gap-1.5"><button class="lb-btn ${cat === 'all' ? 'on' : ''}" onclick="cat='all';render()">הכול (${SENTS().length})</button>${cats.map(k => `<button class="lb-btn ${cat === k ? 'on' : ''}" onclick="cat='${k}';render()">${esc(V.CATS[k].ic || V.CATS[k].e || '')} ${esc(V.CATS[k].l || V.CATS[k].he || V.CATS[k].n || k)}</button>`).join('')}</div>
+            return `<div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">${Object.entries(MODES).map(([k, v]) => `<button class="lb-mode" onclick="start('${k}')"><div class="text-2xl">${v[0]}</div><div class="font-black text-white mt-1">${v[1]}</div><div class="text-[12px] text-slate-400 mt-1 leading-relaxed">${v[2]}</div></button>`).join('')}</div>
+              <div class="lb-box"><div class="text-xs text-slate-400 mb-2">דיאלוגים (בחר שיחה)</div><div class="flex flex-wrap gap-1.5 mb-3">${(window.GOV_DIALOGS || []).map(d => `<button class="lb-btn" onclick="mode='talk';st={n:0,ok:0,t0:Date.now()};dlgStart('${d.id}');render()">${d.ic} ${esc(d.he)}</button>`).join('')}</div><div class="text-xs text-slate-400 mb-2">נושא למשפטים (לשלוש הטכניקות האחרות)</div><div class="flex flex-wrap gap-1.5"><button class="lb-btn ${cat === 'all' ? 'on' : ''}" onclick="cat='all';render()">הכול (${SENTS().length})</button>${cats.map(k => `<button class="lb-btn ${cat === k ? 'on' : ''}" onclick="cat='${k}';render()">${esc(V.CATS[k].ic || V.CATS[k].e || '')} ${esc(V.CATS[k].l || V.CATS[k].he || V.CATS[k].n || k)}</button>`).join('')}</div>
                 <p class="text-[11px] text-slate-500 mt-3 leading-relaxed">למה זה עובד: שליפה פעילה (לא רק זיהוי) מחזקת זיכרון הרבה יותר מקריאה חוזרת. בנייה והכתבה מכריחות אותך להפיק את המשפט, והשלמה מחזקת הקשר. טענה זו מבוססת על מחקר כללי על שליפה פעילה ולא נבדקה על ההצלחה שלך דווקא.</p></div>`;
         }
         function hdr() { return `<div class="flex items-center gap-2 flex-wrap"><button class="lb-btn" onclick="stop()">→ סיום</button><span class="text-xs text-slate-300">${MODES[mode][0]} ${MODES[mode][1]}</span><span class="flex-1"></span><span class="text-xs text-slate-400">${st.ok} נכון מתוך ${st.n}</span></div><div class="lb-bar mt-2"><i style="width:${st.n ? Math.round(st.ok / st.n * 100) : 0}%"></i></div>`; }
         function run() {
+            if (mode === 'talk') return talkView();
             const s = q.s;
             let body = '';
             if (mode === 'build') {
@@ -81,8 +83,23 @@
             const fb = done ? `<div class="mt-3 p-3 rounded-xl ${done.ok ? 'bg-emerald-500/10 border border-emerald-500/40' : 'bg-rose-500/10 border border-rose-500/40'}"><div class="font-bold ${done.ok ? 'text-emerald-300' : 'text-rose-300'}">${done.ok ? (done.note || '✅ נכון!') : '❌ לא בדיוק'}</div><div class="lb-pt text-lg mt-1" dir="ltr">${done.diff || esc(q.pt)}</div><div class="text-sm text-slate-400 mt-1">${esc(s.he)}</div><div class="flex gap-2 mt-3"><button class="lb-btn" onclick="hear()">🔊</button><button class="lb-btn pri" onclick="nextQ()">הבא ←</button></div></div>` : '';
             return hdr() + `<div class="lb-box">${body}${fb}</div>`;
         }
-        let showHe = false;
-        function start(m) { mode = m; if (!pool().length) { msg = 'אין משפטים בנושא הזה.'; render(); return; } st = { n: 0, ok: 0, t0: Date.now() }; try { V.startSession('sent'); } catch (e) { } nextQ(); }
+        let showHe = false, dlg = null, li = 0, dOpts = null, dPick = -1, dDone = {};
+        function dlgStart(id) { dlg = (id ? GOV_DIALOGS.find(d => d.id === id) : null) || GOV_DIALOGS[Math.floor(Math.random() * GOV_DIALOGS.length)]; li = 0; dPick = -1; dDone = { n: 0, ok: 0 }; dAdvance(); }
+        function dAdvance() { while (li < dlg.lines.length && dlg.lines[li].w === 'o') li++; dOpts = li < dlg.lines.length ? sh([dlg.lines[li].pt].concat(dlg.lines[li].bad)) : null; dPick = -1; }
+        function dPickOpt(i) { if (dPick >= 0) return; dPick = i; const l = dlg.lines[li], ok = dOpts[i] === l.pt; st.n++; if (ok) st.ok++; dDone.n++; if (ok) dDone.ok++; try { V.touch(); } catch (e) { } render(); }
+        function dNext() { li++; dAdvance(); render(); }
+        function talkView() {
+            const shown = dlg.lines.slice(0, li), cur = dlg.lines[li], fin = li >= dlg.lines.length;
+            const bub = (l, me) => `<div class="flex ${me ? 'justify-start' : 'justify-end'} mt-2"><div class="max-w-[85%] rounded-2xl px-3 py-2 ${me ? 'bg-sky-900/50 border border-sky-500/40' : 'bg-slate-800 border border-slate-600'}"><div class="lb-pt" dir="ltr">${esc(l.pt)} <button class="text-slate-400 text-xs" onclick="V.speak('${esc(l.pt).replace(/'/g, "\\'")}')">🔊</button></div><div class="text-[11px] text-slate-400 mt-0.5">${esc(l.he)}</div></div></div>`;
+            let body = `<div class="font-black text-white">${esc(dlg.ic)} ${esc(dlg.he)}</div>` + shown.map(l => bub(l, l.w === 'u')).join('');
+            if (!fin) {
+                if (!(cur.w === 'u')) { body += ''; }
+                body += `<div class="text-xs text-slate-400 mt-3">${dPick < 0 ? 'מה אתה עונה?' : (dOpts[dPick] === cur.pt ? '✅ נכון' : '❌ התשובה הנכונה מסומנת בירוק')}</div>` + dOpts.map((o, i) => `<button class="lb-opt ${dPick >= 0 ? (o === cur.pt ? 'ok' : dPick === i ? 'no' : '') : ''}" ${dPick >= 0 ? 'disabled' : ''} onclick="dPickOpt(${i})">${esc(o)}</button>`).join('');
+                if (dPick >= 0) body += `<div class="text-sm text-slate-300 mt-2">${esc(cur.he)}</div><div class="mt-2"><button class="lb-btn pri" onclick="dNext()">המשך ←</button></div>`;
+            } else body += `<div class="mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/40"><div class="font-bold text-emerald-300">סיום השיחה: ${dDone.ok} מתוך ${dDone.n} תשובות נכונות</div><div class="flex gap-2 mt-2 flex-wrap"><button class="lb-btn pri" onclick="dlgStart()">שיחה אחרת 🎲</button><button class="lb-btn" onclick="dlgStart('${dlg.id}')">שוב אותה שיחה</button></div></div>`;
+            return hdr() + `<div class="lb-box">${body}</div>`;
+        }
+        function start(m) { mode = m; if (m === 'talk') { st = { n: 0, ok: 0, t0: Date.now() }; dlgStart(); render(); return; } if (!pool().length) { msg = 'אין משפטים בנושא הזה.'; render(); return; } st = { n: 0, ok: 0, t0: Date.now() }; try { V.startSession('sent'); } catch (e) { } nextQ(); }
         function nextQ() { q = mkQ(); done = null; picked = []; showHe = false; render(); if (mode === 'dict') setTimeout(() => hear(), 200); const d = $('dt'); if (d) d.focus(); }
         function stop() { try { V.endSession(); } catch (e) { } const mins = Math.max(1, Math.round((Date.now() - st.t0) / 60000)); const n = st.n, ok = st.ok; mode = null; q = null; done = null; msg = n ? 'סיימת: ' + ok + ' נכון מתוך ' + n + '.' : ''; lastMins = n ? mins : 0; render(); }
         let lastMins = 0;

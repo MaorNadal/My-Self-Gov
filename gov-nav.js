@@ -98,7 +98,7 @@
                 if (man) { for (const i of (man.icons || [])) await t('אייקון ' + i.sizes, async () => { const x = await okf(i.src); const b = await x.blob(); if (!/image\/png/.test(b.type)) throw new Error('סוג קובץ ' + b.type); return 'תקין'; }); await t('שדות חובה', async () => (man.name && man.start_url && man.display && (man.icons || []).some(i => /192/.test(i.sizes)) && (man.icons || []).some(i => /512/.test(i.sizes))) ? 'תקין' : 'נכשל: חסר שם/כתובת התחלה/אייקון 192 או 512'); await t('start_url נגיש', async () => { await okf(man.start_url); return 'תקין'; }); }
                 await t('Service Worker', async () => { const g = await navigator.serviceWorker.getRegistration(); return g ? 'רשום (' + (g.active ? 'פעיל' : 'ממתין') + ')' : 'נכשל: לא רשום (פתח את האתר שוב אחרי הטעינה הראשונה)'; });
                 return r; };
-            add('link', { rel: 'icon', type: 'image/png', href: 'icons/icon-192.png' }); add('link', { rel: 'apple-touch-icon', href: 'icons/apple-touch-icon.png' });
+            add('link', { rel: 'icon', type: 'image/png', href: 'icon-192.png' }); add('link', { rel: 'apple-touch-icon', href: 'apple-touch-icon.png' });
             add('meta', { name: 'theme-color', content: '#0f172a' }); add('meta', { name: 'mobile-web-app-capable', content: 'yes' }); add('meta', { name: 'apple-mobile-web-app-capable', content: 'yes' }); add('meta', { name: 'apple-mobile-web-app-title', content: 'ממשל אישי' });
             let dip = null;
             window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); dip = e; window.dispatchEvent(new Event('gov:pwa')); });
@@ -111,11 +111,11 @@
     })();
 
     // אם נטען gov-core.js ישן (מטמון, או קובץ שלא הועלה): מציגים הודעה ברורה במקום דף ריק
-    if (!window.GOV || window.GOV.VERSION !== '0.23.0') { window.addEventListener('DOMContentLoaded', () => { document.body.insertAdjacentHTML('afterbegin', '<div style="position:sticky;top:0;z-index:2000;background:#7f1d1d;color:#fff;padding:10px 14px;font:14px Rubik,sans-serif;direction:rtl;text-align:right">⚠️ גרסאות הקבצים לא תואמות (נטען gov-core.js ' + ((window.GOV && window.GOV.VERSION) || 'ישן') + ', נדרש 0.23.0). פתרון: ודא שהעלית את כל הקבצים מה-zip (בעיקר gov-core.js) ל-GitHub, המתן דקה-שתיים, ורענן בלי מטמון (באנדרואיד: הגדרות הדפדפן ← נקה נתוני אתר מטמון בלבד, לא "נתוני אתר" כי זה ימחק את הנתונים!).</div>'); }); }
-    document.write('<script src="gov-vault.js?v=0.23.0"><\/script>');   // כספת המפתחות (נטענת לפני הסנכרון וה-AI)
-    document.write('<script src="gov-sync.js?v=0.23.0"><\/script>');
-    document.write('<script src="gov-ai.js?v=0.23.0"><\/script>');
-    document.write('<script src="gov-review.js?v=0.23.0"><\/script>');    // הערכת ביטול (סוגיות והבטחות)    // שכבת AI משותפת (מפתח Gemini של המשתמש)    // סנכרון לענן: נטען סינכרונית בכל דף, כדי שכל שמירה תופעל אוטומטית
+    if (!window.GOV || window.GOV.VERSION !== '0.24.0') { window.addEventListener('DOMContentLoaded', () => { document.body.insertAdjacentHTML('afterbegin', '<div style="position:sticky;top:0;z-index:2000;background:#7f1d1d;color:#fff;padding:10px 14px;font:14px Rubik,sans-serif;direction:rtl;text-align:right">⚠️ גרסאות הקבצים לא תואמות (נטען gov-core.js ' + ((window.GOV && window.GOV.VERSION) || 'ישן') + ', נדרש 0.24.0). פתרון: ודא שהעלית את כל הקבצים מה-zip (בעיקר gov-core.js) ל-GitHub, המתן דקה-שתיים, ורענן בלי מטמון (באנדרואיד: הגדרות הדפדפן ← נקה נתוני אתר מטמון בלבד, לא "נתוני אתר" כי זה ימחק את הנתונים!).</div>'); }); }
+    document.write('<script src="gov-vault.js?v=0.24.0"><\/script>');   // כספת המפתחות (נטענת לפני הסנכרון וה-AI)
+    document.write('<script src="gov-sync.js?v=0.24.0"><\/script>');
+    document.write('<script src="gov-ai.js?v=0.24.0"><\/script>');
+    document.write('<script src="gov-review.js?v=0.24.0"><\/script>');    // הערכת ביטול (סוגיות והבטחות)    // שכבת AI משותפת (מפתח Gemini של המשתמש)    // סנכרון לענן: נטען סינכרונית בכל דף, כדי שכל שמירה תופעל אוטומטית
 
 
     // מכשיר חדש: קישור חיבור (#setup=...) או gov-config.enc.json. מזינים סיסמה: מפענחים, קובעים אותה כסיסמת כניסה, שומרים את הכתובת והמפתח בכספת ומושכים נתונים.
